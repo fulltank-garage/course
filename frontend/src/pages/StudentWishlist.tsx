@@ -63,7 +63,7 @@ function WishlistCard({ item }: { item: StudentCourse }) {
             <span>{item.enrollment.progress}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-zinc-200">
-            <div className="h-1.5 rounded-full bg-black" style={{ width: `${Math.min(item.enrollment.progress, 100)}%` }} />
+            <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.min(item.enrollment.progress, 100)}%` }} />
           </div>
         </div>
 

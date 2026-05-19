@@ -15,6 +15,7 @@ dist-ssr
 .env.*
 *.local
 .gitdir/
+.git.broken-*/
 .ai/
 backend/ai-cache/
 backend/uploads/*

@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { useApi } from '../hooks/useApi'
 import { api, authStorage, type StudentProfile } from '../services/api'
-import type { Course, Lesson } from '../types/course'
+import type { Course, CourseStudent, Lesson } from '../types/course'
 
 const defaultCover =
   'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80'
@@ -48,6 +48,13 @@ const createEmptyDraft = () => ({
 
 type CourseDraft = ReturnType<typeof createEmptyDraft>
 type FormMode = 'create' | 'edit'
+type TeacherCourseStudent = CourseStudent & {
+  courseId: string
+  courseTitle: string
+  courseSlug: string
+  courseCoverImage: string
+  courseCategory: string
+}
 type LessonDraft = {
   title: string
   duration: string
@@ -100,6 +107,27 @@ const formatVideoDuration = (durationSeconds: number) => {
 
   return `${String(minutes).padStart(2, '0')}:${paddedSeconds}`
 }
+
+const formatThaiDate = (value?: string | null) => {
+  if (!value) return '-'
+
+  return new Intl.DateTimeFormat('th-TH', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value))
+}
+
+const hasStartedEnrollment = (enrollment: { progress: number; lastLessonId: string | null; lastAccessedAt?: string; joinedAt: string }) => {
+  if (enrollment.progress > 0) return true
+  if (enrollment.lastLessonId) return true
+  if (!enrollment.lastAccessedAt) return false
+
+  return new Date(enrollment.lastAccessedAt).getTime() > new Date(enrollment.joinedAt).getTime()
+}
+
+const getCourseStudentCount = (course: Course) => course.enrolledStudents?.length ?? course.students
+const getCourseRevenue = (course: Course) => course.price * getCourseStudentCount(course)
 
 const readVideoDuration = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -268,15 +296,24 @@ const courseStatusMeta = {
 const getCourseStatusMeta = (status: Course['status'] | undefined) =>
   courseStatusMeta[status ?? 'published'] ?? courseStatusMeta.published
 
-const teacherNavItems = [
-  { to: '/teacher', label: 'หน้าหลัก', icon: Home },
-  { to: '/teacher', label: 'คอร์สของฉัน', icon: Video },
-  { to: '/teacher', label: 'สร้างคอร์ส', icon: ImagePlus },
-  { to: '/teacher', label: 'นักเรียน', icon: UserRound },
-  { to: '/teacher', label: 'รายได้', icon: CircleDollarSign },
-  { to: '/teacher', label: 'ข้อความ', icon: Mail },
-  { to: '/teacher', label: 'รีวิว', icon: Star },
-  { to: '/teacher?section=profile', label: 'การตั้งค่า', icon: Settings },
+type TeacherSection = 'home' | 'my-courses' | 'students' | 'messages' | 'reviews' | 'profile'
+type StudentCategory = 'all' | 'active' | 'completed' | 'follow-up' | 'by-course'
+
+const teacherNavItems: Array<{ key: TeacherSection; to: string; label: string; icon: typeof Home }> = [
+  { key: 'home', to: '/teacher', label: 'หน้าหลัก', icon: Home },
+  { key: 'my-courses', to: '/teacher?section=my-courses', label: 'คอร์สของฉัน', icon: Video },
+  { key: 'students', to: '/teacher?section=students', label: 'นักเรียน', icon: UserRound },
+  { key: 'messages', to: '/teacher?section=messages', label: 'ข้อความ', icon: Mail },
+  { key: 'reviews', to: '/teacher?section=reviews', label: 'รีวิว', icon: Star },
+  { key: 'profile', to: '/teacher?section=profile', label: 'การตั้งค่า', icon: Settings },
+]
+
+const studentCategoryOptions: Array<{ value: StudentCategory; label: string }> = [
+  { value: 'all', label: 'ทั้งหมด' },
+  { value: 'active', label: 'กำลังเรียน' },
+  { value: 'completed', label: 'เรียนจบแล้ว' },
+  { value: 'follow-up', label: 'ต้องติดตาม' },
+  { value: 'by-course', label: 'ตามคอร์ส' },
 ]
 
 function TeacherShell({
@@ -284,14 +321,12 @@ function TeacherShell({
   teacherName,
   teacherEmail,
   avatarUrl,
-  onCreateCourse,
   children,
 }: {
-  activeSection: 'courses' | 'profile'
+  activeSection: TeacherSection
   teacherName: string
   teacherEmail: string
   avatarUrl?: string
-  onCreateCourse: () => void
   children: React.ReactNode
 }) {
   const handleLogout = async () => {
@@ -318,23 +353,13 @@ function TeacherShell({
         </div>
 
         <nav className="space-y-2 px-5">
-          {teacherNavItems.map((item, index) => {
+          {teacherNavItems.map((item) => {
             const Icon = item.icon
-            const active =
-              item.to.includes('profile') ? activeSection === 'profile' : index === 0 && activeSection === 'courses'
+            const active = item.key === activeSection
             const navClassName = [
               'flex items-center gap-4 rounded-lg px-4 py-3 text-sm font-medium transition',
               active ? 'bg-white/12 text-white shadow-inner shadow-white/5' : 'text-white/78 hover:bg-white/8 hover:text-white',
             ].join(' ')
-
-            if (item.label === 'สร้างคอร์ส') {
-              return (
-                <button key={item.label} type="button" className={`${navClassName} w-full text-left`} onClick={onCreateCourse}>
-                  <Icon size={19} />
-                  <span>{item.label}</span>
-                </button>
-              )
-            }
 
             return (
               <Link
@@ -394,14 +419,6 @@ function TeacherShell({
               >
                 <Bell size={18} />
               </button>
-              <button
-                type="button"
-                className="inline-flex h-11 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
-                onClick={onCreateCourse}
-              >
-                <Plus size={17} />
-                สร้างคอร์สใหม่
-              </button>
               {avatarUrl ? (
                 <img src={avatarUrl} alt={teacherName} className="h-11 w-11 rounded-full object-cover" />
               ) : (
@@ -412,23 +429,13 @@ function TeacherShell({
             </div>
           </header>
           <nav className="mb-6 flex gap-2 overflow-x-auto pb-2 lg:hidden">
-            {teacherNavItems.map((item, index) => {
+            {teacherNavItems.map((item) => {
               const Icon = item.icon
-              const active =
-                item.to.includes('profile') ? activeSection === 'profile' : index === 0 && activeSection === 'courses'
+              const active = item.key === activeSection
               const mobileClassName = [
                 'inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition',
                 active ? 'border-black bg-black text-white' : 'border-zinc-200 bg-white text-black hover:border-black',
               ].join(' ')
-
-              if (item.label === 'สร้างคอร์ส') {
-                return (
-                  <button key={item.label} type="button" className={mobileClassName} onClick={onCreateCourse}>
-                    <Icon size={16} />
-                    {item.label}
-                  </button>
-                )
-              }
 
               return (
                 <Link key={`${item.label}-${item.to}-mobile`} to={item.to} className={mobileClassName}>
@@ -471,25 +478,33 @@ function CourseFormModal({
   onCoverChange: (event: React.ChangeEvent<HTMLInputElement>) => void
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-950/60 p-0 sm:p-4 lg:p-6">
-      <div className="flex h-full w-full max-w-[1500px] flex-col overflow-hidden rounded-none border border-slate-200 bg-white shadow-2xl sm:h-[calc(100vh-2rem)] sm:rounded-lg lg:h-[calc(100vh-3rem)]">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 sm:px-6">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/55 p-0 sm:items-center sm:p-5">
+      <div className="flex h-full w-full max-w-5xl flex-col overflow-hidden bg-white shadow-2xl sm:max-h-[calc(100vh-2.5rem)] sm:rounded-xl sm:border sm:border-zinc-200">
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-200 px-5 py-5 sm:px-7">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-slate-950">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              {mode === 'create' ? 'ข้อมูลคอร์สใหม่' : 'ข้อมูลคอร์ส'}
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-black">
               {mode === 'create' ? 'สร้างคอร์สใหม่' : 'แก้ไขคอร์ส'}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-2 text-sm leading-6 text-zinc-500">
               {mode === 'create'
-                ? 'สร้างข้อมูลคอร์สก่อน แล้วเพิ่มบทเรียนจากปุ่มบทเรียนในตาราง'
-                : 'ปรับข้อมูลคอร์สและรูปปกได้จาก popup นี้'}
+                ? 'กรอกข้อมูลหลักของคอร์สก่อน แล้วค่อยเพิ่มบทเรียนจากหน้าคอร์สของฉัน'
+                : 'ปรับข้อมูลคอร์สและรูปปกโดยไม่เปลี่ยนบทเรียนเดิม'}
             </p>
           </div>
-          <button type="button" className="btn-ghost" onClick={onClose} aria-label="ปิด popup">
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:border-black hover:text-black"
+            onClick={onClose}
+            aria-label="ปิด popup"
+          >
             <X size={18} />
           </button>
         </div>
 
-        <form className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 xl:p-7" onSubmit={onSubmit}>
+        <form className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-7" onSubmit={onSubmit}>
           {formMessage ? (
             <div
               className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
@@ -501,109 +516,111 @@ function CourseFormModal({
               {formMessage.text}
             </div>
           ) : null}
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px] lg:items-start">
-            <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block sm:col-span-2">
-              <span className="field-label">ชื่อคอร์ส</span>
-              <input
-                className="field-input"
-                required
-                placeholder="เช่น React สำหรับทีมโปรดักชัน"
-                value={draft.title}
-                onChange={(event) => onDraftChange('title', event.target.value)}
-              />
-            </label>
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="block sm:col-span-2">
+                <span className="field-label">ชื่อคอร์ส</span>
+                <input
+                  className="field-input"
+                  required
+                  placeholder="เช่น React สำหรับทีมโปรดักชัน"
+                  value={draft.title}
+                  onChange={(event) => onDraftChange('title', event.target.value)}
+                />
+              </label>
 
-            <label className="block sm:col-span-2">
-              <span className="field-label">รายละเอียดคอร์ส</span>
-              <textarea
-                className="field-input min-h-20 resize-y"
-                required
-                placeholder="อธิบายภาพรวม สิ่งที่ผู้เรียนจะได้ และผลลัพธ์หลังเรียนจบ"
-                value={draft.description}
-                onChange={(event) => onDraftChange('description', event.target.value)}
-              />
-            </label>
+              <label className="block sm:col-span-2">
+                <span className="field-label">รายละเอียดคอร์ส</span>
+                <textarea
+                  className="field-input min-h-28 resize-y"
+                  required
+                  placeholder="อธิบายภาพรวม สิ่งที่ผู้เรียนจะได้ และผลลัพธ์หลังเรียนจบ"
+                  value={draft.description}
+                  onChange={(event) => onDraftChange('description', event.target.value)}
+                />
+              </label>
 
-            <label className="block">
-              <span className="field-label">ราคา</span>
-              <input
-                className="field-input"
-                type="number"
-                min="0"
-                value={draft.price}
-                onChange={(event) => onDraftChange('price', event.target.value)}
-              />
-            </label>
+              <label className="block">
+                <span className="field-label">ราคา</span>
+                <input
+                  className="field-input"
+                  type="number"
+                  min="0"
+                  value={draft.price}
+                  onChange={(event) => onDraftChange('price', event.target.value)}
+                />
+              </label>
 
-            <label className="block">
-              <span className="field-label">หมวดหมู่</span>
-              <select
-                className="field-input"
-                value={draft.category}
-                onChange={(event) => onDraftChange('category', event.target.value)}
-              >
-                <option>Technology</option>
-                <option>Business</option>
-                <option>Design</option>
-                <option>Marketing</option>
-                <option>Data</option>
-              </select>
-            </label>
+              <label className="block">
+                <span className="field-label">ระยะเวลา</span>
+                <input
+                  className="field-input"
+                  placeholder="6 ชม. 30 นาที"
+                  value={draft.duration}
+                  onChange={(event) => onDraftChange('duration', event.target.value)}
+                />
+              </label>
 
-            <label className="block">
-              <span className="field-label">ระดับ</span>
-              <select
-                className="field-input"
-                value={draft.level}
-                onChange={(event) => onDraftChange('level', event.target.value)}
-              >
-                <option>Beginner</option>
-                <option>Intermediate</option>
-                <option>Advanced</option>
-              </select>
-            </label>
+              <label className="block">
+                <span className="field-label">หมวดหมู่</span>
+                <select
+                  className="field-input"
+                  value={draft.category}
+                  onChange={(event) => onDraftChange('category', event.target.value)}
+                >
+                  <option>Technology</option>
+                  <option>Business</option>
+                  <option>Design</option>
+                  <option>Marketing</option>
+                  <option>Data</option>
+                </select>
+              </label>
 
-            <label className="block">
-              <span className="field-label">ระยะเวลา</span>
-              <input
-                className="field-input"
-                placeholder="6 ชม. 30 นาที"
-                value={draft.duration}
-                onChange={(event) => onDraftChange('duration', event.target.value)}
-              />
-            </label>
+              <label className="block">
+                <span className="field-label">ระดับ</span>
+                <select
+                  className="field-input"
+                  value={draft.level}
+                  onChange={(event) => onDraftChange('level', event.target.value)}
+                >
+                  <option>Beginner</option>
+                  <option>Intermediate</option>
+                  <option>Advanced</option>
+                </select>
+              </label>
 
-            <label className="block sm:col-span-2">
-              <span className="field-label">ผลลัพธ์การเรียนรู้</span>
-              <textarea
-                className="field-input min-h-20 resize-y"
-                placeholder="ใส่ 1 หัวข้อต่อ 1 บรรทัด"
-                value={draft.outcomes}
-                onChange={(event) => onDraftChange('outcomes', event.target.value)}
-              />
-            </label>
-
+              <label className="block sm:col-span-2">
+                <span className="field-label">ผลลัพธ์การเรียนรู้</span>
+                <textarea
+                  className="field-input min-h-28 resize-y"
+                  placeholder="ใส่ 1 หัวข้อต่อ 1 บรรทัด"
+                  value={draft.outcomes}
+                  onChange={(event) => onDraftChange('outcomes', event.target.value)}
+                />
+              </label>
             </div>
 
-            <div className="grid gap-3">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-950">
+            <aside className="grid gap-4">
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-black">
                   <ImagePlus size={16} />
                   รูปปกคอร์ส
+                  </div>
+                  <span className="text-xs text-zinc-400">16:9</span>
                 </div>
                 <img
                   src={coverPreview}
                   alt="Course cover preview"
-                  className="mt-3 aspect-video w-full rounded-md border border-slate-200 object-cover"
+                  className="mt-3 aspect-video w-full rounded-lg border border-zinc-200 bg-zinc-100 object-cover"
                 />
-                <div className="mt-3 space-y-3">
+                <div className="mt-4 space-y-4">
                   <label className="block">
                     <span className="field-label">อัปโหลดรูปปก</span>
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
-                      className="field-input file:mr-3 file:rounded-md file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
+                      className="field-input file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
                       onChange={onCoverChange}
                       disabled={saving}
                     />
@@ -617,16 +634,16 @@ function CourseFormModal({
                       onChange={(event) => onDraftChange('coverImageUrl', event.target.value)}
                     />
                   </label>
-                  {coverFile ? <p className="text-xs text-slate-500">{coverFile.name}</p> : null}
+                  {coverFile ? <p className="truncate text-xs text-zinc-500">{coverFile.name}</p> : null}
                   {coverUploadProgress !== null ? (
-                    <div className="rounded-md border border-slate-200 bg-white p-3">
-                      <div className="flex items-center justify-between gap-3 text-xs font-medium text-slate-600">
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                      <div className="flex items-center justify-between gap-3 text-xs font-medium text-zinc-600">
                         <span>กำลังอัปโหลดรูปปก</span>
                         <span>{coverUploadProgress}%</span>
                       </div>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200">
                         <span
-                          className="block h-full rounded-full bg-slate-950 transition-all"
+                          className="block h-full rounded-full bg-black transition-all"
                           style={{ width: `${coverUploadProgress}%` }}
                         />
                       </div>
@@ -634,12 +651,10 @@ function CourseFormModal({
                   ) : null}
                 </div>
               </div>
-
-
-            </div>
+            </aside>
           </div>
 
-          <div className="sticky bottom-0 -mx-4 mt-4 flex items-center justify-end gap-3 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-5 sm:px-5 xl:-mx-7 xl:px-7">
+          <div className="sticky bottom-0 -mx-5 mt-7 flex items-center justify-end gap-3 border-t border-zinc-200 bg-white/95 px-5 py-4 backdrop-blur sm:-mx-7 sm:px-7">
             <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
               ยกเลิก
             </button>
@@ -1006,11 +1021,25 @@ function LessonManagerModal({
 
 export default function TeacherDashboard() {
   const [searchParams] = useSearchParams()
-  const activeSection = searchParams.get('section') === 'profile' ? 'profile' : 'courses'
+  const requestedSection = searchParams.get('section')
+  const activeSection: TeacherSection =
+    requestedSection === 'profile'
+      ? 'profile'
+      : requestedSection === 'my-courses'
+        ? 'my-courses'
+        : requestedSection === 'students'
+          ? 'students'
+          : requestedSection === 'messages'
+            ? 'messages'
+            : requestedSection === 'reviews'
+              ? 'reviews'
+              : 'home'
   const { data, error, loading } = useApi(() => api.getTeacherDashboard(), [])
   const [courses, setCourses] = useState<Course[]>([])
   const [courseSearch, setCourseSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | Course['status']>('all')
+  const [studentCategory, setStudentCategory] = useState<StudentCategory>('by-course')
+  const [selectedMessageKey, setSelectedMessageKey] = useState<string | null>(null)
   const [teacherProfile, setTeacherProfile] = useState<StudentProfile | null>(null)
   const [profileDraft, setProfileDraft] = useState<TeacherProfileDraft>(emptyTeacherProfile)
   const [profileError, setProfileError] = useState<string | null>(null)
@@ -1087,9 +1116,9 @@ export default function TeacherDashboard() {
   const teacherStats = useMemo(() => {
     const published = courses.filter((course) => (course.status ?? 'published') === 'published').length
     const draft = courses.filter((course) => (course.status ?? 'published') === 'draft').length
-    const totalStudents = courses.reduce((total, course) => total + course.students, 0)
+    const totalStudents = courses.reduce((total, course) => total + getCourseStudentCount(course), 0)
     const totalLessons = courses.reduce((total, course) => total + (course.lessonCount ?? course.lessons.length), 0)
-    const totalRevenue = courses.reduce((total, course) => total + course.price * course.students, 0)
+    const totalRevenue = courses.reduce((total, course) => total + getCourseRevenue(course), 0)
 
     return {
       totalCourses: courses.length,
@@ -1114,6 +1143,113 @@ export default function TeacherDashboard() {
       return matchesStatus && matchesSearch
     })
   }, [courseSearch, courses, statusFilter])
+  const allCourseStudents = useMemo<TeacherCourseStudent[]>(
+    () =>
+      courses
+        .flatMap((course) =>
+          (course.enrolledStudents ?? []).map((student) => ({
+            ...student,
+            courseId: course.id,
+            courseTitle: course.title,
+            courseSlug: course.slug,
+            courseCoverImage: course.coverImage,
+            courseCategory: course.category,
+          })),
+        )
+        .sort((left, right) => {
+          const leftDate = new Date(left.enrollment.lastAccessedAt ?? left.enrollment.joinedAt).getTime()
+          const rightDate = new Date(right.enrollment.lastAccessedAt ?? right.enrollment.joinedAt).getTime()
+          return rightDate - leftDate
+        }),
+    [courses],
+  )
+  const uniqueTeacherStudents = useMemo(
+    () => new Map(allCourseStudents.map((student) => [student.id, student])).size,
+    [allCourseStudents],
+  )
+  const followUpThreshold = Date.now() - 14 * 24 * 60 * 60 * 1000
+  const visibleCourseStudents = useMemo(() => {
+    if (studentCategory === 'active') {
+      return allCourseStudents.filter((student) => hasStartedEnrollment(student.enrollment) && student.enrollment.progress < 100)
+    }
+
+    if (studentCategory === 'completed') {
+      return allCourseStudents.filter((student) => student.enrollment.progress >= 100)
+    }
+
+    if (studentCategory === 'follow-up') {
+      return allCourseStudents.filter((student) => {
+        const lastAccessedAt = new Date(student.enrollment.lastAccessedAt ?? student.enrollment.joinedAt).getTime()
+        return student.enrollment.progress < 100 && (!Number.isFinite(lastAccessedAt) || lastAccessedAt < followUpThreshold)
+      })
+    }
+
+    return allCourseStudents
+  }, [allCourseStudents, followUpThreshold, studentCategory])
+  const coursesWithStudents = useMemo(
+    () => courses.filter((course) => (course.enrolledStudents?.length ?? 0) > 0).length,
+    [courses],
+  )
+  const averageStudentsPerCourse = courses.length ? Math.round(allCourseStudents.length / courses.length) : 0
+  const topStudentCourse =
+    [...courses].sort(
+      (left, right) => (right.enrolledStudents?.length ?? 0) - (left.enrolledStudents?.length ?? 0),
+    )[0] ?? null
+  const studentCategorySummary = {
+    all: {
+      count: allCourseStudents.length,
+      description: 'รายชื่อนักเรียนทั้งหมดที่อยู่ในคอร์สของคุณครู',
+      emptyTitle: 'ยังไม่มีข้อมูลนักเรียน',
+      emptyText: 'เมื่อมีนักเรียนสมัครเรียน ข้อมูลจะแสดงในหน้านี้',
+    },
+    active: {
+      count: allCourseStudents.filter((student) => hasStartedEnrollment(student.enrollment) && student.enrollment.progress < 100).length,
+      description: 'นักเรียนที่เคยเปิดบทเรียนแล้วและยังเรียนไม่จบ',
+      emptyTitle: 'ยังไม่มีนักเรียนที่กำลังเรียน',
+      emptyText: 'เมื่อนักเรียนเปิดบทเรียนแล้วและยังไม่จบคอร์ส รายชื่อจะแสดงในหมวดนี้',
+    },
+    completed: {
+      count: allCourseStudents.filter((student) => student.enrollment.progress >= 100).length,
+      description: 'นักเรียนที่เรียนครบ 100% แล้ว',
+      emptyTitle: 'ยังไม่มีข้อมูลนักเรียนที่เรียนจบ',
+      emptyText: 'เมื่อนักเรียนเรียนครบ 100% รายชื่อจะแสดงในหมวดนี้',
+    },
+    'follow-up': {
+      count: allCourseStudents.filter((student) => {
+        const lastAccessedAt = new Date(student.enrollment.lastAccessedAt ?? student.enrollment.joinedAt).getTime()
+        return student.enrollment.progress < 100 && (!Number.isFinite(lastAccessedAt) || lastAccessedAt < followUpThreshold)
+      }).length,
+      description: 'นักเรียนที่ไม่ได้เข้าเรียนมานานกว่า 14 วันและยังเรียนไม่จบ',
+      emptyTitle: 'ยังไม่มีข้อมูลนักเรียนที่ต้องติดตาม',
+      emptyText: 'ถ้านักเรียนหยุดเรียนเกิน 14 วันและยังไม่จบคอร์ส รายชื่อจะแสดงในหมวดนี้',
+    },
+    'by-course': {
+      count: courses.length,
+      description: 'รายชื่อนักเรียนพร้อมคอร์สที่กำลังเรียน',
+      emptyTitle: 'ยังไม่มีคอร์สสำหรับแสดงข้อมูล',
+      emptyText: 'เมื่อมีนักเรียนอยู่ในคอร์ส รายชื่อจะแสดงที่นี่',
+    },
+  } satisfies Record<StudentCategory, { count: number; description: string; emptyTitle: string; emptyText: string }>
+  const activeStudentSummary = studentCategorySummary[studentCategory]
+  const messageThreads = useMemo(
+    () => allCourseStudents.map((student) => ({
+      ...student,
+      threadKey: `${student.courseId}-${student.id}`,
+      started: hasStartedEnrollment(student.enrollment),
+    })),
+    [allCourseStudents],
+  )
+  const selectedMessageThread =
+    messageThreads.find((thread) => thread.threadKey === selectedMessageKey) ?? messageThreads[0] ?? null
+  const reviewCourses = useMemo(
+    () => [...courses].sort((left, right) => right.rating - left.rating || right.students - left.students),
+    [courses],
+  )
+  const totalCourseReviews = reviewCourses.reduce((total, course) => total + course.students, 0)
+  const averageCourseRating = reviewCourses.length
+    ? reviewCourses.reduce((total, course) => total + course.rating, 0) / reviewCourses.length
+    : 0
+  const topRatedCourse = reviewCourses[0] ?? null
   const resetDraft = () => {
     setDraft(createEmptyDraft())
     setCoverFile(null)
@@ -1544,7 +1680,6 @@ export default function TeacherDashboard() {
         teacherName={currentTeacherProfile.name || data.user.name}
         teacherEmail={data.user.email}
         avatarUrl={currentTeacherProfile.avatarUrl || data.user.avatarUrl}
-        onCreateCourse={openCreateModal}
       >
         <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
           <h1 className="text-2xl font-semibold text-slate-950">โปรไฟล์คุณครู</h1>
@@ -1642,18 +1777,78 @@ export default function TeacherDashboard() {
   return (
     <>
       <TeacherShell
-        activeSection="courses"
+        activeSection={activeSection}
         teacherName={currentTeacherProfile.name || data.user.name}
         teacherEmail={data.user.email}
         avatarUrl={currentTeacherProfile.avatarUrl || data.user.avatarUrl}
-        onCreateCourse={openCreateModal}
       >
-        <section className="mb-8">
-          <p className="text-base font-medium text-zinc-700">สวัสดีตอนเช้า</p>
-          <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">
-            ครู{currentTeacherProfile.name || data.user.name}
-          </h1>
-          <p className="mt-3 text-base text-zinc-600">ยินดีต้อนรับสู่แผงควบคุมของคุณ</p>
+        <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-7 shadow-sm">
+          {activeSection === 'my-courses' ? (
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-base font-medium text-zinc-700">คอร์สของฉัน</p>
+                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">จัดการคอร์สและบทเรียนทั้งหมด</h1>
+                <p className="mt-3 text-base leading-7 text-zinc-600">
+                  รวมรายการคอร์ส ตัวกรองหมวดหมู่ สถานะ และปุ่มสร้างคอร์สไว้ในหน้านี้ เพื่อให้จัดการคอร์สได้จากที่เดียว
+                </p>
+              </div>
+              <button
+                type="button"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                onClick={openCreateModal}
+              >
+                <Plus size={17} />
+                สร้างคอร์สใหม่
+              </button>
+            </div>
+          ) : activeSection === 'students' ? (
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-base font-medium text-zinc-700">นักเรียน</p>
+                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ภาพรวมนักเรียนจากคอร์สของคุณ</h1>
+                <p className="mt-3 text-base leading-7 text-zinc-600">
+                  ดูจำนวนนักเรียนที่สมัครเรียนในแต่ละคอร์ส โดยอิงจากข้อมูลคอร์สเดิมในระบบ
+                </p>
+              </div>
+              <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-black text-white">
+                <UsersRound size={24} />
+              </span>
+            </div>
+          ) : activeSection === 'messages' ? (
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-base font-medium text-zinc-700">ข้อความ</p>
+                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ข้อความจากนักเรียนในคอร์สของคุณ</h1>
+                <p className="mt-3 text-base leading-7 text-zinc-600">
+                  รวมรายชื่อนักเรียนที่อยู่ในคอร์สของคุณครูไว้สำหรับติดตามการสนทนา โดยยังไม่เพิ่มระบบส่งข้อความใหม่
+                </p>
+              </div>
+              <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                <Mail size={24} />
+              </span>
+            </div>
+          ) : activeSection === 'reviews' ? (
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-base font-medium text-zinc-700">รีวิว</p>
+                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ภาพรวมรีวิวจากคอร์สของคุณ</h1>
+                <p className="mt-3 text-base leading-7 text-zinc-600">
+                  ดูคะแนนและจำนวนรีวิวของแต่ละคอร์สจากข้อมูลคอร์สเดิมในระบบ
+                </p>
+              </div>
+              <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                <Star size={24} />
+              </span>
+            </div>
+          ) : (
+            <>
+              <p className="text-base font-medium text-zinc-700">สวัสดีตอนเช้า</p>
+              <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">
+                ครู{currentTeacherProfile.name || data.user.name}
+              </h1>
+              <p className="mt-3 text-base text-zinc-600">ยินดีต้อนรับสู่แผงควบคุมของคุณ</p>
+            </>
+          )}
         </section>
 
         {message ? (
@@ -1669,36 +1864,129 @@ export default function TeacherDashboard() {
         ) : null}
 
         <section className="mb-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              label: 'คอร์สทั้งหมด',
-              value: teacherStats.totalCourses,
-              icon: LibraryBig,
-              note: 'คอร์ส',
-              trend: false,
-            },
-            {
-              label: 'นักเรียนทั้งหมด',
-              value: teacherStats.totalStudents.toLocaleString('th-TH'),
-              icon: UsersRound,
-              note: 'เพิ่มขึ้นจากเดือนที่แล้ว',
-              trend: true,
-            },
-            {
-              label: 'บทเรียนรวม',
-              value: teacherStats.totalLessons,
-              icon: Video,
-              note: 'บทเรียน',
-              trend: false,
-            },
-            {
-              label: 'รายได้รวม',
-              value: `${teacherStats.totalRevenue.toLocaleString('th-TH')} บาท`,
-              icon: CircleDollarSign,
-              note: 'จากเดือนที่แล้ว',
-              trend: true,
-            },
-          ].map((item) => {
+          {(activeSection === 'students'
+            ? [
+                {
+                  label: 'นักเรียนทั้งหมด',
+                  value: uniqueTeacherStudents.toLocaleString('th-TH'),
+                  icon: UsersRound,
+                  note: 'คน',
+                  trend: false,
+                },
+                {
+                  label: 'คอร์สที่มีนักเรียน',
+                  value: coursesWithStudents,
+                  icon: LibraryBig,
+                  note: 'คอร์ส',
+                  trend: false,
+                },
+                {
+                  label: 'เฉลี่ยต่อคอร์ส',
+                  value: averageStudentsPerCourse.toLocaleString('th-TH'),
+                  icon: UserRound,
+                  note: 'รายการลงเรียน',
+                  trend: false,
+                },
+                {
+                  label: 'คอร์สเผยแพร่',
+                  value: teacherStats.published,
+                  icon: Video,
+                  note: 'พร้อมรับนักเรียน',
+                  trend: false,
+                },
+              ]
+            : activeSection === 'messages'
+              ? [
+                  {
+                    label: 'ผู้ติดต่อทั้งหมด',
+                    value: uniqueTeacherStudents.toLocaleString('th-TH'),
+                    icon: UsersRound,
+                    note: 'นักเรียน',
+                    trend: false,
+                  },
+                  {
+                    label: 'ห้องสนทนา',
+                    value: messageThreads.length,
+                    icon: Mail,
+                    note: 'จากคอร์สที่ลงเรียน',
+                    trend: false,
+                  },
+                  {
+                    label: 'คอร์สที่เกี่ยวข้อง',
+                    value: coursesWithStudents,
+                    icon: LibraryBig,
+                    note: 'คอร์ส',
+                    trend: false,
+                  },
+                  {
+                    label: 'ข้อความค้างตอบ',
+                    value: '0',
+                    icon: Star,
+                    note: 'ยังไม่เปิดส่งข้อความ',
+                    trend: false,
+                  },
+                ]
+            : activeSection === 'reviews'
+              ? [
+                  {
+                    label: 'คะแนนเฉลี่ย',
+                    value: averageCourseRating.toFixed(1),
+                    icon: Star,
+                    note: 'จากคอร์สทั้งหมด',
+                    trend: false,
+                  },
+                  {
+                    label: 'รีวิวทั้งหมด',
+                    value: totalCourseReviews.toLocaleString('th-TH'),
+                    icon: UsersRound,
+                    note: 'ตามข้อมูลคอร์ส',
+                    trend: false,
+                  },
+                  {
+                    label: 'คอร์สมีคะแนน',
+                    value: reviewCourses.filter((course) => course.rating > 0).length,
+                    icon: LibraryBig,
+                    note: 'คอร์ส',
+                    trend: false,
+                  },
+                  {
+                    label: 'คะแนนสูงสุด',
+                    value: topRatedCourse ? topRatedCourse.rating.toFixed(1) : '0.0',
+                    icon: Star,
+                    note: topRatedCourse ? topRatedCourse.title : 'ยังไม่มีข้อมูล',
+                    trend: false,
+                  },
+                ]
+            : [
+                {
+                  label: 'คอร์สทั้งหมด',
+                  value: teacherStats.totalCourses,
+                  icon: LibraryBig,
+                  note: 'คอร์ส',
+                  trend: false,
+                },
+                {
+                  label: 'นักเรียนทั้งหมด',
+                  value: teacherStats.totalStudents.toLocaleString('th-TH'),
+                  icon: UsersRound,
+                  note: 'เพิ่มขึ้นจากเดือนที่แล้ว',
+                  trend: true,
+                },
+                {
+                  label: 'บทเรียนรวม',
+                  value: teacherStats.totalLessons,
+                  icon: Video,
+                  note: 'บทเรียน',
+                  trend: false,
+                },
+                {
+                  label: 'รายได้รวม',
+                  value: `${teacherStats.totalRevenue.toLocaleString('th-TH')} บาท`,
+                  icon: CircleDollarSign,
+                  note: 'จากเดือนที่แล้ว',
+                  trend: true,
+                },
+              ]).map((item) => {
             const Icon = item.icon
 
             return (
@@ -1720,6 +2008,449 @@ export default function TeacherDashboard() {
           )})}
         </section>
 
+        {activeSection === 'students' ? (
+          <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+              <div className="border-b border-zinc-200 p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold tracking-tight text-black">หมวดหมู่นักเรียน</h2>
+                    <p className="mt-1 text-sm text-zinc-500">{activeStudentSummary.description}</p>
+                  </div>
+                  <Link
+                    to="/teacher?section=my-courses"
+                    className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black"
+                  >
+                    ไปที่คอร์สของฉัน
+                  </Link>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {studentCategoryOptions.map((item) => {
+                    const count = studentCategorySummary[item.value].count
+                    const active = studentCategory === item.value
+
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        className={[
+                          'inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition',
+                          active
+                            ? 'border-black bg-black text-white'
+                            : 'border-zinc-200 bg-white text-zinc-600 hover:border-black hover:text-black',
+                        ].join(' ')}
+                        onClick={() => setStudentCategory(item.value)}
+                      >
+                        {item.label}
+                        <span className={active ? 'text-white/65' : 'text-zinc-400'}>
+                          {count.toLocaleString('th-TH')}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="divide-y divide-zinc-200">
+                {visibleCourseStudents.length > 0 ? (
+                  visibleCourseStudents.map((student) => (
+                    (() => {
+                      const started = hasStartedEnrollment(student.enrollment)
+                      const progressValue = Math.min(100, Math.max(0, student.enrollment.progress))
+                      const statusLabel =
+                        progressValue >= 100 ? 'เรียนจบแล้ว' : started ? 'กำลังเรียน' : 'ยังไม่เริ่ม'
+
+                      return (
+                    <article
+                      key={`${student.courseId}-${student.id}`}
+                      className="grid gap-4 p-5 transition hover:bg-zinc-50/70 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-4">
+                        {student.avatarUrl ? (
+                          <img src={student.avatarUrl} alt={student.name} className="h-12 w-12 rounded-full object-cover" />
+                        ) : (
+                          <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
+                            {student.name.trim().slice(0, 1).toUpperCase() || <UserRound size={18} />}
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="line-clamp-1 text-base font-semibold text-black">{student.name}</h3>
+                            <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                              {statusLabel}
+                            </span>
+                          </div>
+                          <p className="mt-1 line-clamp-1 text-sm text-zinc-500">{student.email}</p>
+                          <p className="mt-1 line-clamp-1 text-xs text-zinc-500">
+                            คอร์ส: {student.courseTitle} · สมัครเมื่อ {formatThaiDate(student.enrollment.joinedAt)}
+                          </p>
+                        </div>
+                        </div>
+                        <div className="mt-4 max-w-2xl">
+                          <div className="flex items-center justify-between gap-3 text-xs font-medium">
+                            <span className="text-zinc-500">ความคืบหน้า</span>
+                            <span className="text-zinc-700">{progressValue}%</span>
+                          </div>
+                          <div className="mt-2 h-2 rounded-full bg-zinc-200">
+                            <div className="h-2 rounded-full bg-emerald-600" style={{ width: `${progressValue}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                        <p className="text-xs text-zinc-500">เข้าเรียนล่าสุด</p>
+                        <p className="mt-1 text-sm font-semibold text-black">{formatThaiDate(student.enrollment.lastAccessedAt)}</p>
+                        <p className="mt-3 text-xs text-zinc-500">สถานะ</p>
+                        <p className="mt-1 text-sm font-semibold text-black">{statusLabel}</p>
+                      </div>
+                    </article>
+                      )
+                    })()
+                  ))
+                ) : (
+                  <div className="p-10 text-center">
+                    <span className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 text-black">
+                      <UsersRound size={28} />
+                    </span>
+                    <h3 className="mt-5 text-lg font-semibold text-black">{activeStudentSummary.emptyTitle}</h3>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-500">{activeStudentSummary.emptyText}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <aside className="space-y-5">
+              <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-black">ภาพรวมนักเรียน</h2>
+                <div className="mt-5 rounded-lg bg-zinc-50 p-4">
+                  <p className="text-sm text-zinc-500">คอร์สที่มีนักเรียนมากที่สุด</p>
+                  <p className="mt-2 line-clamp-2 text-xl font-semibold text-black">
+                    {topStudentCourse ? topStudentCourse.title : 'ยังไม่มีข้อมูล'}
+                  </p>
+                  <p className="mt-2 text-sm text-zinc-500">
+                    {topStudentCourse
+                      ? `${(topStudentCourse.enrolledStudents?.length ?? 0).toLocaleString('th-TH')} นักเรียน`
+                      : 'สร้างคอร์สเพื่อเริ่มรับนักเรียน'}
+                  </p>
+                </div>
+                <div className="mt-5 space-y-3">
+                  {courses
+                    .filter((course) => (course.enrolledStudents?.length ?? 0) > 0)
+                    .sort((left, right) => (right.enrolledStudents?.length ?? 0) - (left.enrolledStudents?.length ?? 0))
+                    .slice(0, 3)
+                    .map((course) => {
+                    const studentCount = course.enrolledStudents?.length ?? 0
+                    const width = allCourseStudents.length
+                      ? Math.round((studentCount / allCourseStudents.length) * 100)
+                      : 0
+
+                    return (
+                      <div key={course.id}>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <p className="line-clamp-1 font-medium text-black">{course.title}</p>
+                          <span className="text-zinc-500">{studentCount.toLocaleString('th-TH')}</span>
+                        </div>
+                        <div className="mt-2 h-1.5 rounded-full bg-zinc-200">
+                          <div className="h-1.5 rounded-full bg-black" style={{ width: `${width}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-black">หมายเหตุ</h2>
+                <p className="mt-3 text-sm leading-7 text-zinc-500">
+                  หน้านี้ยังไม่เพิ่ม logic ใหม่สำหรับรายชื่อนักเรียนรายคน จึงแสดงข้อมูลภาพรวมจากคอร์สที่ระบบมีอยู่แล้ว
+                </p>
+              </section>
+            </aside>
+          </section>
+        ) : null}
+
+        {activeSection === 'messages' ? (
+          <section className="grid min-h-[620px] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm xl:grid-cols-[390px_minmax(0,1fr)]">
+            <aside className="border-b border-zinc-200 xl:border-b-0 xl:border-r">
+              <div className="border-b border-zinc-200 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-black">กล่องข้อความ</h2>
+                    <p className="mt-1 text-sm text-zinc-500">
+                      {messageThreads.length.toLocaleString('th-TH')} ห้องสนทนาจากคอร์สของคุณ
+                    </p>
+                  </div>
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                    <Mail size={20} />
+                  </span>
+                </div>
+              </div>
+
+              <div className="max-h-[560px] overflow-y-auto">
+                {messageThreads.length > 0 ? (
+                  messageThreads.map((thread) => {
+                    const active = selectedMessageThread?.threadKey === thread.threadKey
+                    const statusLabel =
+                      thread.enrollment.progress >= 100 ? 'เรียนจบแล้ว' : thread.started ? 'กำลังเรียน' : 'ยังไม่เริ่ม'
+
+                    return (
+                      <button
+                        key={thread.threadKey}
+                        type="button"
+                        className={[
+                          'flex w-full items-start gap-3 border-b border-zinc-100 p-4 text-left transition',
+                          active ? 'bg-zinc-100' : 'bg-white hover:bg-zinc-50',
+                        ].join(' ')}
+                        onClick={() => setSelectedMessageKey(thread.threadKey)}
+                      >
+                        {thread.avatarUrl ? (
+                          <img src={thread.avatarUrl} alt={thread.name} className="h-11 w-11 rounded-full object-cover" />
+                        ) : (
+                          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
+                            {thread.name.trim().slice(0, 1).toUpperCase() || <UserRound size={17} />}
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-3">
+                            <span className="line-clamp-1 text-sm font-semibold text-black">{thread.name}</span>
+                            <span className="shrink-0 text-xs text-zinc-400">
+                              {formatThaiDate(thread.enrollment.lastAccessedAt)}
+                            </span>
+                          </span>
+                          <span className="mt-1 block line-clamp-1 text-xs text-zinc-500">{thread.courseTitle}</span>
+                          <span className="mt-2 inline-flex rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                            {statusLabel}
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })
+                ) : (
+                  <div className="p-8 text-center">
+                    <span className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 text-black">
+                      <Mail size={24} />
+                    </span>
+                    <h3 className="mt-4 text-base font-semibold text-black">ยังไม่มีนักเรียนให้ติดต่อ</h3>
+                    <p className="mt-2 text-sm leading-6 text-zinc-500">เมื่อนักเรียนสมัครคอร์ส รายชื่อจะแสดงในกล่องข้อความนี้</p>
+                  </div>
+                )}
+              </div>
+            </aside>
+
+            <section className="flex min-h-[560px] flex-col">
+              {selectedMessageThread ? (
+                <>
+                  <div className="flex flex-col gap-4 border-b border-zinc-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {selectedMessageThread.avatarUrl ? (
+                        <img
+                          src={selectedMessageThread.avatarUrl}
+                          alt={selectedMessageThread.name}
+                          className="h-12 w-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
+                          {selectedMessageThread.name.trim().slice(0, 1).toUpperCase() || <UserRound size={18} />}
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <h2 className="line-clamp-1 text-lg font-semibold text-black">{selectedMessageThread.name}</h2>
+                        <p className="mt-1 line-clamp-1 text-sm text-zinc-500">{selectedMessageThread.email}</p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/teacher?section=students"
+                      className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black"
+                    >
+                      ดูข้อมูลนักเรียน
+                    </Link>
+                  </div>
+
+                  <div className="flex-1 p-5">
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+                      <p className="text-sm font-semibold text-black">คอร์สที่เกี่ยวข้อง</p>
+                      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <img
+                          src={selectedMessageThread.courseCoverImage}
+                          alt={selectedMessageThread.courseTitle}
+                          className="aspect-video w-full rounded-lg bg-black object-cover sm:w-44"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="line-clamp-2 text-lg font-semibold text-black">{selectedMessageThread.courseTitle}</h3>
+                          <p className="mt-1 text-sm text-zinc-500">{selectedMessageThread.courseCategory}</p>
+                          <p className="mt-3 text-xs font-medium text-zinc-600">
+                            สถานะ{' '}
+                            {selectedMessageThread.enrollment.progress >= 100
+                              ? 'เรียนจบแล้ว'
+                              : selectedMessageThread.started
+                                ? 'กำลังเรียน'
+                                : 'ยังไม่เริ่ม'}{' '}
+                            · เข้าเรียนล่าสุด{' '}
+                            {formatThaiDate(selectedMessageThread.enrollment.lastAccessedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 rounded-xl border border-dashed border-zinc-200 bg-white p-8 text-center">
+                      <span className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 text-black">
+                        <Mail size={24} />
+                      </span>
+                      <h3 className="mt-4 text-lg font-semibold text-black">ยังไม่มีระบบส่งข้อความในคอร์สนี้</h3>
+                      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-zinc-500">
+                        หน้านี้เตรียมพื้นที่สนทนาจากข้อมูลนักเรียนจริง โดยยังไม่เพิ่ม backend messaging หรือข้อมูลแชตจำลอง
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-zinc-200 p-5">
+                    <label className="sr-only" htmlFor="teacher-message-disabled">ข้อความ</label>
+                    <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                      <input
+                        id="teacher-message-disabled"
+                        disabled
+                        className="min-w-0 flex-1 bg-transparent text-sm text-zinc-500 outline-none placeholder:text-zinc-400 disabled:cursor-not-allowed"
+                        placeholder="ยังไม่สามารถส่งข้อความได้ในระบบปัจจุบัน"
+                      />
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-200 text-zinc-500">
+                        <Mail size={17} />
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-1 items-center justify-center p-8 text-center">
+                  <div>
+                    <span className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 text-black">
+                      <Mail size={28} />
+                    </span>
+                    <h3 className="mt-5 text-lg font-semibold text-black">เลือกนักเรียนเพื่อดูรายละเอียด</h3>
+                    <p className="mt-2 text-sm text-zinc-500">รายชื่อจะแสดงเมื่อมีนักเรียนอยู่ในคอร์สของคุณครู</p>
+                  </div>
+                </div>
+              )}
+            </section>
+          </section>
+        ) : null}
+
+        {activeSection === 'reviews' ? (
+          <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-4 border-b border-zinc-200 p-6 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight text-black">รีวิวตามคอร์ส</h2>
+                  <p className="mt-1 text-sm text-zinc-500">แสดงคะแนนและจำนวนรีวิวจากข้อมูลคอร์สเดิม</p>
+                </div>
+                <Link
+                  to="/teacher?section=my-courses"
+                  className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black"
+                >
+                  ไปที่คอร์สของฉัน
+                </Link>
+              </div>
+
+              <div className="divide-y divide-zinc-200">
+                {reviewCourses.length > 0 ? (
+                  reviewCourses.map((course) => {
+                    const statusMeta = getCourseStatusMeta(course.status)
+
+                    return (
+                      <article key={course.id} className="grid gap-4 p-5 transition hover:bg-zinc-50/70 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+                        <div className="flex min-w-0 items-center gap-4">
+                          <img src={course.coverImage} alt={course.title} className="h-16 w-28 rounded-lg bg-black object-cover" />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="line-clamp-1 text-base font-semibold text-black">{course.title}</h3>
+                              <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusMeta.badgeClass}`}>
+                                {statusMeta.label}
+                              </span>
+                            </div>
+                            <p className="mt-1 line-clamp-1 text-sm text-zinc-500">{course.category}</p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              อัปเดตล่าสุด {course.updatedAt ? new Date(course.updatedAt).toLocaleDateString('th-TH') : '-'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-zinc-500">คะแนน</span>
+                            <span className="text-sm font-semibold text-black">{course.rating.toFixed(1)}/5</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-1 text-black">
+                            {[1, 2, 3, 4, 5].map((rating) => (
+                              <Star
+                                key={rating}
+                                size={15}
+                                fill={rating <= Math.round(course.rating) ? 'currentColor' : 'none'}
+                                className={rating <= Math.round(course.rating) ? 'text-black' : 'text-zinc-300'}
+                              />
+                            ))}
+                          </div>
+                          <p className="mt-3 text-xs text-zinc-500">{course.students.toLocaleString('th-TH')} รีวิว</p>
+                        </div>
+                      </article>
+                    )
+                  })
+                ) : (
+                  <div className="p-10 text-center">
+                    <span className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 text-black">
+                      <Star size={28} />
+                    </span>
+                    <h3 className="mt-5 text-lg font-semibold text-black">ยังไม่มีข้อมูลรีวิว</h3>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-500">เมื่อมีข้อมูลคะแนนคอร์ส รีวิวจะแสดงในหน้านี้</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <aside className="space-y-5">
+              <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-black">คอร์สคะแนนสูงสุด</h2>
+                <div className="mt-5 rounded-lg bg-zinc-50 p-4">
+                  <p className="text-sm text-zinc-500">อันดับ 1</p>
+                  <p className="mt-2 line-clamp-2 text-xl font-semibold text-black">
+                    {topRatedCourse ? topRatedCourse.title : 'ยังไม่มีข้อมูล'}
+                  </p>
+                  <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-black">
+                    <Star size={16} fill={topRatedCourse ? 'currentColor' : 'none'} />
+                    {topRatedCourse ? topRatedCourse.rating.toFixed(1) : '0.0'}
+                  </div>
+                  <p className="mt-2 text-sm text-zinc-500">
+                    {topRatedCourse ? `${topRatedCourse.students.toLocaleString('th-TH')} รีวิว` : 'คะแนนจะแสดงเมื่อมีข้อมูลคอร์ส'}
+                  </p>
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold tracking-tight text-black">ภาพรวมคะแนน</h2>
+                <div className="mt-5 space-y-3">
+                  {reviewCourses.slice(0, 4).map((course) => (
+                    <div key={course.id}>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <p className="line-clamp-1 font-medium text-black">{course.title}</p>
+                        <span className="text-zinc-500">{course.rating.toFixed(1)}</span>
+                      </div>
+                      <div className="mt-2 h-1.5 rounded-full bg-zinc-200">
+                        <div
+                          className="h-1.5 rounded-full bg-black"
+                          style={{ width: `${Math.min(100, Math.max(0, Math.round((course.rating / 5) * 100)))}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {reviewCourses.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-zinc-200 p-5 text-center text-sm text-zinc-500">
+                      ยังไม่มีคอร์สสำหรับแสดงคะแนน
+                    </p>
+                  ) : null}
+                </div>
+              </section>
+            </aside>
+          </section>
+        ) : null}
+
+        {activeSection === 'my-courses' ? (
         <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
           <div className="flex flex-col gap-5 p-6 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -1759,8 +2490,13 @@ export default function TeacherDashboard() {
                   placeholder="ค้นหาคอร์ส"
                 />
               </label>
-              <button type="button" className="h-10 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black">
-                ดูทั้งหมด
+              <button
+                type="button"
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                onClick={openCreateModal}
+              >
+                <Plus size={16} />
+                สร้างคอร์ส
               </button>
             </div>
           </div>
@@ -1856,7 +2592,9 @@ export default function TeacherDashboard() {
             ) : null}
           </div>
         </section>
+        ) : null}
 
+        {activeSection === 'home' ? (
         <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
           <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
             <div className="flex items-start justify-between gap-4">
@@ -1953,6 +2691,7 @@ export default function TeacherDashboard() {
             </div>
           </div>
         </section>
+        ) : null}
       </TeacherShell>
 
       {formOpen ? (

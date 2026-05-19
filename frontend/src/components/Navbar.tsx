@@ -134,7 +134,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/95 backdrop-blur">
       <div className="container-page flex h-20 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 text-slate-950">
+        <Link to={session ? dashboardPath : '/'} className="flex items-center gap-2 text-slate-950">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-[6px] bg-black text-white">
             <BookOpen size={22} className="fill-white" />
           </span>

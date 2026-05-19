@@ -195,6 +195,19 @@ const cartStorageKey = 'mycourse_cart'
 const cartChangeEvent = 'mycourse-cart-change'
 const studentDashboardCacheKey = 'mycourse_student_dashboard_cache'
 
+const dashboardPathForRole = (role?: UserRole) => {
+  if (role === 'teacher') return '/teacher'
+  if (role === 'admin') return '/admin'
+  if (role === 'student') return '/student'
+
+  return '/login'
+}
+
+const normalizeSession = (session: AuthSession): AuthSession => ({
+  ...session,
+  dashboardPath: dashboardPathForRole(session.user.role),
+})
+
 class ApiRequestError extends Error {
   status: number
 
@@ -208,10 +221,10 @@ class ApiRequestError extends Error {
 export const authStorage = {
   getSession: (): AuthSession | null => {
     const raw = localStorage.getItem(authStorageKey)
-    return raw ? (JSON.parse(raw) as AuthSession) : null
+    return raw ? normalizeSession(JSON.parse(raw) as AuthSession) : null
   },
   setSession: (session: AuthSession) => {
-    localStorage.setItem(authStorageKey, JSON.stringify(session))
+    localStorage.setItem(authStorageKey, JSON.stringify(normalizeSession(session)))
     window.dispatchEvent(new Event(authChangeEvent))
   },
   clearSession: () => {

@@ -149,6 +149,27 @@ video {
   .student-sidebar-nav {
     animation: studentSidebarIn 220ms ease-out both;
   }
+
+  .ai-scroll-panel {
+    overscroll-behavior: contain;
+    scrollbar-color: #a1a1aa transparent;
+    scrollbar-width: thin;
+  }
+
+  .ai-scroll-panel::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .ai-scroll-panel::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .ai-scroll-panel::-webkit-scrollbar-thumb {
+    background: #a1a1aa;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

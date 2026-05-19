@@ -29,6 +29,11 @@ export default function QuizCard({ questions }: QuizCardProps) {
       </div>
 
       <div className="space-y-4 p-4">
+        {questions.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+            ยังไม่มีแบบทดสอบสำหรับบทนี้ กดปุ่มให้ AI ออกข้อสอบ 10 ข้อเพื่อสร้างแบบทดสอบครับ
+          </div>
+        ) : null}
         {questions.map((question, index) => {
           const selectedId = answers[question.id]
           const selectedOption = question.options.find((option) => option.id === selectedId)

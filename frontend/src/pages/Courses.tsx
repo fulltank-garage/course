@@ -315,7 +315,7 @@ export default function Courses() {
       const result = await api.enrollCourse(course.slug)
       cartStorage.removeItem(course.slug)
       setCartItems(cartStorage.getItems())
-      setCartMessage(`ลงทะเบียน "${course.title}" สำเร็จแล้ว กำลังพาไปหน้าเรียน...`)
+      setCartMessage(`ซื้อคอร์ส "${course.title}" สำเร็จแล้ว กำลังพาไปหน้าเรียน...`)
 
       window.setTimeout(() => {
         navigate(
@@ -326,7 +326,7 @@ export default function Courses() {
         )
       }, 650)
     } catch (currentError) {
-      setCartError(currentError instanceof Error ? currentError.message : 'ไม่สามารถลงทะเบียนคอร์สได้')
+      setCartError(currentError instanceof Error ? currentError.message : 'ไม่สามารถซื้อคอร์สได้')
     } finally {
       setCheckoutSlug(null)
     }
@@ -355,13 +355,13 @@ export default function Courses() {
 
       cartStorage.clearItems()
       setCartItems([])
-      setCartMessage(`ลงทะเบียนสำเร็จแล้ว ${cartCourses.length} คอร์ส กำลังพาไปหน้าเรียน...`)
+      setCartMessage(`ซื้อคอร์สสำเร็จแล้ว ${cartCourses.length} คอร์ส กำลังพาไปหน้าเรียน...`)
 
       window.setTimeout(() => {
         navigate(firstEnrollmentPath, { replace: true })
       }, 650)
     } catch (currentError) {
-      setCartError(currentError instanceof Error ? currentError.message : 'ไม่สามารถลงทะเบียนทั้งหมดได้')
+      setCartError(currentError instanceof Error ? currentError.message : 'ไม่สามารถซื้อคอร์สทั้งหมดได้')
     } finally {
       setCheckoutAll(false)
     }
@@ -656,7 +656,7 @@ export default function Courses() {
                     disabled={checkoutSlug === course.slug || checkoutAll}
                   >
                     {checkoutSlug === course.slug ? <LoaderCircle size={15} className="animate-spin" /> : <BookOpenCheck size={15} />}
-                    {checkoutSlug === course.slug ? 'กำลังลงทะเบียน...' : 'ลงทะเบียนคอร์สนี้'}
+                    {checkoutSlug === course.slug ? 'รอดำเนินการ...' : 'ซื้อคอร์สนี้'}
                   </button>
                 </article>
               ))}
@@ -694,7 +694,7 @@ export default function Courses() {
                 disabled={checkoutAll || Boolean(checkoutSlug)}
               >
                 {checkoutAll ? <LoaderCircle size={16} className="animate-spin" /> : <BookOpenCheck size={16} />}
-                {checkoutAll ? 'กำลังลงทะเบียน...' : 'ลงทะเบียนทั้งหมด'}
+                {checkoutAll ? 'รอดำเนินการ...' : 'ซื้อคอร์สทั้งหมด'}
               </button>
             ) : null}
             <button

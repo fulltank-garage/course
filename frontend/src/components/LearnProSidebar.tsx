@@ -45,10 +45,11 @@ export default function LearnProSidebar({
   const navigate = useNavigate()
   const session = authStorage.getSession()
   const role = session?.user.role
-  const dashboardPath = session?.dashboardPath ?? '/courses'
+  const dashboardPath =
+    role === 'student' ? '/student' : role === 'teacher' ? '/teacher' : role === 'admin' ? '/admin' : '/courses'
   const settingsPath =
     role === 'student' ? '/student?section=settings' : role === 'teacher' ? '/teacher?section=profile' : '/login'
-  const studentPath = role === 'student' ? '/student' : '/login'
+  const studentPath = role === 'student' ? '/student/messages' : '/login'
   const myCoursesPath = role === 'student' ? '/student?section=my-courses' : role === 'teacher' ? '/teacher' : '/login'
   const certificatesPath = role === 'student' ? '/student/certificates' : studentPath
   const wishlistPath = role === 'student' ? '/student/wishlist' : studentPath

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import LearnProSidebar from '../components/LearnProSidebar'
 import VideoPlayer from '../components/VideoPlayer'
-import { api } from '../services/api'
+import { api, authStorage } from '../services/api'
 import type { Course } from '../types/course'
 
 const formatPrice = (price: number) =>
@@ -120,6 +120,9 @@ export default function CourseDetail() {
   const startLearningPath = course.viewerState?.enrollment?.lastLessonId
     ? lessonPathFor(course.viewerState.enrollment.lastLessonId)
     : `/learn/${course.slug}`
+  const sessionRole = authStorage.getSession()?.user.role
+  const dashboardPath =
+    sessionRole === 'student' ? '/student' : sessionRole === 'teacher' ? '/teacher' : sessionRole === 'admin' ? '/admin' : '/'
   const targetLearners = [
     `ผู้ที่ต้องการเริ่มต้นสาย ${course.category}`,
     `ผู้เรียนระดับ ${course.level} ที่อยากเรียนแบบเป็นลำดับ`,
@@ -139,7 +142,7 @@ export default function CourseDetail() {
 
       <main className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-10">
         <div className="mb-8 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
-          <Link to="/" className="hover:text-black">หน้าหลัก</Link>
+          <Link to={dashboardPath} className="hover:text-black">หน้าหลัก</Link>
           <span>›</span>
           <Link to="/courses" className="hover:text-black">คอร์สทั้งหมด</Link>
           <span>›</span>

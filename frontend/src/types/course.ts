@@ -31,6 +31,15 @@ export interface Lesson {
   quizQuestions: QuizQuestion[]
 }
 
+export interface CourseStudent {
+  id: string
+  name: string
+  email: string
+  avatarUrl?: string
+  status: 'active' | 'pending' | 'suspended'
+  enrollment: StudentEnrollment
+}
+
 export interface Course {
   id: string
   slug: string
@@ -50,6 +59,7 @@ export interface Course {
   isPopular?: boolean
   status: 'draft' | 'published' | 'hidden'
   updatedAt: string
+  enrolledStudents?: CourseStudent[]
   viewerState?: {
     role: 'student' | 'teacher' | 'admin' | null
     isEnrolled: boolean

@@ -14,6 +14,7 @@ const port = Number(process.env.PORT ?? 4000)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const aiProvider = process.env.AI_PROVIDER ?? 'none'
 const aiModel = process.env.AI_MODEL ?? 'not-configured'
+const aiRequestTimeoutSeconds = Math.max(30, Number(process.env.AI_REQUEST_TIMEOUT_SECONDS ?? 90) || 90)
 const transcribeModel = process.env.TRANSCRIBE_MODEL ?? aiModel
 const geminiApiKey = process.env.GEMINI_API_KEY ?? ''
 const ffmpegBinary = process.env.FFMPEG_PATH ?? 'ffmpeg'
@@ -309,6 +310,7 @@ const getLessonContent = async (lessonId) => {
         l.title,
         l.duration,
         l.summary,
+        l.video_url AS "videoUrl",
         COALESCE(t.transcript, l.summary) AS content,
         t.transcript AS transcript,
         t.source AS transcript_source
@@ -351,19 +353,41 @@ const ensureGeminiClient = () => {
   return geminiClient
 }
 
+const withTimeout = async (promise, seconds, message) => {
+  let timeoutId
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const error = new Error(message)
+      error.statusCode = 504
+      reject(error)
+    }, seconds * 1000)
+  })
+
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 const callGemini = async (prompt, { json = false } = {}) => {
   const client = ensureGeminiClient()
   let response
 
   try {
-    response = await client.models.generateContent({
-      model: aiModel,
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        temperature: json ? 0.2 : 0.55,
-        ...(json ? { responseMimeType: 'application/json' } : {}),
-      },
-    })
+    response = await withTimeout(
+      client.models.generateContent({
+        model: aiModel,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          temperature: json ? 0.2 : 0.55,
+          ...(json ? { responseMimeType: 'application/json' } : {}),
+        },
+      }),
+      aiRequestTimeoutSeconds,
+      'AI ใช้เวลานานเกินไป กรุณาลองสร้างใหม่อีกครั้ง',
+    )
   } catch (error) {
     const status = Number(error?.status ?? error?.statusCode ?? 500)
     const message = String(error?.message ?? '')
@@ -372,7 +396,7 @@ const callGemini = async (prompt, { json = false } = {}) => {
         ? 'AI ใช้งานเกินโควต้า Gemini ชั่วคราว กรุณารอสักครู่แล้วลองใหม่'
         : message || 'ไม่สามารถเชื่อมต่อ Gemini ได้',
     )
-    friendlyError.statusCode = status === 429 ? 429 : status >= 400 && status < 500 ? status : 503
+    friendlyError.statusCode = status === 429 ? 429 : status === 504 ? 504 : status >= 400 && status < 500 ? status : 503
     throw friendlyError
   }
 
@@ -413,8 +437,13 @@ const isLessonRelatedQuestion = (question, lessonTitle = '') => {
     'ในบท',
     'คอร์ส',
     'คลิป',
+    'คริป',
     'วิดีโอ',
     'เนื้อหา',
+    'คำศัพท์',
+    'ศัพท์',
+    'vocab',
+    'vocabulary',
     'ที่เรียน',
     'จากบท',
     'ในบทนี้',
@@ -2347,7 +2376,7 @@ ${timestampRule}
 - ถ้าข้อมูลเป็นเพียง summary สั้น ๆ และไม่มี transcript ให้บอกตรง ๆ ว่ายังสรุปรายช่วงนาทีไม่ได้เพราะไม่มี transcript
 - ส่วน "ภาพรวม", "Timeline", และ "ประเด็นที่ควรจำ" ต้องยึดจาก transcript/summary เป็นหลัก
 - ส่วน "วิเคราะห์เพิ่มเติมจาก AI" สามารถใช้ความรู้ทั่วไปเพื่ออธิบายต่อยอดได้ แต่ต้องไม่เขียนให้เหมือนเป็นคำพูดในวิดีโอ
-- ห้ามใช้คำว่า "ครู" แทนตัว AI หรือทำให้เข้าใจว่าเป็นคำพูดของผู้สอน ถ้าเป็นคำแนะนำของ AI ให้ใช้ "ฉันแนะนำว่า..."
+- ห้ามใช้คำว่า "ครู" แทนตัว AI หรือทำให้เข้าใจว่าเป็นคำพูดของผู้สอน ถ้าเป็นคำแนะนำของ AI ให้ใช้ "ผมแนะนำว่า..."
 - ตอบเป็นภาษาไทย อ่านง่าย แต่ให้ละเอียดพอสำหรับใช้ทบทวนวิดีโอ
 
 ชื่อบทเรียน: ${lesson.title}
@@ -2369,55 +2398,80 @@ const askLessonAi = async (request, lessonId) => {
 
   if (!question) return { statusCode: 400, payload: { message: 'Question is required' } }
 
-  const lesson = await getLessonContent(lessonId)
+  const { lesson: accessibleLesson, error: accessError } = await getAiAccessibleLesson(request, lessonId)
+  if (accessError) return accessError
+
+  let lesson = await getLessonContent(lessonId)
   if (!lesson) return { statusCode: 404, payload: { message: 'Lesson not found' } }
 
-  const lessonRelated = isLessonRelatedQuestion(question, lesson.title)
-  const prompt = lessonRelated
-    ? `
+  if (!String(lesson.transcript ?? '').trim()) {
+    const videoUrl = String(accessibleLesson.videoUrl ?? lesson.videoUrl ?? '').trim()
+
+    if (!videoUrl) {
+      return {
+        statusCode: 400,
+        payload: { message: 'ยังไม่มีสคริปต์ของบทเรียนนี้ และบทเรียนนี้ไม่มีวิดีโอให้ AI ถอดสคริปต์ครับ' },
+      }
+    }
+
+    const transcriptResult = await transcribeLessonVideo(request, lessonId)
+    if (transcriptResult.statusCode >= 400) return transcriptResult
+
+    lesson = await getLessonContent(lessonId)
+  }
+
+  const transcript = String(lesson.transcript ?? '').trim()
+  if (!transcript) {
+    return {
+      statusCode: 400,
+      payload: { message: 'ยังไม่มีสคริปต์ของบทเรียนนี้ครับ กรุณาลองถอดสคริปต์อีกครั้ง' },
+    }
+  }
+
+  const prompt = `
 คำสั่งสำคัญสำหรับสไตล์คำตอบ:
-- แทนตัวเองว่า "ฉัน" เท่านั้น ไม่ใช้คำว่า "ครู" เรียกตัวเอง
-- ตอบเป็นธรรมชาติ อธิบายง่าย ๆ เหมือนคุยกับคนที่เพิ่งเริ่มเรียน
-- อธิบายให้ผู้เรียนเข้าใจเหตุผลหรือความหมาย ไม่ใช่ตอบแค่สรุปสั้น ๆ
-- ยกตัวอย่างเมื่อช่วยให้เข้าใจคำตอบได้ชัดขึ้น
-- ตอบแบบละเอียดเป็นค่าเริ่มต้น ชัดเจน ถูกต้อง และครบประเด็นพอให้ผู้เรียนเข้าใจจริง
+- ใช้ภาษาสุภาพแบบลงท้ายด้วย "ครับ" ให้เป็นธรรมชาติ
+- แทนตัวเองว่า "ผม" เท่านั้น ห้ามใช้ "ฉัน" และห้ามใช้คำว่า "ครู" เรียกตัวเอง
+- ทำตัวเป็นผู้ช่วยเรียนที่ช่วยอธิบายจุดที่ผู้เรียนไม่เข้าใจจากสคริปต์ของคลิปนี้เท่านั้น
+- ตอบเป็นธรรมชาติ อธิบายง่าย ๆ เหมือนคุยกับคนที่กำลังดูคลิปอยู่แล้วแต่ติดบางจุด
+- อธิบายเหตุผล ความหมาย วิธีคิด และภาพรวมที่เกี่ยวข้องได้ แต่ทุกอย่างต้องผูกกับข้อมูลในสคริปต์
+- ยกตัวอย่าง เปรียบเทียบ หรืออธิบายทีละขั้นได้เฉพาะเมื่อเป็นการขยายความจากสิ่งที่มีในสคริปต์
+- ตอบแบบละเอียดเป็นค่าเริ่มต้น ชัดเจน ถูกต้อง และครบประเด็นพอให้ผู้เรียนเอาไปใช้ต่อได้
 - ถ้าคำถามซับซ้อน ให้แบ่งเป็นหัวข้อ bullet หรือลำดับขั้นตอน
 - ให้ตอบยาวและอธิบายเต็มที่ได้ โดยจัดย่อหน้าให้อ่านง่าย ไม่อัดเป็นก้อนเดียว
 
 คุณคือผู้ช่วย AI ภาษาไทยที่คุยกับผู้เรียนอย่างเป็นกันเอง
-ตอบคำถามได้ทั่วไป ไม่จำกัดเฉพาะเนื้อหาในบทเรียน
-ถ้าคำถามเกี่ยวกับบทเรียน ให้ใช้ transcript/summary เป็นแหล่งข้อมูลหลักก่อน แล้วเสริมได้เมื่อช่วยให้เข้าใจ
-ถ้าคำถามไม่เกี่ยวกับบทเรียน ให้ตอบจากความรู้ทั่วไปอย่างตรงไปตรงมา และห้ามโยงกลับไปหาเนื้อหาบทเรียน
+ตอบคำถามจากสคริปต์บทเรียนนี้เท่านั้น ไม่ตอบอิสระจากความรู้ทั่วไปนอกสคริปต์
+ให้ใช้สคริปต์เป็นแหล่งข้อมูลหลักและแหล่งข้อมูลเดียว แต่สามารถคิดวิเคราะห์ เรียบเรียง อธิบายเหตุผล และสรุปความหมายจากสคริปต์ด้วยภาษาของตัวเองได้
+ถ้าคำถามไม่เกี่ยวกับสคริปต์หรือไม่มีข้อมูลในสคริปต์ ให้บอกตรง ๆ ว่า "ในสคริปต์ของบทเรียนนี้ยังไม่มีข้อมูลเรื่องนี้ชัดเจนครับ" แล้วอธิบายเฉพาะสิ่งที่พอเชื่อมโยงได้จากสคริปต์ ห้ามเดาหรือแต่งข้อมูลเพิ่ม
 
 น้ำเสียง:
 - พูดเหมือนผู้ช่วยที่เข้าใจบทเรียน เป็นกันเอง สุภาพ และใจเย็น
+- ลงท้ายประโยคด้วย "ครับ" เมื่อเหมาะสม โดยไม่ต้องใส่ทุกประโยคจนแข็ง
 - อธิบายให้เข้าใจง่าย ไม่ใช้ศัพท์ยากเกินจำเป็น
 - ถ้ามีศัพท์เทคนิค ให้แปลเป็นภาษาง่าย ๆ ก่อน แล้วค่อยยกตัวอย่าง
 - ถ้าคำตอบมีหลายขั้น ให้ไล่อธิบายทีละขั้น เพื่อให้ตามทัน
 - ตอบตรงคำถามก่อน แล้วค่อยอธิบายเหตุผล วิธีคิด ตัวอย่าง ข้อควรระวัง และภาพรวมที่เกี่ยวข้อง
 - ไม่ต้องอธิบายทั้งหมดของบทเรียน ให้ตอบเฉพาะสิ่งที่ผู้เรียนถาม
-- ใช้คำพูดธรรมชาติ เช่น "ให้เข้าใจง่าย ๆ คือ...", "ตรงนี้หมายถึง...", "ฉันขอเสริมนิดเดียว..."
+- ใช้คำพูดธรรมชาติ เช่น "ให้เข้าใจง่าย ๆ คือ...", "ตรงนี้หมายถึง...", "ผมขอเสริมนิดเดียว..."
 - ห้ามพูดเหมือนระบบ AI เช่น "ในฐานะ AI", "โมเดล", "ข้อมูลที่ให้มา", "จาก prompt"
 
 รูปแบบคำตอบ:
 - ไม่จำเป็นต้องใส่หัวข้อทุกครั้ง ให้ตอบเหมือนบทสนทนากับผู้ช่วย
 - ถ้าคำถามง่าย ให้ยังอธิบายที่มา เหตุผล และตัวอย่างสั้น ๆ เพื่อให้เข้าใจ ไม่ตอบแค่คำตอบสุดท้าย
 - ถ้าคำถามซับซ้อน ให้ใช้ bullet ขั้นตอน หรือหัวข้อย่อยเพื่อให้อ่านง่าย
-- ถ้ายกตัวอย่าง ให้ขึ้นต้นว่า "เช่น" และเลือกตัวอย่างที่เข้าใจง่าย
-- ถ้าเป็นเรื่องเรียน ให้จัดคำตอบแบบนี้เมื่อเหมาะสม: อธิบายหลักการ, วิธีคิดทีละขั้น, ตัวอย่าง, ข้อควรจำ, และ "สรุปง่าย ๆ" ท้ายคำตอบ
-- ถ้าต้องแยกความรู้จากบทเรียนกับความรู้ทั่วไป ให้เขียนให้ชัด เช่น "ฉันสรุปจากบทเรียนว่า..." แล้ว "ฉันเสริมว่า..."
+- ถ้ายกตัวอย่าง ให้ใช้ตัวอย่างจากสคริปต์ก่อน ถ้าต้องยกตัวอย่างเพิ่มเติม ต้องเป็นตัวอย่างที่อธิบายแนวคิดเดียวกับในสคริปต์เท่านั้น
+- ถ้าเป็นเรื่องเรียน ให้จัดคำตอบแบบนี้เมื่อเหมาะสม: สิ่งที่สคริปต์พูดถึง, เหตุผล/วิธีคิดจากสคริปต์, ตัวอย่างจากสคริปต์, ข้อควรจำ, และ "สรุปง่าย ๆ" ท้ายคำตอบ
+- ถ้าต้องแยกสิ่งที่คลิปพูดกับการวิเคราะห์ ให้เขียนให้ชัด เช่น "ในสคริปต์มีใจความว่า..." แล้ว "ผมวิเคราะห์จากสคริปต์ว่า..."
 - ไม่ต้องปิดท้ายด้วยคำถาม เว้นแต่ผู้เรียนขอให้ช่วยฝึก
 
 กติกา:
-- ให้ตัดสินก่อนว่าคำถามเป็น "คำถามเกี่ยวกับบทเรียน" หรือ "คำถามทั่วไป"
-- ถ้าเป็นคำถามทั่วไป เช่น กินอะไรดี, ช่วยคิดหน่อย, วางแผนชีวิต, แต่งเรื่อง, เขียนโค้ด, ข่าว, สุขภาพทั่วไป, การเงินทั่วไป, หรือเรื่องอื่นที่ไม่เกี่ยวกับบทเรียน ให้ตอบคำถามนั้นทันทีจากความรู้ทั่วไป
-- สำหรับคำถามทั่วไป ห้ามตอบว่า "ในบทเรียนนี้ยังไม่มีข้อมูล", ห้ามถามกลับให้ผู้เรียนถามเรื่องบทเรียน, และห้ามฝืนโยงกลับเข้า transcript/summary
-- ถ้าคำถามเกี่ยวกับบทเรียน ให้ยึดเนื้อหาบทเรียนเป็นหลักก่อน แล้วค่อยเสริมด้วยความรู้ทั่วไปเมื่อช่วยให้เข้าใจ
-- ถ้าคำถามทั่วไปที่ไม่เกี่ยวกับบทเรียน ให้ตอบได้ตามปกติ ไม่ต้องฝืนโยงเข้าบทเรียน
-- ห้ามใช้คำว่า "ครู" แทนตัว AI ในคำตอบ ให้ใช้ "ฉัน" เท่านั้น
-- ถ้าต้องอ้างคำพูดจากบทเรียน ให้ยกคำพูดสั้น ๆ จาก transcript ในเครื่องหมายคำพูด แล้วอธิบายต่อด้วยภาษาของคุณ
-- ถ้าไม่ได้ยกคำพูดตรงในเครื่องหมายคำพูด ให้บอกให้ชัดว่าเป็นการสรุปจากบทเรียน ไม่ใช่คำพูดตรงในคลิป
-- ถ้าผู้เรียนถามเรื่องในบทเรียนโดยตรง แต่บทเรียนไม่มีข้อมูลส่วนนั้น ให้บอกว่า "ฉันไม่เห็นข้อมูลส่วนนี้ในบทเรียน" แล้วค่อยอธิบายด้วยความรู้ทั่วไปอย่างระมัดระวัง
+- ห้ามตอบความรู้ทั่วไปนอกสคริปต์ แม้คำถามจะถามกว้างหรือถามเรื่องอื่น
+- ถ้าคำถามถามว่า "ในคลิป/คริปมีอะไร", "มีคำศัพท์อะไร", "สรุปอะไร", "พูดถึงอะไร" ให้ดึงคำตอบจากสคริปต์เท่านั้น
+- ถ้าผู้เรียนถามให้ถอดสคริปต์ หรือถามว่าคลิปพูดว่าอะไร ให้สรุป/ยกส่วนที่เกี่ยวข้องจากสคริปต์ ไม่ต้องตอบนอกสคริปต์
+- ห้ามใช้คำว่า "ครู" แทนตัว AI ในคำตอบ ให้ใช้ "ผม" เท่านั้น และลงท้ายสุภาพด้วย "ครับ" เมื่อเหมาะสม
+- ไม่ต้องยกคำพูดจากสคริปต์ยาว ๆ เว้นแต่ผู้เรียนถามว่าคลิปพูดว่าอะไร หรือจำเป็นต่อคำตอบ
+- ถ้าผู้เรียนถามเรื่องที่ไม่มีในสคริปต์ ให้ตอบว่า "ในสคริปต์ของบทเรียนนี้ยังไม่มีข้อมูลเรื่องนี้ชัดเจนครับ" และห้ามเสริมข้อมูลนอกสคริปต์
 - ห้ามแต่ง timestamp หรือแต่งคำพูดว่าอยู่ในวิดีโอถ้า transcript ไม่ได้ระบุไว้
 - ให้ความยาวคำตอบมากพอสำหรับความเข้าใจ เน้นอธิบายละเอียด ชัดเจน และถูกต้องมากกว่าสั้น
 - ถ้าคำถามต้องการคำอธิบาย ให้ขยายความอย่างละเอียด ไม่ตอบห้วนหรือข้ามขั้นตอนสำคัญ
@@ -2425,22 +2479,8 @@ const askLessonAi = async (request, lessonId) => {
 - เขียนคำตอบยาวได้ แต่ต้องเป็นระเบียบ อ่านง่าย และเกี่ยวข้องกับคำถามโดยตรง
 
 ชื่อบทเรียน: ${lesson.title}
-เนื้อหา:
-${lesson.content}
-
-คำถาม: ${question}
-`
-    : `
-คุณคือผู้ช่วย AI ภาษาไทยที่คุยกับผู้ใช้แบบเป็นกันเอง
-
-กติกาสำคัญ:
-- คำถามนี้เป็นคำถามทั่วไป ไม่เกี่ยวกับบทเรียน
-- ห้ามพูดถึงบทเรียน คอร์ส คลิป วิดีโอ transcript หรือเนื้อหาที่เรียน
-- ห้ามตอบว่า "ในบทเรียนนี้ยังไม่มีข้อมูล"
-- ห้ามใช้คำว่า "ครู" แทนตัวเอง ให้แทนตัวเองว่า "ฉัน" เท่านั้น
-- ตอบคำถามจากความรู้ทั่วไปอย่างตรงไปตรงมา เป็นธรรมชาติ และช่วยคิดให้ผู้ใช้จริง ๆ
-- ถ้าคำถามสั้นหรือกำกวม ให้เดาบริบทแบบสมเหตุสมผลก่อน แล้วตอบให้ใช้งานได้ทันที
-- ถ้าเกี่ยวกับเรื่องที่เปลี่ยนตามเวลา เช่น ข่าว ราคา หุ้น สภาพอากาศ หรือข้อมูลล่าสุด ให้บอกว่าควรตรวจข้อมูลล่าสุดประกอบ
+สคริปต์บทเรียน:
+${transcript}
 
 คำถาม: ${question}
 `
@@ -2458,7 +2498,8 @@ const generateLessonQuiz = async (lessonId) => {
   if (!lesson) return { statusCode: 404, payload: { message: 'Lesson not found' } }
 
   const prompt = `
-สร้างแบบทดสอบจากเนื้อหาบทเรียนนี้ จำนวน 5 ข้อ
+สร้างแบบทดสอบจากเนื้อหาบทเรียนนี้ จำนวน 10 ข้อ
+ต้องมีคำถามทั้งหมด 10 ข้อพอดี แต่ละข้อมี 4 ตัวเลือก และมีคำตอบที่ถูกต้องเพียง 1 ตัวเลือก
 ตอบกลับเป็น JSON เท่านั้น รูปแบบ:
 {
   "questions": [
@@ -2481,9 +2522,9 @@ ${lesson.content}
 `
   const raw = await callAiProvider(prompt, { json: true })
   const parsed = parseJsonResponse(raw)
-  const questions = Array.isArray(parsed.questions) ? parsed.questions : []
+  const questions = Array.isArray(parsed.questions) ? parsed.questions.slice(0, 10) : []
 
-  if (!questions.length) throw new Error('AI did not create quiz questions')
+  if (questions.length < 10) throw new Error('AI did not create enough quiz questions')
 
   await query('DELETE FROM quiz_questions WHERE lesson_id = $1', [lessonId])
 
@@ -2926,6 +2967,7 @@ const getTeacherDashboardCourses = async (teacherId) => {
       courseMap.set(row.id, {
         ...toCourseSummary(row),
         lessons: [],
+        enrolledStudents: [],
       })
     }
 
@@ -2946,7 +2988,54 @@ const getTeacherDashboardCourses = async (teacherId) => {
     })
   }
 
-  return Array.from(courseMap.values())
+  const courses = Array.from(courseMap.values())
+  if (!courses.length) return courses
+
+  const studentsResult = await query(
+    `
+      SELECT
+        e.course_id,
+        e.progress,
+        e.completed_lessons,
+        e.last_lesson_id,
+        e.last_accessed_at,
+        e.joined_at,
+        s.id AS student_id,
+        s.name AS student_name,
+        s.email AS student_email,
+        s.avatar_url AS student_avatar_url,
+        s.status AS student_status
+      FROM enrollments e
+      JOIN courses c ON c.id = e.course_id
+      JOIN users s ON s.id = e.student_id
+      WHERE c.teacher_id = $1
+      ORDER BY e.last_accessed_at DESC, s.name ASC
+    `,
+    [teacherId],
+  )
+
+  for (const row of studentsResult.rows) {
+    const course = courseMap.get(row.course_id)
+    if (!course) continue
+
+    course.enrolledStudents.push({
+      id: row.student_id,
+      name: row.student_name,
+      email: row.student_email,
+      avatarUrl: row.student_avatar_url ?? undefined,
+      status: row.student_status,
+      enrollment: {
+        courseId: row.course_id,
+        progress: Number(row.progress),
+        completedLessons: Number(row.completed_lessons),
+        lastLessonId: row.last_lesson_id,
+        lastAccessedAt: row.last_accessed_at,
+        joinedAt: row.joined_at,
+      },
+    })
+  }
+
+  return courses
 }
 
 const getEnrollmentRecord = async (studentId, courseId) => {

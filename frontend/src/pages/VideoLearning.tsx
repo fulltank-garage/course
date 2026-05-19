@@ -27,9 +27,9 @@ import { useApi } from '../hooks/useApi'
 import { api, authStorage } from '../services/api'
 import type { StudentEnrollment } from '../types/course'
 import type { QuizQuestion } from '../types/quiz'
+import { formatPlaybackPercent } from '../utils/playback'
 
 type AITab = 'summary' | 'ask' | 'quiz'
-type ContentTab = 'overview' | 'notes' | 'qa' | 'resources'
 
 type LessonReview = {
   id: string
@@ -44,15 +44,8 @@ const tabs: Array<{ id: AITab; label: string; icon: typeof FileText }> = [
   { id: 'quiz', label: 'แบบทดสอบ', icon: HelpCircle },
 ]
 
-const contentTabs: Array<{ id: ContentTab; label: string }> = [
-  { id: 'overview', label: 'ภาพรวม' },
-  { id: 'notes', label: 'โน้ต' },
-  { id: 'qa', label: 'ถามตอบ' },
-  { id: 'resources', label: 'ไฟล์เรียน' },
-]
-
 const lessonAiCacheKey = (lessonId: string, type: 'summary' | 'quiz') =>
-  type === 'summary' ? `mycourse:lesson-ai:${type}:timeline-v2:${lessonId}` : `mycourse:lesson-ai:${type}:${lessonId}`
+  type === 'summary' ? `mycourse:lesson-ai:${type}:timeline-v2:${lessonId}` : `mycourse:lesson-ai:${type}:v2:${lessonId}`
 
 const hasTimelineSummary = (text?: string | null) => {
   if (!text) return false
@@ -136,12 +129,11 @@ export default function VideoLearning() {
   const { slug = '' } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<AITab>('summary')
-  const [contentTab, setContentTab] = useState<ContentTab>('overview')
   const [aiSummary, setAiSummary] = useState<string | null>(null)
   const [aiQuiz, setAiQuiz] = useState<QuizQuestion[] | null>(null)
   const [aiLoading, setAiLoading] = useState<'transcript' | 'summary' | 'quiz' | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
-  const [transcribedLessonIds, setTranscribedLessonIds] = useState<Set<string>>(() => new Set())
+  const [videoProgress, setVideoProgress] = useState({ currentTime: 0, duration: 0, percent: 0 })
   const [enrollment, setEnrollment] = useState<StudentEnrollment | null>(null)
   const [progressLoading, setProgressLoading] = useState(false)
   const [progressMessage, setProgressMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
@@ -149,7 +141,16 @@ export default function VideoLearning() {
   const [reviewText, setReviewText] = useState('')
   const [lessonReviews, setLessonReviews] = useState<LessonReview[]>([])
   const { data: course, error, loading } = useApi(() => api.getCourse(slug), [slug])
-  const sessionUser = authStorage.getSession()?.user
+  const session = authStorage.getSession()
+  const sessionUser = session?.user
+  const dashboardPath =
+    sessionUser?.role === 'student'
+      ? '/student'
+      : sessionUser?.role === 'teacher'
+        ? '/teacher'
+        : sessionUser?.role === 'admin'
+          ? '/admin'
+          : '/'
 
   const lessonId = searchParams.get('lesson')
   const lesson = useMemo(() => {
@@ -175,6 +176,7 @@ export default function VideoLearning() {
   const isEnrolledStudent = course?.viewerState?.role === 'student' && course.viewerState.isEnrolled
   const reviewStorageKey = lesson ? `mycourse:lesson-reviews:${lesson.id}` : null
   const lessonStatus = lessonCompleted ? 'เรียนแล้ว' : isEnrolledStudent ? 'กำลังเรียน' : 'ตัวอย่าง'
+  const backPath = isEnrolledStudent ? dashboardPath : `/courses/${course?.slug ?? slug}`
 
   useEffect(() => {
     setEnrollment(course?.viewerState?.enrollment ?? null)
@@ -220,80 +222,11 @@ export default function VideoLearning() {
 
     const cachedSummary = window.localStorage.getItem(lessonAiCacheKey(lesson.id, 'summary'))
     setAiError(null)
+    setVideoProgress({ currentTime: 0, duration: 0, percent: 0 })
     window.localStorage.removeItem(`mycourse:lesson-ai:summary:${lesson.id}`)
     setAiSummary(cachedSummary ?? (hasTimelineSummary(lesson.aiSummary) ? lesson.aiSummary ?? null : null))
     setAiQuiz(getCachedQuiz(lesson.id))
   }, [lesson?.id])
-
-  useEffect(() => {
-    if (!lesson) return
-
-    let cancelled = false
-    const needsTranscript = Boolean(lesson.videoUrl) && !lesson.hasTranscript && !transcribedLessonIds.has(lesson.id)
-    const needsSummary = !aiSummary && !lesson.aiSummary
-    const currentQuiz = aiQuiz ?? lesson.quizQuestions
-    const needsQuiz = currentQuiz.length === 0
-
-    if (!needsSummary && !needsQuiz) return
-
-    const runLessonAi = async () => {
-      setAiError(null)
-
-      if (needsTranscript) {
-        setAiLoading('transcript')
-
-        try {
-          await api.transcribeLesson(lesson.id)
-          if (!cancelled) {
-            setTranscribedLessonIds((current) => new Set(current).add(lesson.id))
-          }
-        } catch (currentError) {
-          if (!cancelled) {
-            setTranscribedLessonIds((current) => new Set(current).add(lesson.id))
-            setAiError(currentError instanceof Error ? currentError.message : 'ถอดสคริปต์ไม่สำเร็จ')
-          }
-        }
-      }
-
-      if (needsSummary) {
-        setAiLoading('summary')
-
-        try {
-          const result = await api.summarizeLesson(lesson.id)
-          if (cancelled) return
-          setAiSummary(result.summary)
-          window.localStorage.setItem(lessonAiCacheKey(lesson.id, 'summary'), result.summary)
-        } catch (currentError) {
-          if (!cancelled) {
-            setAiError(currentError instanceof Error ? currentError.message : 'สร้างสรุปไม่สำเร็จ')
-          }
-        }
-      }
-
-      if (needsQuiz) {
-        setAiLoading('quiz')
-
-        try {
-          const result = await api.generateLessonQuiz(lesson.id)
-          if (cancelled) return
-          setAiQuiz(result.questions)
-          window.localStorage.setItem(lessonAiCacheKey(lesson.id, 'quiz'), JSON.stringify(result.questions))
-        } catch (currentError) {
-          if (!cancelled) {
-            setAiError(currentError instanceof Error ? currentError.message : 'สร้างแบบทดสอบไม่สำเร็จ')
-          }
-        }
-      }
-
-      if (!cancelled) setAiLoading(null)
-    }
-
-    runLessonAi()
-
-    return () => {
-      cancelled = true
-    }
-  }, [aiQuiz, aiSummary, lesson, transcribedLessonIds])
 
   const openLesson = (nextLessonId: string) => {
     setAiSummary(null)
@@ -396,7 +329,7 @@ export default function VideoLearning() {
         <div className="mx-auto max-w-xl rounded-xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
           <h1 className="text-2xl font-semibold text-black">ไม่พบบทเรียน</h1>
           <p className="mt-2 text-sm text-zinc-500">{error ?? 'บทเรียนนี้ยังไม่มีข้อมูลในระบบ'}</p>
-          <Link to="/" className="mt-6 inline-flex h-11 items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white">
+          <Link to={dashboardPath} className="mt-6 inline-flex h-11 items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white">
             กลับหน้าหลัก
           </Link>
         </div>
@@ -415,9 +348,9 @@ export default function VideoLearning() {
           <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
               <Link
-                to={`/courses/${course.slug}`}
+                to={backPath}
                 className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-black transition hover:border-black"
-                aria-label="กลับไปหน้าคอร์ส"
+                aria-label={isEnrolledStudent ? 'กลับหน้าหลักนักเรียน' : 'กลับไปหน้าคอร์ส'}
               >
                 <ArrowLeft size={18} />
               </Link>
@@ -428,14 +361,6 @@ export default function VideoLearning() {
             </div>
 
             <div className="hidden items-center gap-3 sm:flex">
-              <button
-                type="button"
-                className="inline-flex h-11 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black"
-                onClick={() => setContentTab('notes')}
-              >
-                <ClipboardList size={17} />
-                โน้ต
-              </button>
               <button
                 type="button"
                 className="inline-flex h-11 items-center gap-2 rounded-lg bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
@@ -492,60 +417,29 @@ export default function VideoLearning() {
               </div>
             </div>
 
-            <VideoPlayer lesson={lesson} poster={course.coverImage} courseTitle={course.title} compact />
-
-            <div className="mt-6 border-b border-zinc-200">
-              <div className="flex gap-7 overflow-x-auto">
-                {contentTabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    className={[
-                      'border-b-2 pb-3 text-sm font-semibold transition',
-                      contentTab === tab.id ? 'border-black text-black' : 'border-transparent text-zinc-500 hover:text-black',
-                    ].join(' ')}
-                    onClick={() => setContentTab(tab.id)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <VideoPlayer
+              lesson={lesson}
+              poster={course.coverImage}
+              courseTitle={course.title}
+              compact
+              onPlaybackProgress={setVideoProgress}
+            />
 
             <section className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div>
-                {contentTab === 'overview' ? (
-                  <div className="text-sm leading-7 text-zinc-700">
-                    <p>{lesson.summary || 'บทเรียนนี้จะพาคุณเรียนรู้เนื้อหาสำคัญ พร้อมตัวอย่างที่นำไปใช้ต่อได้จริง'}</p>
-                    <h2 className="mt-5 font-semibold text-black">สิ่งที่คุณจะได้เรียนรู้</h2>
-                    <ul className="mt-3 space-y-2">
-                      {(course.outcomes.length ? course.outcomes : ['เข้าใจแนวคิดหลักของบทเรียน', 'นำตัวอย่างไปปรับใช้ได้', 'ทบทวนด้วย AI และแบบทดสอบ']).slice(0, 4).map((item) => (
-                        <li key={item} className="flex gap-3">
-                          <CheckCircle2 size={16} className="mt-1 shrink-0 text-black" />
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {contentTab === 'notes' ? (
-                  <div className="rounded-xl border border-dashed border-zinc-200 p-5 text-sm leading-7 text-zinc-600">
-                    ใช้พื้นที่นี้จดประเด็นสำคัญระหว่างเรียน และกลับมาเปิดทบทวนก่อนทำแบบทดสอบ
-                  </div>
-                ) : null}
-
-                {contentTab === 'qa' ? (
-                  <div className="rounded-xl border border-zinc-200 p-5">
-                    <AIChatBox lessonId={lesson.id} lessonTitle={lesson.title} />
-                  </div>
-                ) : null}
-
-                {contentTab === 'resources' ? (
-                  <div className="rounded-xl border border-zinc-200 p-5 text-sm leading-7 text-zinc-600">
-                    ไฟล์ประกอบบทเรียนจะแสดงในส่วนนี้เมื่อผู้สอนแนบไว้กับบทเรียน
-                  </div>
-                ) : null}
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+                <div className="flex min-w-0 items-center gap-4">
+                    {course.instructor.avatarUrl ? (
+                      <img src={course.instructor.avatarUrl} alt={course.instructor.name} className="h-12 w-12 rounded-full object-cover" />
+                    ) : (
+                      <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                        <GraduationCap size={20} />
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <h2 className="truncate text-base font-semibold text-black">{course.instructor.name}</h2>
+                      <p className="mt-0.5 truncate text-sm text-zinc-500">{course.instructor.title || 'ผู้สอนประจำคอร์ส'}</p>
+                    </div>
+                </div>
               </div>
 
               <aside className="rounded-xl bg-zinc-50 p-5">
@@ -574,8 +468,20 @@ export default function VideoLearning() {
                   <div className="flex gap-3">
                     <ClipboardList size={18} className="mt-1 text-black" />
                     <div>
-                      <p className="text-zinc-500">ความคืบหน้า</p>
+                      <p className="text-zinc-500">ความคืบหน้าคอร์ส</p>
                       <p className="font-semibold text-black">{progressPercent}%</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <PlayCircle size={18} className="mt-1 text-black" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-zinc-500">ดูวิดีโอนี้</p>
+                        <p className="font-semibold text-black">{formatPlaybackPercent(videoProgress.percent)}</p>
+                      </div>
+                      <div className="mt-2 h-1.5 rounded-full bg-zinc-200">
+                        <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.min(videoProgress.percent, 100)}%` }} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -707,21 +613,23 @@ export default function VideoLearning() {
             </section>
           </div>
 
-          <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
-            <section className="flex h-[720px] max-h-[calc(100vh-2rem)] min-h-[600px] flex-col rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <aside className="space-y-6">
+            <section className="flex min-h-[560px] flex-col rounded-xl border border-zinc-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-[760px]">
               <div className="flex shrink-0 items-center gap-3">
-                <Sparkles size={18} />
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100 text-black">
+                  <Sparkles size={18} />
+                </span>
                 <h2 className="text-lg font-semibold text-black">AI ผู้ช่วย</h2>
               </div>
 
-              <div className="mt-5 grid shrink-0 grid-cols-3 border-b border-zinc-200 text-sm">
+              <div className="mt-4 grid shrink-0 grid-cols-3 rounded-lg bg-zinc-100 p-1 text-sm">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     className={[
-                      'border-b-2 px-2 pb-3 font-semibold transition',
-                      activeTab === tab.id ? 'border-black text-black' : 'border-transparent text-zinc-500 hover:text-black',
+                      'h-10 rounded-md px-2 font-semibold transition',
+                      activeTab === tab.id ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-black',
                     ].join(' ')}
                     onClick={() => setActiveTab(tab.id)}
                   >
@@ -734,12 +642,12 @@ export default function VideoLearning() {
                 {activeTab === 'summary' ? (
                   <div className="flex h-full min-h-0 flex-col gap-4">
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
-                    <div className="min-h-0 flex-1 overflow-y-auto rounded-lg bg-zinc-50/70 p-4">
+                    <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-xl border border-zinc-100 bg-zinc-50/70 p-4">
                       <AiResponsePanel text={aiSummary ?? lesson.aiSummary ?? lesson.summary} />
                     </div>
                     <button
                       type="button"
-                      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black"
+                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={generateSummary}
                       disabled={aiLoading === 'summary'}
                     >
@@ -749,21 +657,21 @@ export default function VideoLearning() {
                   </div>
                 ) : null}
 
-                {activeTab === 'ask' ? <AIChatBox lessonId={lesson.id} lessonTitle={lesson.title} className="h-full max-h-none" /> : null}
+                {activeTab === 'ask' ? <AIChatBox lessonId={lesson.id} lessonTitle={lesson.title} className="h-full max-h-none" embedded /> : null}
 
                 {activeTab === 'quiz' ? (
                   <div className="flex h-full min-h-0 flex-col gap-4">
                     <button
                       type="button"
-                      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                       onClick={generateQuiz}
                       disabled={aiLoading === 'quiz'}
                     >
                       <HelpCircle size={16} />
-                      {aiLoading === 'quiz' ? 'AI กำลังออกข้อสอบ...' : 'ให้ AI ออกข้อสอบ'}
+                      {aiLoading === 'quiz' ? 'AI กำลังออกข้อสอบ...' : 'ให้ AI ออกข้อสอบ 10 ข้อ'}
                     </button>
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
-                    <div className="min-h-0 flex-1 overflow-y-auto rounded-lg bg-zinc-50/70 p-3">
+                    <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-xl border border-zinc-100 bg-zinc-50/70 p-3">
                       <QuizCard questions={aiQuiz ?? lesson.quizQuestions} />
                     </div>
                   </div>

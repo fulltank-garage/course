@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Bell,
@@ -15,6 +15,7 @@ import {
 import { api, authStorage, studentDashboardStorage, type StudentCourse, type StudentProfile } from '../services/api'
 import { useApi } from '../hooks/useApi'
 import LearnProSidebar from '../components/LearnProSidebar'
+import { formatPlaybackPercent, getPlaybackPercent, getStoredPlaybackProgressTime, parseDurationToSeconds } from '../utils/playback'
 
 type ProfileDraft = Pick<StudentProfile, 'name' | 'avatarUrl'>
 type CourseFilter = 'all' | 'active' | 'completed' | 'saved'
@@ -53,6 +54,21 @@ const getNextLessonMeta = (item: StudentCourse) => {
 }
 
 const formatNumber = (value: number) => value.toLocaleString('en-US')
+
+const getCourseLearningProgress = (item: StudentCourse) => {
+  const lessonCount = item.course.lessons.length
+  if (!lessonCount) return item.enrollment.progress
+
+  const watchedProgress = item.course.lessons.reduce((total, lesson, index) => {
+    if (index < item.enrollment.completedLessons) return total + 100
+
+    const duration = parseDurationToSeconds(lesson.duration)
+    const watchedSeconds = getStoredPlaybackProgressTime(lesson.id)
+    return total + getPlaybackPercent(watchedSeconds, duration)
+  }, 0) / lessonCount
+
+  return Math.max(item.enrollment.progress, Math.round(watchedProgress * 10) / 10)
+}
 
 function CourseThumb({ item, compact = false }: { item: StudentCourse; compact?: boolean }) {
   return (
@@ -180,36 +196,6 @@ export default function StudentDashboard() {
     }
   }, [activeSection])
 
-  const continueCourse = useMemo(() => {
-    if (!data?.courses.length) return null
-
-    return data.courses.find((item) => item.enrollment.progress < 100) ?? data.courses[0]
-  }, [data?.courses])
-
-  const filteredCourses = useMemo(() => {
-    const courses = data?.courses ?? []
-
-    if (courseFilter === 'active') {
-      return courses.filter((item) => item.enrollment.progress > 0 && item.enrollment.progress < 100)
-    }
-
-    if (courseFilter === 'completed') {
-      return courses.filter((item) => item.enrollment.progress >= 100)
-    }
-
-    if (courseFilter === 'saved') {
-      return courses.slice(0, 3)
-    }
-
-    return courses
-  }, [courseFilter, data?.courses])
-
-  const recommendedCourses = useMemo(() => {
-    const courses = data?.courses ?? []
-    if (courses.length <= 1) return courses
-    return [...courses].sort((left, right) => right.course.rating - left.course.rating).slice(0, 4)
-  }, [data?.courses])
-
   if (loading && !data) {
     return <div className="min-h-screen bg-white p-6 text-sm text-zinc-500">กำลังโหลดแดชบอร์ดผู้เรียน...</div>
   }
@@ -270,7 +256,30 @@ export default function StudentDashboard() {
     }
   }
 
-  const coursesInProgress = data.courses.filter((item) => item.enrollment.progress > 0 && item.enrollment.progress < 100).length
+  const continueCourse = data.courses.find((item) => getCourseLearningProgress(item) < 100) ?? data.courses[0] ?? null
+  const filteredCourses =
+    courseFilter === 'active'
+      ? data.courses.filter((item) => {
+          const progress = getCourseLearningProgress(item)
+          return progress > 0 && progress < 100
+        })
+      : courseFilter === 'completed'
+        ? data.courses.filter((item) => getCourseLearningProgress(item) >= 100)
+        : courseFilter === 'saved'
+          ? data.courses.slice(0, 3)
+          : data.courses
+  const recommendedCourses =
+    data.courses.length <= 1
+      ? data.courses
+      : [...data.courses].sort((left, right) => right.course.rating - left.course.rating).slice(0, 4)
+  const continueCourseProgress = continueCourse ? getCourseLearningProgress(continueCourse) : 0
+  const coursesInProgress = data.courses.filter((item) => {
+    const progress = getCourseLearningProgress(item)
+    return progress > 0 && progress < 100
+  }).length
+  const averageLearningProgress = data.courses.length
+    ? Math.round((data.courses.reduce((total, item) => total + getCourseLearningProgress(item), 0) / data.courses.length) * 10) / 10
+    : data.stats.averageProgress
   const weeklyBars = [72, 48, 86, 38, 26, 28, 42]
 
   return (
@@ -373,9 +382,9 @@ export default function StudentDashboard() {
                       </div>
                       <div className="flex min-w-[190px] items-center gap-3">
                         <div className="h-1.5 flex-1 rounded-full bg-zinc-200">
-                          <div className="h-1.5 rounded-full bg-black" style={{ width: `${Math.min(continueCourse.enrollment.progress, 100)}%` }} />
+                          <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.min(continueCourseProgress, 100)}%` }} />
                         </div>
-                        <span className="w-10 text-sm font-semibold text-black">{continueCourse.enrollment.progress}%</span>
+                        <span className="w-10 text-sm font-semibold text-black">{formatPlaybackPercent(continueCourseProgress)}</span>
                       </div>
                       <Link to={learningPathFor(continueCourse)} className="inline-flex h-10 items-center justify-center rounded-md bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800">
                         เรียนต่อ
@@ -415,7 +424,10 @@ export default function StudentDashboard() {
 
                   <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
                     {filteredCourses.length > 0 ? (
-                      filteredCourses.map((item) => (
+                      filteredCourses.map((item) => {
+                        const itemProgress = getCourseLearningProgress(item)
+
+                        return (
                         <article key={item.course.id} className="flex flex-col gap-4 border-b border-zinc-200 p-4 last:border-b-0 md:flex-row md:items-center">
                           <CourseThumb item={item} compact />
                           <div className="min-w-0 flex-1">
@@ -424,26 +436,27 @@ export default function StudentDashboard() {
                           </div>
                           <div className="flex min-w-[190px] items-center gap-3">
                             <div className="h-1.5 flex-1 rounded-full bg-zinc-200">
-                              <div className="h-1.5 rounded-full bg-black" style={{ width: `${Math.min(item.enrollment.progress, 100)}%` }} />
+                              <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.min(itemProgress, 100)}%` }} />
                             </div>
-                            <span className="w-10 text-sm text-zinc-700">{item.enrollment.progress}%</span>
+                            <span className="w-10 text-sm text-zinc-700">{formatPlaybackPercent(itemProgress)}</span>
                           </div>
                           <Link
                             to={learningPathFor(item)}
                             className={[
                               'inline-flex h-10 min-w-24 items-center justify-center rounded-md border px-4 text-sm font-semibold transition',
-                              item.enrollment.progress >= 100
+                              itemProgress >= 100
                                 ? 'border-zinc-200 bg-zinc-100 text-black hover:bg-zinc-200'
                                 : 'border-zinc-200 bg-white text-black hover:border-black',
                             ].join(' ')}
                           >
-                            {item.enrollment.progress >= 100 ? 'ทบทวน' : 'เรียนต่อ'}
+                            {itemProgress >= 100 ? 'ทบทวน' : 'เรียนต่อ'}
                           </Link>
                           <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100">
                             <MoreVertical size={18} />
                           </button>
                         </article>
-                      ))
+                        )
+                      })
                     ) : (
                       <div className="p-10 text-center">
                         <h3 className="text-lg font-semibold text-black">ไม่มีคอร์สในตัวกรองนี้</h3>
@@ -495,36 +508,23 @@ export default function StudentDashboard() {
 
                 <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-black">ผู้ช่วยเอไอ</h2>
-                    <Link to="/learn" className="inline-flex items-center gap-2 text-sm text-zinc-600">
-                      ดูทั้งหมด
-                      <ArrowRightIcon />
-                    </Link>
-                  </div>
-                  <div className="mt-5 rounded-lg bg-zinc-50 p-4">
-                    <p className="text-sm text-zinc-600">สวัสดี {currentProfile.name || 'คุณ'} วันนี้อยากให้ช่วยเรื่องอะไร?</p>
-                    <div className="mt-4 divide-y divide-zinc-200 overflow-hidden rounded-lg bg-white">
-                      {['สรุปบทเรียนนี้', 'อธิบายหัวข้อนี้', 'สร้างแบบทดสอบ', 'แนะนำคอร์สถัดไป'].map((item) => (
-                        <button key={item} type="button" className="flex w-full items-center justify-between px-4 py-4 text-left text-sm font-medium text-black hover:bg-zinc-50">
-                          <span>{item}</span>
-                          <ChevronRight size={17} />
-                        </button>
-                      ))}
-                    </div>
-                    <button type="button" className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-black text-sm font-semibold text-white hover:bg-zinc-800">
-                      <Sparkles size={17} />
-                      ถามเอไอ
-                    </button>
-                  </div>
-                </section>
-
-                <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-black">ความคืบหน้ารายสัปดาห์</h2>
+                    <h2 className="text-lg font-semibold text-black">ความคืบหน้าการเรียน</h2>
                     <button type="button" className="inline-flex items-center gap-1 text-sm text-zinc-600">
                       สัปดาห์นี้
                       <ChevronDown size={15} />
                     </button>
+                  </div>
+                  <div className="mt-6 rounded-lg bg-zinc-50 p-4">
+                    <div className="flex items-end justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-zinc-500">ภาพรวมทั้งหมด</p>
+                        <p className="mt-1 text-4xl font-semibold text-black">{formatPlaybackPercent(averageLearningProgress)}</p>
+                      </div>
+                      <p className="text-sm text-zinc-500">{data.stats.enrolledCourses} คอร์ส</p>
+                    </div>
+                    <div className="mt-4 h-2 rounded-full bg-zinc-200">
+                      <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.min(averageLearningProgress, 100)}%` }} />
+                    </div>
                   </div>
                   <p className="mt-7 text-3xl font-semibold text-black">{Math.max(1, data.stats.completedLessons * 2)} ชม. 45 นาที</p>
                   <p className="mt-1 text-sm text-zinc-500">เวลาเรียนรวม</p>
@@ -534,7 +534,7 @@ export default function StudentDashboard() {
                         <div
                           className={[
                             'w-full max-w-4 rounded-full',
-                            index === 2 ? 'bg-black' : 'bg-zinc-200',
+                            index === 2 ? 'bg-emerald-500' : 'bg-zinc-200',
                           ].join(' ')}
                           style={{ height: `${height}%` }}
                         />
@@ -542,6 +542,25 @@ export default function StudentDashboard() {
                       </div>
                     ))}
                   </div>
+                  {data.courses.length > 0 ? (
+                    <div className="mt-6 space-y-3 border-t border-zinc-200 pt-5">
+                      {data.courses.slice(0, 3).map((item) => {
+                        const itemProgress = getCourseLearningProgress(item)
+
+                        return (
+                        <Link key={item.course.id} to={learningPathFor(item)} className="block rounded-lg border border-zinc-200 p-3 transition hover:border-black">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="line-clamp-1 text-sm font-semibold text-black">{item.course.title}</p>
+                            <span className="text-sm text-zinc-600">{formatPlaybackPercent(itemProgress)}</span>
+                          </div>
+                          <div className="mt-3 h-1.5 rounded-full bg-zinc-200">
+                            <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.min(itemProgress, 100)}%` }} />
+                          </div>
+                        </Link>
+                        )
+                      })}
+                    </div>
+                  ) : null}
                   <Link to="/student" className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-zinc-700">
                     ดูรายงานทั้งหมด
                     <ArrowRightIcon />

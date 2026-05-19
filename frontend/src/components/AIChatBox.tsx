@@ -13,6 +13,7 @@ interface AIChatBoxProps {
   lessonId: string
   lessonTitle: string
   className?: string
+  embedded?: boolean
 }
 
 const chatStoragePrefix = 'mycourse_ai_chat'
@@ -20,7 +21,7 @@ const chatStoragePrefix = 'mycourse_ai_chat'
 const createWelcomeMessage = (lessonTitle: string): Message => ({
   id: 'm-1',
   sender: 'ai',
-  text: `มีตรงไหนใน "${lessonTitle}" ที่ยังไม่เข้าใจ ถามได้เลยนะ`,
+  text: `มีตรงไหนใน "${lessonTitle}" ที่ยังไม่เข้าใจ ถามได้เลยครับ`,
   createdAt: new Date().toISOString(),
 })
 
@@ -60,10 +61,13 @@ const formatMessageTime = (value: string) =>
     minute: '2-digit',
   }).format(new Date(value))
 
-export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px] max-h-[70vh]' }: AIChatBoxProps) {
+export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px] max-h-[70vh]', embedded = false }: AIChatBoxProps) {
   const [question, setQuestion] = useState('')
   const [loading, setLoading] = useState(false)
   const [messages, setMessages] = useState<Message[]>(() => getStoredMessages(lessonId, lessonTitle))
+  const [focusedAiMessageId, setFocusedAiMessageId] = useState<string | null>(null)
+  const scrollPanelRef = useRef<HTMLDivElement | null>(null)
+  const focusedAiMessageRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -75,14 +79,33 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
   }, [lessonId, messages])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: 'end' })
-  }, [messages, loading])
+    if (!loading) return
+
+    messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+  }, [loading])
+
+  useEffect(() => {
+    if (!focusedAiMessageId) return
+
+    const scrollPanel = scrollPanelRef.current
+    const aiMessage = focusedAiMessageRef.current
+
+    if (!scrollPanel || !aiMessage) return
+
+    requestAnimationFrame(() => {
+      scrollPanel.scrollTo({
+        top: Math.max(0, aiMessage.offsetTop - scrollPanel.offsetTop - 8),
+        behavior: 'smooth',
+      })
+    })
+  }, [focusedAiMessageId, messages])
 
   const clearChat = () => {
     const welcomeMessage = createWelcomeMessage(lessonTitle)
 
     localStorage.removeItem(getChatStorageKey(lessonId))
     setQuestion('')
+    setFocusedAiMessageId(null)
     setMessages([welcomeMessage])
   }
 
@@ -98,29 +121,36 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
       createdAt: new Date().toISOString(),
     }
     setMessages((current) => [...current, userMessage])
+    setFocusedAiMessageId(null)
     setQuestion('')
     setLoading(true)
 
     try {
       const result = await api.askLesson(lessonId, trimmed)
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        sender: 'ai',
+        text: result.answer,
+        createdAt: new Date().toISOString(),
+      }
+
+      setFocusedAiMessageId(aiMessage.id)
       setMessages((current) => [
         ...current,
-        {
-          id: `ai-${Date.now()}`,
-          sender: 'ai',
-          text: result.answer,
-          createdAt: new Date().toISOString(),
-        },
+        aiMessage,
       ])
     } catch (error) {
+      const errorMessage: Message = {
+        id: `ai-error-${Date.now()}`,
+        sender: 'ai',
+        text: error instanceof Error ? error.message : 'ไม่สามารถเชื่อมต่อ AI ได้ครับ กรุณาตรวจสอบ Gemini API',
+        createdAt: new Date().toISOString(),
+      }
+
+      setFocusedAiMessageId(errorMessage.id)
       setMessages((current) => [
         ...current,
-        {
-          id: `ai-error-${Date.now()}`,
-          sender: 'ai',
-          text: error instanceof Error ? error.message : 'ไม่สามารถเชื่อมต่อ AI ได้ กรุณาตรวจสอบ Gemini API',
-          createdAt: new Date().toISOString(),
-        },
+        errorMessage,
       ])
     } finally {
       setLoading(false)
@@ -130,15 +160,24 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
   return (
     <div
       className={[
-        'flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-200/70 dark:border-white/10 dark:bg-slate-900 dark:shadow-black/30',
+        embedded
+          ? 'flex min-h-0 flex-col overflow-hidden rounded-xl bg-zinc-50'
+          : 'flex min-h-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm',
         className,
       ].join(' ')}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-5">
-        <h2 className="min-w-0 text-xl font-semibold tracking-tight text-slate-950">AI ผู้ช่วย</h2>
+      <div className={embedded ? 'flex shrink-0 items-center justify-end px-3 pb-2' : 'flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3'}>
+        {!embedded ? (
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black text-white">
+              <Bot size={16} />
+            </span>
+            <h2 className="min-w-0 truncate text-sm font-semibold text-black">AI ผู้ช่วย</h2>
+          </div>
+        ) : null}
         <button
           type="button"
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-slate-950 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="เคลียร์ข้อความแชท"
           title="เคลียร์ข้อความแชท"
           onClick={clearChat}
@@ -148,29 +187,30 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
         </button>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50/70 p-5 dark:bg-slate-950">
+      <div ref={scrollPanelRef} className="ai-scroll-panel flex-1 space-y-4 overflow-y-auto bg-zinc-50 px-4 py-4">
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex items-start gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+            ref={message.id === focusedAiMessageId ? focusedAiMessageRef : null}
+            className={`flex items-end gap-2 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {message.sender === 'ai' ? (
-              <span className="mt-1 hidden h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-950 text-white ring-1 ring-slate-800 sm:inline-flex dark:bg-white dark:text-slate-950">
-                <Bot size={18} />
+              <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black text-white sm:inline-flex">
+                <Bot size={15} />
               </span>
             ) : null}
 
             <div
-              className={`min-h-[52px] w-full max-w-[92%] whitespace-pre-wrap break-words rounded-xl px-4 py-3 text-base leading-7 shadow-sm sm:max-w-[88%] ${
+              className={`min-h-0 max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-7 shadow-sm sm:max-w-[82%] ${
                 message.sender === 'user'
-                  ? 'bg-white text-slate-950 ring-1 ring-slate-200 dark:bg-white dark:text-slate-950'
-                  : 'border border-slate-800 bg-slate-950 text-slate-100 shadow-slate-950/20'
+                  ? 'rounded-br-md bg-black text-white'
+                  : 'rounded-bl-md border border-zinc-200 bg-white text-zinc-800'
               }`}
             >
               {message.text}
               <span
-                className={`mt-3 block text-xs ${
-                  message.sender === 'user' ? 'text-slate-500' : 'text-slate-400'
+                className={`mt-2 block text-[11px] leading-none ${
+                  message.sender === 'user' ? 'text-white/60' : 'text-zinc-400'
                 }`}
               >
                 {formatMessageTime(message.createdAt)}
@@ -178,20 +218,25 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
             </div>
 
             {message.sender === 'user' ? (
-              <span className="mt-1 hidden h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700 ring-1 ring-slate-200 sm:inline-flex dark:bg-slate-800 dark:text-slate-200 dark:ring-white/10">
-                <UserRound size={18} />
+              <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-zinc-700 ring-1 ring-zinc-200 sm:inline-flex">
+                <UserRound size={15} />
               </span>
             ) : null}
           </div>
         ))}
 
-        {loading ? <p className="text-base text-slate-500">กำลังสรุปคำถาม...</p> : null}
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-zinc-500">
+            <span className="h-2 w-2 rounded-full bg-zinc-400" />
+            กำลังตอบคำถาม...
+          </div>
+        ) : null}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-slate-200 bg-white p-5">
+      <div className="shrink-0 bg-zinc-50 px-3 pb-3 pt-1">
         <form
-          className="flex items-end gap-2"
+          className="flex items-end gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm focus-within:border-black"
           onSubmit={(event) => {
             event.preventDefault()
             askQuestion(question)
@@ -207,13 +252,13 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
               }
             }}
             rows={2}
-            className="mt-0 min-h-[72px] w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-3 text-base leading-7 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-950"
+            className="mt-0 max-h-28 min-h-12 w-full resize-none border-0 bg-transparent px-2 py-2 text-sm leading-6 text-black outline-none placeholder:text-zinc-400"
             placeholder="พิมพ์คำถามเกี่ยวกับบทเรียน"
             disabled={loading}
           />
           <button
             type="submit"
-            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-black text-white shadow-sm transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="ส่งคำถาม"
             disabled={loading}
           >

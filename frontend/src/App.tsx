@@ -12,6 +12,7 @@ import Register from './pages/Register'
 import StudentCertificates from './pages/StudentCertificates'
 import StudentCourseStore from './pages/StudentCourseStore'
 import StudentDashboard from './pages/StudentDashboard'
+import StudentMessages from './pages/StudentMessages'
 import StudentWishlist from './pages/StudentWishlist'
 import TeacherDashboard from './pages/TeacherDashboard'
 import VideoLearning from './pages/VideoLearning'
@@ -35,6 +36,7 @@ function App() {
         <Route element={<DashboardLayout role="student" />}>
           <Route path="student" element={<StudentDashboard />} />
           <Route path="student/store" element={<StudentCourseStore />} />
+          <Route path="student/messages" element={<StudentMessages />} />
           <Route path="student/certificates" element={<StudentCertificates />} />
           <Route path="student/wishlist" element={<StudentWishlist />} />
         </Route>
