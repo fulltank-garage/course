@@ -54,6 +54,8 @@ type TeacherCourseStudent = CourseStudent & {
   courseSlug: string
   courseCoverImage: string
   courseCategory: string
+  coursePrice: number
+  courseStatus: Course['status']
 }
 type LessonDraft = {
   title: string
@@ -116,14 +118,6 @@ const formatThaiDate = (value?: string | null) => {
     month: 'short',
     year: 'numeric',
   }).format(new Date(value))
-}
-
-const hasStartedEnrollment = (enrollment: { progress: number; lastLessonId: string | null; lastAccessedAt?: string; joinedAt: string }) => {
-  if (enrollment.progress > 0) return true
-  if (enrollment.lastLessonId) return true
-  if (!enrollment.lastAccessedAt) return false
-
-  return new Date(enrollment.lastAccessedAt).getTime() > new Date(enrollment.joinedAt).getTime()
 }
 
 const getCourseStudentCount = (course: Course) => course.enrolledStudents?.length ?? course.students
@@ -297,7 +291,7 @@ const getCourseStatusMeta = (status: Course['status'] | undefined) =>
   courseStatusMeta[status ?? 'published'] ?? courseStatusMeta.published
 
 type TeacherSection = 'home' | 'my-courses' | 'students' | 'messages' | 'reviews' | 'profile'
-type StudentCategory = 'all' | 'active' | 'completed' | 'follow-up' | 'by-course'
+type StudentCategory = 'all' | 'by-course'
 
 const teacherNavItems: Array<{ key: TeacherSection; to: string; label: string; icon: typeof Home }> = [
   { key: 'home', to: '/teacher', label: 'หน้าหลัก', icon: Home },
@@ -309,11 +303,8 @@ const teacherNavItems: Array<{ key: TeacherSection; to: string; label: string; i
 ]
 
 const studentCategoryOptions: Array<{ value: StudentCategory; label: string }> = [
-  { value: 'all', label: 'ทั้งหมด' },
-  { value: 'active', label: 'กำลังเรียน' },
-  { value: 'completed', label: 'เรียนจบแล้ว' },
-  { value: 'follow-up', label: 'ต้องติดตาม' },
-  { value: 'by-course', label: 'ตามคอร์ส' },
+  { value: 'all', label: 'รายการล่าสุด' },
+  { value: 'by-course', label: 'แยกตามคอร์ส' },
 ]
 
 function TeacherShell({
@@ -790,6 +781,7 @@ function LessonManagerModal({
       : 'กำลังอัปโหลดวิดีโอ'
 
   const controlsBusy = saving || uploading
+  const selectedLessonIndex = course.lessons.findIndex((lesson) => lesson.id === editingLessonId)
 
   useEffect(() => {
     setVideoPreviewError(false)
@@ -808,134 +800,172 @@ function LessonManagerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-950/35 p-0 backdrop-blur-sm sm:p-4 lg:p-6">
-      <div className="flex h-full w-full max-w-[1480px] flex-col overflow-hidden rounded-none border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.18)] sm:h-[calc(100vh-2rem)] sm:rounded-lg lg:h-[calc(100vh-3rem)]">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 p-0 backdrop-blur-sm sm:p-5">
+      <div className="flex h-full w-full max-w-[1320px] flex-col overflow-hidden bg-white shadow-2xl sm:h-[calc(100vh-2.5rem)] sm:rounded-xl sm:border sm:border-zinc-200">
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-200 px-5 py-4 sm:px-6">
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold tracking-tight text-slate-950">จัดการบทเรียน</h2>
-            <p className="mt-1 truncate text-sm text-slate-500">
-              {course.title} · {editingLessonId ? 'แก้ไขบทเรียน' : 'เพิ่มบทเรียนใหม่'}
+            <h2 className="text-lg font-semibold tracking-tight text-black">จัดการบทเรียน</h2>
+            <p className="mt-1 truncate text-sm text-zinc-500">
+              {course.title} · {editingLessonId ? `บทเรียนที่ ${selectedLessonIndex + 1}` : 'บทเรียนใหม่'}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" className="btn-primary px-3 py-2" onClick={onNew}>
+            <button type="button" className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800" onClick={onNew}>
               <Plus size={16} />
               บทเรียนใหม่
             </button>
-            <button type="button" className="btn-ghost h-10 w-10 px-0" onClick={onClose} aria-label="ปิด popup">
+            <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:border-black hover:text-black" onClick={onClose} aria-label="ปิด popup">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {course.lessons.length ? (
-          <div className="border-b border-slate-200 bg-white px-5 py-3 sm:px-6">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {course.lessons.map((lesson, index) => (
-                <button
-                  key={lesson.id}
-                  type="button"
-                  className={[
-                    'flex min-w-max items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition',
-                    editingLessonId === lesson.id
-                      ? 'border-slate-950 bg-slate-950 text-white shadow-sm shadow-slate-950/15'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-950',
-                  ].join(' ')}
-                  onClick={() => onSelect(lesson)}
-                >
-                  <span>{index + 1}. {lesson.title || 'ไม่มีชื่อบทเรียน'}</span>
-                  {lesson.preview ? <span className={editingLessonId === lesson.id ? 'text-xs text-white/60' : 'text-xs text-slate-400'}>Preview</span> : null}
-                  {lesson.videoUrl ? <span className={editingLessonId === lesson.id ? 'text-xs text-white/60' : 'text-xs text-slate-400'}>มีวิดีโอ</span> : null}
-                </button>
-              ))}
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <aside className="min-h-0 border-b border-zinc-200 bg-zinc-50 lg:border-b-0 lg:border-r">
+            <div className="flex items-center justify-between gap-3 px-5 py-4">
+              <p className="text-sm font-semibold text-black">บทเรียน</p>
+              <p className="text-xs text-zinc-500">{course.lessons.length.toLocaleString('th-TH')} รายการ</p>
             </div>
-          </div>
-        ) : null}
+            <div className="flex max-h-48 gap-2 overflow-x-auto px-5 pb-4 lg:max-h-none lg:flex-col lg:overflow-y-auto lg:pb-5">
+              {course.lessons.length ? (
+                course.lessons.map((lesson, index) => {
+                  const active = editingLessonId === lesson.id
 
-        <div className="min-h-0 flex-1 bg-slate-50/70">
-          <form className="min-h-0 h-full overflow-y-auto p-5 sm:p-6 xl:p-8" onSubmit={onSubmit}>
-            {message ? (
-              <div
-                className={`mb-5 rounded-lg border px-4 py-3 text-sm ${
-                  message.tone === 'success'
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                    : 'border-rose-200 bg-rose-50 text-rose-700'
-                }`}
-              >
-                {message.text}
+                  return (
+                    <button
+                      key={lesson.id}
+                      type="button"
+                      className={[
+                        'flex min-w-[220px] items-start gap-3 rounded-lg border px-3 py-3 text-left transition lg:min-w-0',
+                        active
+                          ? 'border-black bg-white text-black shadow-sm'
+                          : 'border-transparent bg-transparent text-zinc-600 hover:border-zinc-200 hover:bg-white hover:text-black',
+                      ].join(' ')}
+                      onClick={() => onSelect(lesson)}
+                    >
+                      <span className={active ? 'text-sm font-semibold text-black' : 'text-sm font-semibold text-zinc-400'}>
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="line-clamp-2 text-sm font-semibold">{lesson.title || 'ไม่มีชื่อบทเรียน'}</span>
+                        <span className="mt-1 flex flex-wrap gap-2 text-xs text-zinc-400">
+                          {lesson.duration ? <span>{lesson.duration}</span> : null}
+                          {lesson.preview ? <span>Preview</span> : null}
+                          {lesson.videoUrl ? <span>Video</span> : null}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })
+              ) : (
+                <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-5 text-sm leading-6 text-zinc-500">
+                  ยังไม่มีบทเรียน กด “บทเรียนใหม่” เพื่อเริ่มเพิ่มเนื้อหา
+                </div>
+              )}
+            </div>
+          </aside>
+
+          <form className="min-h-0 overflow-y-auto bg-white" onSubmit={onSubmit}>
+            <div className="mx-auto max-w-5xl px-5 py-6 sm:px-7 lg:py-8">
+              {message ? (
+                <div
+                  className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
+                    message.tone === 'success'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-rose-200 bg-rose-50 text-rose-700'
+                  }`}
+                >
+                  {message.text}
+                </div>
+              ) : null}
+
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+                <div className="space-y-5">
+                  <label className="block">
+                    <span className="text-sm font-medium text-zinc-700">ชื่อบทเรียน</span>
+                    <input
+                      className="mt-2 h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
+                      value={draft.title}
+                      onChange={(event) => onDraftChange('title', event.target.value)}
+                      placeholder="บทเรียนที่ 1: เริ่มต้นคอร์ส"
+                      required
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-zinc-700">สรุปบทเรียน</span>
+                    <textarea
+                      className="mt-2 min-h-44 w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
+                      value={draft.summary}
+                      onChange={(event) => onDraftChange('summary', event.target.value)}
+                      placeholder="เขียนสรุปสั้น ๆ ของบทเรียน"
+                    />
+                  </label>
+
+                  <label className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+                    <input
+                      type="checkbox"
+                      checked={draft.preview}
+                      onChange={(event) => onDraftChange('preview', event.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-zinc-300 accent-black"
+                    />
+                    <span>
+                      <span className="block font-medium text-black">เปิดเป็นวิดีโอตัวอย่างก่อนซื้อ</span>
+                      <span className="mt-0.5 block text-xs leading-5 text-zinc-500">
+                        ใช้วิดีโอหลักไฟล์เดียวกันเป็น preview โดยไม่เพิ่มชุดข้อมูลวิดีโอแยก
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <aside className="space-y-5">
+                  <label className="block">
+                    <span className="text-sm font-medium text-zinc-700">ความยาววิดีโอ</span>
+                    <input
+                      className="mt-2 h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
+                      value={draft.duration}
+                      onChange={(event) => onDraftChange('duration', event.target.value)}
+                      placeholder="12:30"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-zinc-700">วิดีโอหลัก</span>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      className="mt-2 w-full rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-3 py-4 text-sm text-zinc-600 outline-none transition file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-zinc-400 focus:border-black"
+                      onChange={onVideoChange}
+                      disabled={uploading}
+                    />
+                    <p className="mt-2 text-xs leading-5 text-zinc-500">
+                      {directMuxVideoUploadEnabled
+                        ? 'อัปโหลดตรงไป Mux และรอประมวลผลวิดีโอให้อัตโนมัติ'
+                        : directR2VideoUploadEnabled
+                          ? 'อัปโหลดตรงไป Cloudflare R2 แบบ multipart เหมาะกับไฟล์ใหญ่'
+                          : 'อัปโหลดเข้า backend local และตรวจรูปแบบวิดีโอก่อนบันทึก'}
+                    </p>
+                  </label>
+
+                  {uploading ? (
+                    <div className="rounded-lg border border-zinc-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-3 text-xs font-medium text-zinc-600">
+                        <span>{uploadStatusText}</span>
+                        <span>{uploadSpeedText ? `${uploadSpeedText} · ${uploadProgress ?? 0}%` : `${uploadProgress ?? 0}%`}</span>
+                      </div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200">
+                        <span className="block h-full rounded-full bg-black transition-all" style={{ width: `${uploadProgress ?? 0}%` }} />
+                      </div>
+                    </div>
+                  ) : null}
+                </aside>
               </div>
-            ) : null}
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,0.95fr)_minmax(480px,1.05fr)]">
-              <label className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60 sm:col-span-2">
-                <span className="field-label">ชื่อบทเรียน</span>
-                <input
-                  className="field-input border-slate-200 bg-slate-50/60 shadow-none focus:bg-white"
-                  value={draft.title}
-                  onChange={(event) => onDraftChange('title', event.target.value)}
-                  placeholder="บทเรียนที่ 1: เริ่มต้นคอร์ส"
-                  required
-                />
-              </label>
-
-              <label className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60 xl:col-start-1">
-                <span className="field-label">ความยาววิดีโอ</span>
-                <input
-                  className="field-input border-slate-200 bg-slate-50/60 shadow-none focus:bg-white"
-                  value={draft.duration}
-                  onChange={(event) => onDraftChange('duration', event.target.value)}
-                  placeholder="12:30"
-                />
-              </label>
-
-
-              <label className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60 xl:col-start-2 xl:row-span-2">
-                <span className="field-label">อัปโหลดวิดีโอหลัก</span>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  {directMuxVideoUploadEnabled
-                    ? 'อัปโหลดตรงไป Mux เพื่อให้ Mux ประมวลผลและสร้างลิงก์วิดีโอพร้อมเล่นให้อัตโนมัติ'
-                    : directR2VideoUploadEnabled
-                    ? 'อัปโหลดตรงไป Cloudflare R2 แบบ multipart เพื่อให้ไฟล์ใหญ่ไม่ต้องผ่าน backend แนะนำใช้ MP4 H.264/AAC เพื่อให้เปิดเล่นได้ทันที'
-                    : 'อัปโหลดเข้า backend local ระบบจะตรวจวิดีโอและจัดไฟล์ให้อยู่ในรูปแบบที่ browser เล่นได้'}
-                </p>
-                <input
-                  type="file"
-                  accept="video/*"
-                  className="field-input border-dashed border-slate-300 bg-slate-50/60 py-5 text-center shadow-none file:mr-3 file:rounded-md file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white focus:bg-white"
-                  onChange={onVideoChange}
-                  disabled={uploading}
-                />
-                {uploading ? (
-                  <div className="mt-3 rounded-md border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60">
-                    <div className="flex items-center justify-between gap-3 text-xs font-medium text-slate-600">
-                      <span>{uploadStatusText}</span>
-                      <span>{uploadSpeedText ? `${uploadSpeedText} · ${uploadProgress ?? 0}%` : `${uploadProgress ?? 0}%`}</span>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
-                      <span
-                        className="block h-full rounded-full bg-slate-950 transition-all"
-                        style={{ width: `${uploadProgress ?? 0}%` }}
-                      />
-                    </div>
-                  </div>
-                ) : null}
-              </label>
-
-              <label className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60 xl:col-start-1">
-                <span className="field-label">สรุปบทเรียน</span>
-                <textarea
-                  className="field-input min-h-40 resize-y border-slate-200 bg-slate-50/60 shadow-none focus:bg-white"
-                  value={draft.summary}
-                  onChange={(event) => onDraftChange('summary', event.target.value)}
-                  placeholder="เขียนสรุปสั้น ๆ ของบทเรียน"
-                />
-              </label>
 
               {videoPreviewUrl || draft.videoUrl ? (
-                <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-950 shadow-sm shadow-slate-200/70 sm:col-span-2">
+                <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-black">
                   {muxEmbedUrl ? (
                     <iframe
-                      className="aspect-video max-h-[52vh] w-full bg-slate-950"
+                      className="aspect-video max-h-[52vh] w-full bg-black"
                       src={muxEmbedUrl}
                       title="ตัวอย่างวิดีโอจาก Mux"
                       allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
@@ -943,7 +973,7 @@ function LessonManagerModal({
                     />
                   ) : (
                     <video
-                      className="aspect-video max-h-[52vh] w-full bg-slate-950 object-contain"
+                      className="aspect-video max-h-[52vh] w-full bg-black object-contain"
                       controls
                       playsInline
                       preload="metadata"
@@ -959,58 +989,41 @@ function LessonManagerModal({
                       แสดงตัวอย่างวิดีโอไม่ได้ อาจเป็นไฟล์ที่ browser ไม่รองรับ หรือเป็นลิงก์ที่ไม่ใช่ไฟล์วิดีโอโดยตรง
                     </p>
                   ) : videoPreviewUrl ? (
-                    <p className="border-t border-white/10 px-4 py-2 text-xs text-slate-300">
+                    <p className="border-t border-white/10 px-4 py-2 text-xs text-zinc-300">
                       กำลังแสดงตัวอย่างจากไฟล์ในเครื่อง หลังบันทึกแล้วระบบจะใช้ URL วิดีโอที่อัปโหลด
                     </p>
                   ) : null}
                 </div>
               ) : null}
 
-
-              <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm shadow-slate-200/60 sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={draft.preview}
-                  onChange={(event) => onDraftChange('preview', event.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 accent-slate-950"
-                />
-                <span>
-                  <span className="block font-medium text-slate-800">เปิดให้บทเรียนนี้เป็นวิดีโอตัวอย่างก่อนซื้อ</span>
-                  <span className="mt-0.5 block text-xs text-slate-500">
-                    ตอนนี้ระบบใช้วิดีโอหลักไฟล์เดียวกันเป็น preview ถ้าต้องการคลิปตัวอย่างแยก ต้องเพิ่มช่องไฟล์และฐานข้อมูลอีกชุด
-                  </span>
-                </span>
-              </label>
-
-            </div>
-
-            <div className="mt-5 flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap gap-2">
-                {editingLessonId ? (
-                  <button
-                    type="button"
-                    className="btn-secondary border-slate-200 bg-white text-slate-700 hover:border-slate-950 hover:bg-white hover:text-slate-950"
-                    onClick={() => onDelete(editingLessonId)}
-                    disabled={controlsBusy}
-                  >
-                    <Trash2 size={16} />
-                    ลบบทเรียน
-                  </button>
-                ) : null}
+              <div className="mt-7 flex flex-col gap-3 border-t border-zinc-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  {editingLessonId ? (
+                    <button
+                      type="button"
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => onDelete(editingLessonId)}
+                      disabled={controlsBusy}
+                    >
+                      <Trash2 size={16} />
+                      ลบบทเรียน
+                    </button>
+                  ) : null}
+                </div>
+                <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60" disabled={controlsBusy}>
+                  {saving || uploading ? (
+                    <>
+                      <LoaderCircle size={16} className="animate-spin" />
+                      กำลังบันทึก...
+                    </>
+                  ) : (
+                    <>
+                      <Video size={16} />
+                      {editingLessonId ? 'บันทึกบทเรียน' : 'เพิ่มบทเรียน'}
+                    </>
+                  )}
+                </button>
               </div>
-              <button type="submit" className="btn-primary" disabled={controlsBusy}>
-                {saving || uploading ? (
-                  <>
-                    <LoaderCircle size={16} className="animate-spin" />
-                    กำลังบันทึก...
-                  </>
-                ) : (
-                  <>
-                    <Video size={16} />
-                    {editingLessonId ? 'บันทึกบทเรียน' : 'เพิ่มบทเรียน'}
-                  </>
-                )}
-              </button>
             </div>
           </form>
         </div>
@@ -1038,7 +1051,7 @@ export default function TeacherDashboard() {
   const [courses, setCourses] = useState<Course[]>([])
   const [courseSearch, setCourseSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | Course['status']>('all')
-  const [studentCategory, setStudentCategory] = useState<StudentCategory>('by-course')
+  const [studentCategory, setStudentCategory] = useState<StudentCategory>('all')
   const [selectedMessageKey, setSelectedMessageKey] = useState<string | null>(null)
   const [teacherProfile, setTeacherProfile] = useState<StudentProfile | null>(null)
   const [profileDraft, setProfileDraft] = useState<TeacherProfileDraft>(emptyTeacherProfile)
@@ -1154,11 +1167,13 @@ export default function TeacherDashboard() {
             courseSlug: course.slug,
             courseCoverImage: course.coverImage,
             courseCategory: course.category,
+            coursePrice: course.price,
+            courseStatus: course.status,
           })),
         )
         .sort((left, right) => {
-          const leftDate = new Date(left.enrollment.lastAccessedAt ?? left.enrollment.joinedAt).getTime()
-          const rightDate = new Date(right.enrollment.lastAccessedAt ?? right.enrollment.joinedAt).getTime()
+          const leftDate = new Date(left.enrollment.joinedAt).getTime()
+          const rightDate = new Date(right.enrollment.joinedAt).getTime()
           return rightDate - leftDate
         }),
     [courses],
@@ -1167,67 +1182,38 @@ export default function TeacherDashboard() {
     () => new Map(allCourseStudents.map((student) => [student.id, student])).size,
     [allCourseStudents],
   )
-  const followUpThreshold = Date.now() - 14 * 24 * 60 * 60 * 1000
   const visibleCourseStudents = useMemo(() => {
-    if (studentCategory === 'active') {
-      return allCourseStudents.filter((student) => hasStartedEnrollment(student.enrollment) && student.enrollment.progress < 100)
-    }
-
-    if (studentCategory === 'completed') {
-      return allCourseStudents.filter((student) => student.enrollment.progress >= 100)
-    }
-
-    if (studentCategory === 'follow-up') {
-      return allCourseStudents.filter((student) => {
-        const lastAccessedAt = new Date(student.enrollment.lastAccessedAt ?? student.enrollment.joinedAt).getTime()
-        return student.enrollment.progress < 100 && (!Number.isFinite(lastAccessedAt) || lastAccessedAt < followUpThreshold)
-      })
+    if (studentCategory === 'by-course') {
+      return [...allCourseStudents].sort(
+        (left, right) =>
+          left.courseTitle.localeCompare(right.courseTitle, 'th') ||
+          new Date(right.enrollment.joinedAt).getTime() - new Date(left.enrollment.joinedAt).getTime(),
+      )
     }
 
     return allCourseStudents
-  }, [allCourseStudents, followUpThreshold, studentCategory])
+  }, [allCourseStudents, studentCategory])
   const coursesWithStudents = useMemo(
-    () => courses.filter((course) => (course.enrolledStudents?.length ?? 0) > 0).length,
+    () => courses.filter((course) => getCourseStudentCount(course) > 0).length,
     [courses],
   )
   const averageStudentsPerCourse = courses.length ? Math.round(allCourseStudents.length / courses.length) : 0
   const topStudentCourse =
     [...courses].sort(
-      (left, right) => (right.enrolledStudents?.length ?? 0) - (left.enrolledStudents?.length ?? 0),
+      (left, right) => getCourseStudentCount(right) - getCourseStudentCount(left),
     )[0] ?? null
   const studentCategorySummary = {
     all: {
       count: allCourseStudents.length,
-      description: 'รายชื่อนักเรียนทั้งหมดที่อยู่ในคอร์สของคุณครู',
-      emptyTitle: 'ยังไม่มีข้อมูลนักเรียน',
-      emptyText: 'เมื่อมีนักเรียนสมัครเรียน ข้อมูลจะแสดงในหน้านี้',
-    },
-    active: {
-      count: allCourseStudents.filter((student) => hasStartedEnrollment(student.enrollment) && student.enrollment.progress < 100).length,
-      description: 'นักเรียนที่เคยเปิดบทเรียนแล้วและยังเรียนไม่จบ',
-      emptyTitle: 'ยังไม่มีนักเรียนที่กำลังเรียน',
-      emptyText: 'เมื่อนักเรียนเปิดบทเรียนแล้วและยังไม่จบคอร์ส รายชื่อจะแสดงในหมวดนี้',
-    },
-    completed: {
-      count: allCourseStudents.filter((student) => student.enrollment.progress >= 100).length,
-      description: 'นักเรียนที่เรียนครบ 100% แล้ว',
-      emptyTitle: 'ยังไม่มีข้อมูลนักเรียนที่เรียนจบ',
-      emptyText: 'เมื่อนักเรียนเรียนครบ 100% รายชื่อจะแสดงในหมวดนี้',
-    },
-    'follow-up': {
-      count: allCourseStudents.filter((student) => {
-        const lastAccessedAt = new Date(student.enrollment.lastAccessedAt ?? student.enrollment.joinedAt).getTime()
-        return student.enrollment.progress < 100 && (!Number.isFinite(lastAccessedAt) || lastAccessedAt < followUpThreshold)
-      }).length,
-      description: 'นักเรียนที่ไม่ได้เข้าเรียนมานานกว่า 14 วันและยังเรียนไม่จบ',
-      emptyTitle: 'ยังไม่มีข้อมูลนักเรียนที่ต้องติดตาม',
-      emptyText: 'ถ้านักเรียนหยุดเรียนเกิน 14 วันและยังไม่จบคอร์ส รายชื่อจะแสดงในหมวดนี้',
+      description: 'รายการผู้เรียนที่ซื้อหรือลงทะเบียนคอร์สของคุณ เรียงตามวันที่ลงทะเบียนล่าสุด',
+      emptyTitle: 'ยังไม่มีรายการลงทะเบียน',
+      emptyText: 'เมื่อมีคนซื้อหรือลงทะเบียนคอร์ส รายชื่อจะแสดงในหน้านี้',
     },
     'by-course': {
-      count: courses.length,
-      description: 'รายชื่อนักเรียนพร้อมคอร์สที่กำลังเรียน',
+      count: coursesWithStudents,
+      description: 'รายการลงทะเบียนแยกตามชื่อคอร์ส เพื่อดูว่าคอร์สไหนมีผู้เรียนอยู่บ้าง',
       emptyTitle: 'ยังไม่มีคอร์สสำหรับแสดงข้อมูล',
-      emptyText: 'เมื่อมีนักเรียนอยู่ในคอร์ส รายชื่อจะแสดงที่นี่',
+      emptyText: 'เมื่อมีผู้เรียนลงทะเบียนคอร์ส รายชื่อจะแสดงแยกตามคอร์สที่นี่',
     },
   } satisfies Record<StudentCategory, { count: number; description: string; emptyTitle: string; emptyText: string }>
   const activeStudentSummary = studentCategorySummary[studentCategory]
@@ -1235,7 +1221,6 @@ export default function TeacherDashboard() {
     () => allCourseStudents.map((student) => ({
       ...student,
       threadKey: `${student.courseId}-${student.id}`,
-      started: hasStartedEnrollment(student.enrollment),
     })),
     [allCourseStudents],
   )
@@ -1804,10 +1789,10 @@ export default function TeacherDashboard() {
           ) : activeSection === 'students' ? (
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
-                <p className="text-base font-medium text-zinc-700">นักเรียน</p>
-                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ภาพรวมนักเรียนจากคอร์สของคุณ</h1>
+                <p className="text-base font-medium text-zinc-700">ผู้เรียน</p>
+                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ผู้เรียนที่ลงทะเบียนคอร์สของคุณ</h1>
                 <p className="mt-3 text-base leading-7 text-zinc-600">
-                  ดูจำนวนนักเรียนที่สมัครเรียนในแต่ละคอร์ส โดยอิงจากข้อมูลคอร์สเดิมในระบบ
+                  ดูรายชื่อคนที่ซื้อหรือลงทะเบียนคอร์ส โดยไม่เก็บข้อมูลติดตามการเรียนละเอียดให้หนักระบบ
                 </p>
               </div>
               <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-black text-white">
@@ -1867,31 +1852,31 @@ export default function TeacherDashboard() {
           {(activeSection === 'students'
             ? [
                 {
-                  label: 'นักเรียนทั้งหมด',
+                  label: 'ผู้เรียนไม่ซ้ำ',
                   value: uniqueTeacherStudents.toLocaleString('th-TH'),
                   icon: UsersRound,
                   note: 'คน',
                   trend: false,
                 },
                 {
-                  label: 'คอร์สที่มีนักเรียน',
+                  label: 'คอร์สที่มีผู้เรียน',
                   value: coursesWithStudents,
                   icon: LibraryBig,
                   note: 'คอร์ส',
                   trend: false,
                 },
                 {
-                  label: 'เฉลี่ยต่อคอร์ส',
-                  value: averageStudentsPerCourse.toLocaleString('th-TH'),
+                  label: 'รายการลงทะเบียน',
+                  value: allCourseStudents.length.toLocaleString('th-TH'),
                   icon: UserRound,
-                  note: 'รายการลงเรียน',
+                  note: 'ทั้งหมด',
                   trend: false,
                 },
                 {
-                  label: 'คอร์สเผยแพร่',
-                  value: teacherStats.published,
+                  label: 'เฉลี่ยต่อคอร์ส',
+                  value: averageStudentsPerCourse.toLocaleString('th-TH'),
                   icon: Video,
-                  note: 'พร้อมรับนักเรียน',
+                  note: 'ลงทะเบียน/คอร์ส',
                   trend: false,
                 },
               ]
@@ -2014,7 +1999,7 @@ export default function TeacherDashboard() {
               <div className="border-b border-zinc-200 p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-xl font-semibold tracking-tight text-black">หมวดหมู่นักเรียน</h2>
+                    <h2 className="text-xl font-semibold tracking-tight text-black">รายการผู้เรียน</h2>
                     <p className="mt-1 text-sm text-zinc-500">{activeStudentSummary.description}</p>
                   </div>
                   <Link
@@ -2053,14 +2038,10 @@ export default function TeacherDashboard() {
 
               <div className="divide-y divide-zinc-200">
                 {visibleCourseStudents.length > 0 ? (
-                  visibleCourseStudents.map((student) => (
-                    (() => {
-                      const started = hasStartedEnrollment(student.enrollment)
-                      const progressValue = Math.min(100, Math.max(0, student.enrollment.progress))
-                      const statusLabel =
-                        progressValue >= 100 ? 'เรียนจบแล้ว' : started ? 'กำลังเรียน' : 'ยังไม่เริ่ม'
+                  visibleCourseStudents.map((student) => {
+                    const courseStatus = getCourseStatusMeta(student.courseStatus)
 
-                      return (
+                    return (
                     <article
                       key={`${student.courseId}-${student.id}`}
                       className="grid gap-4 p-5 transition hover:bg-zinc-50/70 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center"
@@ -2078,7 +2059,7 @@ export default function TeacherDashboard() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="line-clamp-1 text-base font-semibold text-black">{student.name}</h3>
                             <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-600">
-                              {statusLabel}
+                              ลงทะเบียนแล้ว
                             </span>
                           </div>
                           <p className="mt-1 line-clamp-1 text-sm text-zinc-500">{student.email}</p>
@@ -2087,26 +2068,20 @@ export default function TeacherDashboard() {
                           </p>
                         </div>
                         </div>
-                        <div className="mt-4 max-w-2xl">
-                          <div className="flex items-center justify-between gap-3 text-xs font-medium">
-                            <span className="text-zinc-500">ความคืบหน้า</span>
-                            <span className="text-zinc-700">{progressValue}%</span>
-                          </div>
-                          <div className="mt-2 h-2 rounded-full bg-zinc-200">
-                            <div className="h-2 rounded-full bg-emerald-600" style={{ width: `${progressValue}%` }} />
-                          </div>
+                        <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-zinc-600">
+                          <span className="rounded-full bg-zinc-100 px-3 py-1">{student.courseCategory}</span>
+                          <span className={`rounded-full border px-3 py-1 ${courseStatus.badgeClass}`}>{courseStatus.label}</span>
                         </div>
                       </div>
                       <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                        <p className="text-xs text-zinc-500">เข้าเรียนล่าสุด</p>
-                        <p className="mt-1 text-sm font-semibold text-black">{formatThaiDate(student.enrollment.lastAccessedAt)}</p>
-                        <p className="mt-3 text-xs text-zinc-500">สถานะ</p>
-                        <p className="mt-1 text-sm font-semibold text-black">{statusLabel}</p>
+                        <p className="text-xs text-zinc-500">วันที่ลงทะเบียน</p>
+                        <p className="mt-1 text-sm font-semibold text-black">{formatThaiDate(student.enrollment.joinedAt)}</p>
+                        <p className="mt-3 text-xs text-zinc-500">มูลค่าคอร์ส</p>
+                        <p className="mt-1 text-sm font-semibold text-black">{student.coursePrice.toLocaleString('th-TH')} บาท</p>
                       </div>
                     </article>
-                      )
-                    })()
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="p-10 text-center">
                     <span className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 text-black">
@@ -2121,27 +2096,28 @@ export default function TeacherDashboard() {
 
             <aside className="space-y-5">
               <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-black">ภาพรวมนักเรียน</h2>
+                <h2 className="text-lg font-semibold text-black">ภาพรวมผู้เรียน</h2>
                 <div className="mt-5 rounded-lg bg-zinc-50 p-4">
-                  <p className="text-sm text-zinc-500">คอร์สที่มีนักเรียนมากที่สุด</p>
+                  <p className="text-sm text-zinc-500">คอร์สที่มีผู้เรียนมากที่สุด</p>
                   <p className="mt-2 line-clamp-2 text-xl font-semibold text-black">
                     {topStudentCourse ? topStudentCourse.title : 'ยังไม่มีข้อมูล'}
                   </p>
                   <p className="mt-2 text-sm text-zinc-500">
                     {topStudentCourse
-                      ? `${(topStudentCourse.enrolledStudents?.length ?? 0).toLocaleString('th-TH')} นักเรียน`
-                      : 'สร้างคอร์สเพื่อเริ่มรับนักเรียน'}
+                      ? `${getCourseStudentCount(topStudentCourse).toLocaleString('th-TH')} ผู้เรียน`
+                      : 'สร้างคอร์สเพื่อเริ่มรับผู้เรียน'}
                   </p>
                 </div>
                 <div className="mt-5 space-y-3">
                   {courses
-                    .filter((course) => (course.enrolledStudents?.length ?? 0) > 0)
-                    .sort((left, right) => (right.enrolledStudents?.length ?? 0) - (left.enrolledStudents?.length ?? 0))
+                    .filter((course) => getCourseStudentCount(course) > 0)
+                    .sort((left, right) => getCourseStudentCount(right) - getCourseStudentCount(left))
                     .slice(0, 3)
                     .map((course) => {
-                    const studentCount = course.enrolledStudents?.length ?? 0
-                    const width = allCourseStudents.length
-                      ? Math.round((studentCount / allCourseStudents.length) * 100)
+                    const studentCount = getCourseStudentCount(course)
+                    const totalEnrollmentCount = courses.reduce((total, item) => total + getCourseStudentCount(item), 0)
+                    const width = totalEnrollmentCount
+                      ? Math.round((studentCount / totalEnrollmentCount) * 100)
                       : 0
 
                     return (
@@ -2162,7 +2138,7 @@ export default function TeacherDashboard() {
               <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
                 <h2 className="text-lg font-semibold text-black">หมายเหตุ</h2>
                 <p className="mt-3 text-sm leading-7 text-zinc-500">
-                  หน้านี้ยังไม่เพิ่ม logic ใหม่สำหรับรายชื่อนักเรียนรายคน จึงแสดงข้อมูลภาพรวมจากคอร์สที่ระบบมีอยู่แล้ว
+                  หน้านี้แสดงเฉพาะข้อมูลการลงทะเบียนที่จำเป็น เช่น ผู้เรียน คอร์ส วันที่ลงทะเบียน และมูลค่าคอร์ส โดยไม่ใช้ข้อมูลติดตามการเรียนแบบละเอียด
                 </p>
               </section>
             </aside>
@@ -2190,8 +2166,6 @@ export default function TeacherDashboard() {
                 {messageThreads.length > 0 ? (
                   messageThreads.map((thread) => {
                     const active = selectedMessageThread?.threadKey === thread.threadKey
-                    const statusLabel =
-                      thread.enrollment.progress >= 100 ? 'เรียนจบแล้ว' : thread.started ? 'กำลังเรียน' : 'ยังไม่เริ่ม'
 
                     return (
                       <button
@@ -2214,12 +2188,12 @@ export default function TeacherDashboard() {
                           <span className="flex items-center justify-between gap-3">
                             <span className="line-clamp-1 text-sm font-semibold text-black">{thread.name}</span>
                             <span className="shrink-0 text-xs text-zinc-400">
-                              {formatThaiDate(thread.enrollment.lastAccessedAt)}
+                              {formatThaiDate(thread.enrollment.joinedAt)}
                             </span>
                           </span>
                           <span className="mt-1 block line-clamp-1 text-xs text-zinc-500">{thread.courseTitle}</span>
                           <span className="mt-2 inline-flex rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-600">
-                            {statusLabel}
+                            ลงทะเบียนแล้ว
                           </span>
                         </span>
                       </button>
@@ -2279,14 +2253,7 @@ export default function TeacherDashboard() {
                           <h3 className="line-clamp-2 text-lg font-semibold text-black">{selectedMessageThread.courseTitle}</h3>
                           <p className="mt-1 text-sm text-zinc-500">{selectedMessageThread.courseCategory}</p>
                           <p className="mt-3 text-xs font-medium text-zinc-600">
-                            สถานะ{' '}
-                            {selectedMessageThread.enrollment.progress >= 100
-                              ? 'เรียนจบแล้ว'
-                              : selectedMessageThread.started
-                                ? 'กำลังเรียน'
-                                : 'ยังไม่เริ่ม'}{' '}
-                            · เข้าเรียนล่าสุด{' '}
-                            {formatThaiDate(selectedMessageThread.enrollment.lastAccessedAt)}
+                            ลงทะเบียนเมื่อ {formatThaiDate(selectedMessageThread.enrollment.joinedAt)}
                           </p>
                         </div>
                       </div>
@@ -2451,11 +2418,14 @@ export default function TeacherDashboard() {
         ) : null}
 
         {activeSection === 'my-courses' ? (
-        <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-5 p-6 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight text-black">คอร์สของฉัน</h2>
-              <div className="mt-5 flex flex-wrap gap-8 border-b border-zinc-200">
+        <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+          <div className="flex flex-col gap-4 border-b border-zinc-200 p-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold tracking-tight text-black">คอร์สของฉัน</h2>
+              <p className="mt-1 text-sm text-zinc-500">จัดการคอร์ส บทเรียน และสถานะเผยแพร่จากรายการเดียว</p>
+            </div>
+            <div className="flex flex-col gap-3 lg:items-end">
+              <div className="flex flex-wrap gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1">
                 {[
                   { value: 'all', label: 'ทั้งหมด' },
                   { value: 'published', label: 'เผยแพร่แล้ว' },
@@ -2466,8 +2436,8 @@ export default function TeacherDashboard() {
                     key={item.value}
                     type="button"
                     className={[
-                      'border-b-2 pb-2 text-sm font-medium transition',
-                      statusFilter === item.value ? 'border-black text-black' : 'border-transparent text-zinc-500 hover:text-black',
+                      'h-8 rounded-md px-3 text-sm font-medium transition',
+                      statusFilter === item.value ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-black',
                     ].join(' ')}
                     onClick={() => setStatusFilter(item.value as 'all' | Course['status'])}
                   >
@@ -2475,36 +2445,37 @@ export default function TeacherDashboard() {
                   </button>
                 ))}
               </div>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <label className="relative block min-w-0 sm:w-72">
-                <span className="sr-only">ค้นหาคอร์ส</span>
-                <Search
-                  size={15}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
-                />
-                <input
-                  value={courseSearch}
-                  onChange={(event) => setCourseSearch(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
-                  placeholder="ค้นหาคอร์ส"
-                />
-              </label>
-              <button
-                type="button"
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
-                onClick={openCreateModal}
-              >
-                <Plus size={16} />
-                สร้างคอร์ส
-              </button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <label className="relative block min-w-0 sm:w-72">
+                  <span className="sr-only">ค้นหาคอร์ส</span>
+                  <Search
+                    size={15}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+                  />
+                  <input
+                    value={courseSearch}
+                    onChange={(event) => setCourseSearch(event.target.value)}
+                    className="h-9 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
+                    placeholder="ค้นหาคอร์ส"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                  onClick={openCreateModal}
+                >
+                  <Plus size={16} />
+                  สร้างคอร์ส
+                </button>
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse">
-              <thead className="border-y border-zinc-200 bg-white text-xs font-semibold text-zinc-500">
+            <table className="w-full min-w-[1040px] border-collapse">
+              <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-500">
                 <tr>
                   <th className="table-cell">คอร์ส</th>
+                  <th className="table-cell">บทเรียน</th>
                   <th className="table-cell">ผู้เรียน</th>
                   <th className="table-cell">รายได้</th>
                   <th className="table-cell">จัดการ</th>
@@ -2514,14 +2485,14 @@ export default function TeacherDashboard() {
               <tbody className="divide-y divide-zinc-200">
                 {filteredCourses.map((course) => (
                   <tr key={course.id} className="transition hover:bg-zinc-50/70">
-                    <td className="px-5 py-4 text-left text-sm">
-                      <div className="flex items-center gap-5">
-                        <img src={course.coverImage} alt={course.title} className="h-16 w-32 rounded-md bg-black object-cover" />
-                        <div>
+                    <td className="px-5 py-3 text-left text-sm">
+                      <div className="flex items-center gap-4">
+                        <img src={course.coverImage} alt={course.title} className="h-12 w-20 rounded-md bg-black object-cover" />
+                        <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-black">{course.title}</p>
+                            <p className="line-clamp-1 font-semibold text-black">{course.title}</p>
                             <span
-                              className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-600"
+                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${getCourseStatusMeta(course.status).badgeClass}`}
                             >
                               {getCourseStatusMeta(course.status).label}
                             </span>
@@ -2532,27 +2503,31 @@ export default function TeacherDashboard() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-sm text-zinc-600">
-                      <p className="text-xs text-zinc-500">นักเรียน</p>
-                      <p className="mt-1 font-semibold text-black">{course.students.toLocaleString('th-TH')}</p>
+                    <td className="px-5 py-3 text-sm">
+                      <p className="font-semibold text-black">{(course.lessonCount ?? course.lessons.length).toLocaleString('th-TH')}</p>
+                      <p className="mt-1 text-xs text-zinc-500">บทเรียน</p>
                     </td>
-                    <td className="px-5 py-4 text-sm text-zinc-600">
-                      <p className="text-xs text-zinc-500">รายได้</p>
-                      <p className="mt-1 font-semibold text-black">{(course.price * course.students).toLocaleString('th-TH')} บาท</p>
+                    <td className="px-5 py-3 text-sm">
+                      <p className="font-semibold text-black">{getCourseStudentCount(course).toLocaleString('th-TH')}</p>
+                      <p className="mt-1 text-xs text-zinc-500">ผู้เรียน</p>
                     </td>
-                    <td className="px-5 py-4 text-sm">
+                    <td className="px-5 py-3 text-sm">
+                      <p className="font-semibold text-black">{getCourseRevenue(course).toLocaleString('th-TH')} บาท</p>
+                      <p className="mt-1 text-xs text-zinc-500">{course.price.toLocaleString('th-TH')} บาท/คอร์ส</p>
+                    </td>
+                    <td className="px-5 py-3 text-sm">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" className="btn-secondary px-3 py-2" onClick={() => openLessonManager(course)}>
+                        <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-black" onClick={() => openLessonManager(course)}>
                           <Video size={15} />
-                          จัดการคอร์ส
+                          บทเรียน
                         </button>
-                        <button type="button" className="btn-secondary px-3 py-2" onClick={() => openEditModal(course)}>
+                        <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-black" onClick={() => openEditModal(course)}>
                           <Edit3 size={15} />
                           แก้ไข
                         </button>
                         <button
                           type="button"
-                          className="btn-secondary px-3 py-2"
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-50"
                           onClick={() => toggleCourseStatus(course)}
                           disabled={updatingStatusSlug === course.slug || (course.status ?? 'published') === 'draft'}
                         >
@@ -2569,10 +2544,10 @@ export default function TeacherDashboard() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-right">
+                    <td className="px-5 py-3 text-right">
                       <button
                         type="button"
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-md text-zinc-700 transition hover:bg-zinc-100"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-rose-50 hover:text-rose-700"
                         onClick={() => setDeleteTarget(course)}
                         aria-label="ลบคอร์ส"
                         title="ลบคอร์ส"

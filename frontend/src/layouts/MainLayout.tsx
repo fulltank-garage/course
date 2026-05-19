@@ -5,10 +5,8 @@ import Navbar from '../components/Navbar'
 export default function MainLayout() {
   const location = useLocation()
   const isLearningPage = location.pathname.startsWith('/learn/')
-  const isCoursesCatalog = location.pathname === '/courses'
-  const isCoursePreviewPage = /^\/courses\/[^/]+$/.test(location.pathname)
 
-  if (isLearningPage || isCoursesCatalog || isCoursePreviewPage) {
+  if (isLearningPage) {
     return <Outlet />
   }
 

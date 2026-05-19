@@ -1,6 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  Heart,
   Home,
   LibraryBig,
   LogIn,
@@ -19,7 +18,6 @@ type SidebarKey =
   | 'all-courses'
   | 'my-courses'
   | 'certificates'
-  | 'wishlist'
   | 'messages'
   | 'settings'
 
@@ -51,17 +49,16 @@ export default function LearnProSidebar({
     role === 'student' ? '/student?section=settings' : role === 'teacher' ? '/teacher?section=profile' : '/login'
   const studentPath = role === 'student' ? '/student/messages' : '/login'
   const myCoursesPath = role === 'student' ? '/student?section=my-courses' : role === 'teacher' ? '/teacher' : '/login'
+  const coursesPath = role === 'student' ? '/student/store' : '/courses'
   const certificatesPath = role === 'student' ? '/student/certificates' : studentPath
-  const wishlistPath = role === 'student' ? '/student/wishlist' : studentPath
   const displayName = profileName ?? session?.user.name ?? 'ผู้เยี่ยมชม'
   const avatarUrl = profileAvatarUrl ?? session?.user.avatarUrl
 
   const navItems = [
     { key: 'home', to: dashboardPath, label: 'หน้าหลัก', icon: Home },
     { key: 'my-courses', to: myCoursesPath, label: 'คอร์สของฉัน', icon: Video },
-    { key: 'all-courses', to: '/courses', label: 'ค้นหาคอร์ส', icon: LibraryBig },
+    { key: 'all-courses', to: coursesPath, label: 'ค้นหาคอร์ส', icon: LibraryBig },
     { key: 'certificates', to: certificatesPath, label: 'ใบประกาศนียบัตร', icon: Trophy },
-    { key: 'wishlist', to: wishlistPath, label: 'รายการโปรด', icon: Heart },
     { key: 'messages', to: studentPath, label: 'ข้อความ', icon: Mail },
     { key: 'settings', to: settingsPath, label: 'การตั้งค่า', icon: Settings },
   ] as const
