@@ -2,7 +2,6 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import DashboardLayout from './layouts/DashboardLayout'
 import MainLayout from './layouts/MainLayout'
 import AdminDashboard from './pages/AdminDashboard'
-import Checkout from './pages/Checkout'
 import Contact from './pages/Contact'
 import CourseDetail from './pages/CourseDetail'
 import Courses from './pages/Courses'
@@ -25,7 +24,6 @@ function App() {
           <Route path="courses" element={<Courses />} />
           <Route path="contact" element={<Contact />} />
           <Route path="cart" element={<Navigate to="/courses?cart=1" replace />} />
-          <Route path="checkout/:slug" element={<Checkout />} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
           <Route path="courses/:slug" element={<CourseDetail />} />

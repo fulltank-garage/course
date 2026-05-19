@@ -2810,7 +2810,7 @@ const courseSelect = `
   JOIN users u ON u.id = c.teacher_id
 `
 
-const getCourses = async ({ popular, teacherId, includeUnpublished = false } = {}) => {
+const getCourses = async ({ popular, teacherId, includeUnpublished = false, viewer = null } = {}) => {
   const clauses = []
   const values = []
 
@@ -2834,7 +2834,45 @@ const getCourses = async ({ popular, teacherId, includeUnpublished = false } = {
     values,
   )
 
-  return result.rows.map(toCourseSummary)
+  const courses = result.rows.map(toCourseSummary)
+
+  if (viewer?.role !== 'student' || courses.length === 0) return courses
+
+  const enrollmentResult = await query(
+    `
+      SELECT course_id, progress, completed_lessons, last_lesson_id, last_accessed_at, joined_at
+      FROM enrollments
+      WHERE student_id = $1 AND course_id = ANY($2::text[])
+    `,
+    [viewer.id, courses.map((course) => course.id)],
+  )
+  const enrollmentByCourseId = new Map(
+    enrollmentResult.rows.map((row) => [
+      row.course_id,
+      {
+        courseId: row.course_id,
+        progress: Number(row.progress),
+        completedLessons: Number(row.completed_lessons),
+        lastLessonId: row.last_lesson_id,
+        lastAccessedAt: row.last_accessed_at,
+        joinedAt: row.joined_at,
+      },
+    ]),
+  )
+
+  return courses.map((course) => {
+    const enrollment = enrollmentByCourseId.get(course.id)
+
+    return {
+      ...course,
+      viewerState: {
+        role: viewer.role,
+        isEnrolled: Boolean(enrollment),
+        canEnroll: course.status === 'published' && !enrollment,
+        ...(enrollment ? { enrollment } : {}),
+      },
+    }
+  })
 }
 
 const getCourseBySlug = async (slug) => {
@@ -3944,7 +3982,8 @@ const routeRequest = async (request, response) => {
   if (url.pathname === '/api/courses' && request.method === 'GET') {
     const popular = url.searchParams.get('popular') === 'true'
     const teacherId = url.searchParams.get('teacherId') ?? undefined
-    sendJson(response, 200, { data: await getCourses({ popular, teacherId }) })
+    const viewer = await getAuthUser(request)
+    sendJson(response, 200, { data: await getCourses({ popular, teacherId, viewer }) })
     return
   }
 

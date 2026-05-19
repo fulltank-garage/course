@@ -8,8 +8,8 @@ export default defineConfig({
   server: {
     open: true,
     proxy: {
-      '/api': 'http://127.0.0.1:4001',
-      '/uploads': 'http://127.0.0.1:4001',
+      '/api': 'http://127.0.0.1:4000',
+      '/uploads': 'http://127.0.0.1:4000',
     },
   },
 })

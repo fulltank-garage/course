@@ -34,12 +34,6 @@ const sortOptions: Array<{ value: SortOption; label: string }> = [
   { value: 'price-high', label: 'ราคาสูงสุด' },
 ]
 
-const statusMeta = {
-  draft: { label: 'ร่าง', className: 'bg-white text-zinc-700' },
-  published: { label: 'เผยแพร่แล้ว', className: 'bg-emerald-50 text-emerald-700' },
-  hidden: { label: 'ซ่อนอยู่', className: 'bg-zinc-100 text-zinc-600' },
-} satisfies Record<Course['status'], { label: string; className: string }>
-
 const sortCourses = (items: Course[], sortBy: SortOption) => {
   const nextItems = [...items]
 
@@ -63,10 +57,6 @@ const formatPrice = (price: number) =>
       }).format(price)
 
 const coursePathFor = (course: Course) => `/courses/${course.slug}`
-const learningPathFor = (course: Course) =>
-  course.viewerState?.enrollment?.lastLessonId
-    ? `/learn/${course.slug}?lesson=${course.viewerState.enrollment.lastLessonId}`
-    : `/learn/${course.slug}`
 
 function FilterCheckbox({
   label,
@@ -104,7 +94,6 @@ function CourseGridCard({
   inCart: boolean
   onAddToCart: (slug: string) => void
 }) {
-  const meta = statusMeta[course.status] ?? statusMeta.published
   const isEnrolled = Boolean(course.viewerState?.isEnrolled)
   const canBuy = course.status === 'published' && !isEnrolled
 
@@ -113,9 +102,11 @@ function CourseGridCard({
       <Link to={coursePathFor(course)} className="relative block aspect-[1.33] overflow-hidden bg-zinc-100">
         <img src={course.coverImage} alt={course.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
-        <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ${meta.className}`}>
-          {meta.label}
-        </span>
+        {isEnrolled ? (
+          <span className="absolute left-3 top-3 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
+            คุณได้ซื้อคอร์สแล้ว
+          </span>
+        ) : null}
         <button
           type="button"
           className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition hover:bg-white/15"
@@ -151,15 +142,7 @@ function CourseGridCard({
         </div>
 
         <div className="mt-4">
-          {isEnrolled ? (
-            <Link
-              to={learningPathFor(course)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white transition hover:bg-zinc-800"
-            >
-              เข้าเรียน
-              <Check size={16} />
-            </Link>
-          ) : !canBuy ? (
+          {!canBuy && !isEnrolled ? (
             <button
               type="button"
               className="inline-flex h-10 w-full items-center justify-center rounded-md bg-zinc-100 px-3 text-sm font-semibold text-zinc-500"
@@ -169,30 +152,35 @@ function CourseGridCard({
             </button>
           ) : null}
 
-          <div className={isEnrolled || !canBuy ? 'mt-2 grid grid-cols-[1fr_auto] gap-2' : 'grid grid-cols-[1fr_auto] gap-2'}>
+          <div className={!canBuy && !isEnrolled ? 'mt-2 grid grid-cols-[1fr_auto] gap-2' : 'grid grid-cols-[1fr_auto] gap-2'}>
             <Link
               to={coursePathFor(course)}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 px-3 text-sm font-semibold text-black transition hover:border-black"
+              className={[
+                'inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 px-3 text-sm font-semibold text-black transition hover:border-black',
+                isEnrolled ? 'col-span-full' : '',
+              ].join(' ')}
             >
               ดูรายละเอียด
             </Link>
-            <button
-              type="button"
-              className={[
-                'inline-flex h-10 w-10 items-center justify-center rounded-md border text-sm font-semibold transition',
-                !canBuy
-                  ? 'cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400'
-                  : inCart
-                    ? 'border-zinc-200 bg-zinc-100 text-zinc-600 hover:border-black hover:text-black'
-                    : 'border-zinc-200 bg-white text-black hover:border-black',
-              ].join(' ')}
-              disabled={!canBuy}
-              onClick={() => onAddToCart(course.slug)}
-              aria-label={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้า'}
-              title={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้า'}
-            >
-              {inCart ? <Check size={17} /> : <ShoppingCart size={17} />}
-            </button>
+            {!isEnrolled ? (
+              <button
+                type="button"
+                className={[
+                  'inline-flex h-10 w-10 items-center justify-center rounded-md border text-sm font-semibold transition',
+                  !canBuy
+                    ? 'cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400'
+                    : inCart
+                      ? 'border-zinc-200 bg-zinc-100 text-zinc-600 hover:border-black hover:text-black'
+                      : 'border-zinc-200 bg-white text-black hover:border-black',
+                ].join(' ')}
+                disabled={!canBuy}
+                onClick={() => onAddToCart(course.slug)}
+                aria-label={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้า'}
+                title={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้า'}
+              >
+                {inCart ? <Check size={17} /> : <ShoppingCart size={17} />}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -208,6 +196,7 @@ export default function StudentCourseStore() {
   const [selectedCategory, setSelectedCategory] = useState(allOption)
   const [selectedLevel, setSelectedLevel] = useState(allOption)
   const [sortBy, setSortBy] = useState<SortOption>('popular')
+  const [showPurchasedOnly, setShowPurchasedOnly] = useState(false)
   const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
   const [cartOpen, setCartOpen] = useState(() => searchParams.get('cart') === '1')
   const [cartError, setCartError] = useState<string | null>(null)
@@ -242,22 +231,24 @@ export default function StudentCourseStore() {
     const filtered = (courses ?? []).filter((course) => {
       const matchesCategory = selectedCategory === allOption || course.category === selectedCategory
       const matchesLevel = selectedLevel === allOption || course.level === selectedLevel
+      const matchesPurchased = !showPurchasedOnly || Boolean(course.viewerState?.isEnrolled)
       const matchesSearch =
         !normalizedSearch ||
         course.title.toLowerCase().includes(normalizedSearch) ||
         course.description.toLowerCase().includes(normalizedSearch) ||
         course.instructor.name.toLowerCase().includes(normalizedSearch)
 
-      return matchesCategory && matchesLevel && matchesSearch
+      return matchesCategory && matchesLevel && matchesPurchased && matchesSearch
     })
 
     return sortCourses(filtered, sortBy)
-  }, [courses, deferredSearchTerm, selectedCategory, selectedLevel, sortBy])
+  }, [courses, deferredSearchTerm, selectedCategory, selectedLevel, showPurchasedOnly, sortBy])
 
   const resetFilters = () => {
     setSearchTerm('')
     setSelectedCategory(allOption)
     setSelectedLevel(allOption)
+    setShowPurchasedOnly(false)
     setSortBy('popular')
   }
 
@@ -368,10 +359,7 @@ export default function StudentCourseStore() {
   }
 
   const totalCourses = courses?.length ?? 0
-  const publishedCourses = (courses ?? []).filter((course) => course.status === 'published').length
-  const draftCourses = (courses ?? []).filter((course) => course.status === 'draft').length
-  const hiddenCourses = (courses ?? []).filter((course) => course.status === 'hidden').length
-  const popularCourses = (courses ?? []).filter((course) => course.isPopular).length
+  const purchasedCourses = (courses ?? []).filter((course) => course.viewerState?.isEnrolled).length
   const cartCourses = (courses ?? []).filter((course) => cartItems.includes(course.slug))
   const totalCartPrice = cartCourses.reduce((sum, course) => sum + course.price, 0)
   const freeCartCourses = cartCourses.filter((course) => course.price === 0).length
@@ -495,26 +483,34 @@ export default function StudentCourseStore() {
             </aside>
 
             <section className="min-w-0">
-              <div className="mb-7 flex flex-wrap gap-4 border-b border-zinc-200 pb-6">
-                {[
-                  ['ทั้งหมด', totalCourses],
-                  ['เผยแพร่แล้ว', publishedCourses],
-                  ['ยอดนิยม', popularCourses],
-                  ['ร่าง', draftCourses],
-                  ['ซ่อนอยู่', hiddenCourses],
-                ].map(([label, count], index) => (
+              <div className="mb-7 flex flex-col gap-4 border-b border-zinc-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
+                <div className="inline-flex w-fit rounded-lg border border-zinc-200 bg-white p-1">
                   <button
-                    key={label}
                     type="button"
                     className={[
-                      'h-11 rounded-lg px-5 text-sm font-semibold transition',
-                      index === 0 ? 'bg-black text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100 hover:text-black',
+                      'h-9 rounded-md px-4 text-sm font-semibold transition',
+                      !showPurchasedOnly ? 'bg-black text-white' : 'text-zinc-500 hover:text-black',
                     ].join(' ')}
-                    onClick={index === 0 ? resetFilters : undefined}
+                    onClick={() => setShowPurchasedOnly(false)}
                   >
-                    {label} ({count})
+                    ทั้งหมด
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    className={[
+                      'h-9 rounded-md px-4 text-sm font-semibold transition',
+                      showPurchasedOnly ? 'bg-black text-white' : 'text-zinc-500 hover:text-black',
+                    ].join(' ')}
+                    onClick={() => setShowPurchasedOnly(true)}
+                  >
+                    คอร์สที่ซื้อแล้ว ({purchasedCourses})
+                  </button>
+                </div>
+                {showPurchasedOnly ? (
+                  <button type="button" className="text-sm font-medium text-zinc-500 transition hover:text-black" onClick={() => setShowPurchasedOnly(false)}>
+                    ดูคอร์สทั้งหมด
+                  </button>
+                ) : null}
               </div>
 
               <div className="mb-5 flex items-center justify-between gap-4 text-sm text-zinc-500">

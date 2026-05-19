@@ -1,8 +1,20 @@
 export const playbackStoragePrefix = 'mycourse_video_playback'
 export const playbackProgressStoragePrefix = 'mycourse_video_playback_progress'
 
-export const getPlaybackStorageKey = (lessonId: string) => `${playbackStoragePrefix}:${lessonId}`
-export const getPlaybackProgressStorageKey = (lessonId: string) => `${playbackProgressStoragePrefix}:${lessonId}`
+const authStorageKey = 'mycourse_auth'
+
+const getCurrentUserId = () => {
+  try {
+    const raw = localStorage.getItem(authStorageKey)
+    const session = raw ? JSON.parse(raw) : null
+    return typeof session?.user?.id === 'string' ? session.user.id : 'guest'
+  } catch {
+    return 'guest'
+  }
+}
+
+export const getPlaybackStorageKey = (lessonId: string) => `${playbackStoragePrefix}:${getCurrentUserId()}:${lessonId}`
+export const getPlaybackProgressStorageKey = (lessonId: string) => `${playbackProgressStoragePrefix}:${getCurrentUserId()}:${lessonId}`
 
 export const getStoredPlaybackTime = (lessonId: string) => {
   const value = Number(localStorage.getItem(getPlaybackStorageKey(lessonId)) ?? 0)

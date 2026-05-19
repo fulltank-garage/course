@@ -19,16 +19,23 @@ const formatPrice = (price: number) =>
 
 const getLessonCount = (course: Course) => Math.max(course.lessonCount ?? 0, course.lessons.length)
 const hasPreviewVideo = (course: Course) => course.lessons.some((lesson) => lesson.preview && lesson.videoUrl)
-
 function PublicCourseCard({ course }: { course: Course }) {
+  const isEnrolled = Boolean(course.viewerState?.isEnrolled)
+
   return (
     <article className="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg">
       <Link to={`/courses/${course.slug}`} className="relative block aspect-[1.33] overflow-hidden bg-zinc-100">
         <img src={course.coverImage} alt={course.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
-        <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-700 shadow-sm">
-          {course.category}
-        </span>
+        {isEnrolled ? (
+          <span className="absolute left-3 top-3 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
+            คุณได้ซื้อคอร์สแล้ว
+          </span>
+        ) : (
+          <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-700 shadow-sm">
+            {course.category}
+          </span>
+        )}
         {hasPreviewVideo(course) ? (
           <span className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-black shadow-sm">
             <PlayCircle size={16} />

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { BookOpen, LogOut, Menu, Moon, ShoppingCart, Sun, UserRound, X } from 'lucide-react'
-import { api, authStorage, cartStorage, type AuthSession } from '../services/api'
+import { BookOpen, LogOut, Menu, Moon, Sun, UserRound, X } from 'lucide-react'
+import { api, authStorage, type AuthSession } from '../services/api'
 
 const publicNavItems = [
   { to: '/', label: 'หน้าหลัก' },
@@ -57,7 +57,6 @@ export default function Navbar() {
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState<AuthSession | null>(() => authStorage.getSession())
   const [loggingOut, setLoggingOut] = useState(false)
-  const [cartCount, setCartCount] = useState(() => cartStorage.getItems().length)
   const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme())
   const currentPath = `${location.pathname}${location.search}`
   const isNavItemActive = (to: string) => {
@@ -66,7 +65,6 @@ export default function Navbar() {
   }
 
   useEffect(() => authStorage.subscribe(() => setSession(authStorage.getSession())), [])
-  useEffect(() => cartStorage.subscribe(() => setCartCount(cartStorage.getItems().length)), [])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -130,6 +128,31 @@ export default function Navbar() {
   }
 
   const ThemeIcon = theme === 'dark' ? Sun : Moon
+  const isStudentSession = session?.user.role === 'student'
+
+  if (session && isStudentSession) {
+    return (
+      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-[rgba(255,255,255,0.95)] text-black backdrop-blur">
+        <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+          <Link
+            to="/student/store"
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          >
+            คอร์สทั้งหมดของนักเรียน
+          </Link>
+
+          <Link
+            to={dashboardPath}
+            className="inline-flex h-10 min-w-0 items-center gap-2 rounded-lg border border-zinc-200 bg-[#ffffff] px-2.5 text-sm font-semibold text-black transition hover:border-black"
+            aria-label="ไปยังแดชบอร์ด"
+          >
+            <UserAvatar session={session} />
+            <span className="max-w-36 truncate">{session.user.name}</span>
+          </Link>
+        </div>
+      </header>
+    )
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/95 backdrop-blur">
@@ -171,20 +194,6 @@ export default function Navbar() {
                 <UserAvatar session={session} />
                 <span className="max-w-36 truncate">{session.user.name}</span>
               </Link>
-              {session.user.role === 'student' ? (
-                <Link
-                  to="/courses?cart=1"
-                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-100 transition hover:bg-emerald-100"
-                  aria-label="ตะกร้าคอร์ส"
-                >
-                  <ShoppingCart size={18} />
-                  {cartCount > 0 ? (
-                    <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[11px] font-semibold text-white">
-                      {cartCount}
-                    </span>
-                  ) : null}
-                </Link>
-              ) : null}
               <button type="button" className={logoutButtonClass} onClick={handleLogout} disabled={loggingOut}>
                 <LogOut size={16} />
                 {loggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
@@ -241,21 +250,6 @@ export default function Navbar() {
                   <UserAvatar session={session} className="h-10 w-10" />
                   <span className="min-w-0 truncate text-sm font-semibold">{session.user.name}</span>
                 </Link>
-                {session.user.role === 'student' ? (
-                  <Link
-                    to="/courses?cart=1"
-                    className="flex items-center justify-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
-                    aria-label="ตะกร้าคอร์ส"
-                  >
-                    <ShoppingCart size={17} className="text-amber-600" />
-                    ตะกร้า
-                    {cartCount > 0 ? (
-                      <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white">
-                        {cartCount}
-                      </span>
-                    ) : null}
-                  </Link>
-                ) : null}
                 <button type="button" className={logoutButtonClass} onClick={handleLogout} disabled={loggingOut}>
                   <LogOut size={16} />
                   {loggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}

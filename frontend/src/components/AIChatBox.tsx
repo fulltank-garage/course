@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bot, Send, Trash2, UserRound } from 'lucide-react'
-import { api } from '../services/api'
+import { api, authStorage } from '../services/api'
 
 interface Message {
   id: string
@@ -18,6 +18,8 @@ interface AIChatBoxProps {
 
 const chatStoragePrefix = 'mycourse_ai_chat'
 
+const getChatOwnerId = () => authStorage.getSession()?.user.id ?? 'guest'
+
 const createWelcomeMessage = (lessonTitle: string): Message => ({
   id: 'm-1',
   sender: 'ai',
@@ -25,7 +27,7 @@ const createWelcomeMessage = (lessonTitle: string): Message => ({
   createdAt: new Date().toISOString(),
 })
 
-const getChatStorageKey = (lessonId: string) => `${chatStoragePrefix}:${lessonId}`
+const getChatStorageKey = (lessonId: string) => `${chatStoragePrefix}:${getChatOwnerId()}:${lessonId}`
 
 const getStoredMessages = (lessonId: string, lessonTitle: string): Message[] => {
   const raw = localStorage.getItem(getChatStorageKey(lessonId))

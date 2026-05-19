@@ -195,6 +195,24 @@ const cartStorageKey = 'mycourse_cart'
 const cartChangeEvent = 'mycourse-cart-change'
 const studentDashboardCacheKey = 'mycourse_student_dashboard_cache'
 
+const getStoredSession = (): AuthSession | null => {
+  const raw = localStorage.getItem(authStorageKey)
+  return raw ? normalizeSession(JSON.parse(raw) as AuthSession) : null
+}
+
+const studentDashboardCacheKeyFor = (userId: string) => `${studentDashboardCacheKey}:${userId}`
+
+const clearStudentDashboardCaches = () => {
+  localStorage.removeItem(studentDashboardCacheKey)
+
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index)
+    if (key?.startsWith(`${studentDashboardCacheKey}:`)) {
+      localStorage.removeItem(key)
+    }
+  }
+}
+
 const dashboardPathForRole = (role?: UserRole) => {
   if (role === 'teacher') return '/teacher'
   if (role === 'admin') return '/admin'
@@ -219,17 +237,21 @@ class ApiRequestError extends Error {
 }
 
 export const authStorage = {
-  getSession: (): AuthSession | null => {
-    const raw = localStorage.getItem(authStorageKey)
-    return raw ? normalizeSession(JSON.parse(raw) as AuthSession) : null
-  },
+  getSession: (): AuthSession | null => getStoredSession(),
   setSession: (session: AuthSession) => {
-    localStorage.setItem(authStorageKey, JSON.stringify(normalizeSession(session)))
+    const previousSession = getStoredSession()
+    const nextSession = normalizeSession(session)
+
+    if (previousSession?.user.id !== nextSession.user.id) {
+      clearStudentDashboardCaches()
+    }
+
+    localStorage.setItem(authStorageKey, JSON.stringify(nextSession))
     window.dispatchEvent(new Event(authChangeEvent))
   },
   clearSession: () => {
     localStorage.removeItem(authStorageKey)
-    localStorage.removeItem(studentDashboardCacheKey)
+    clearStudentDashboardCaches()
     window.dispatchEvent(new Event(authChangeEvent))
   },
   subscribe: (listener: () => void) => {
@@ -245,21 +267,39 @@ export const authStorage = {
 
 export const studentDashboardStorage = {
   get: (): StudentDashboardData | null => {
-    const raw = localStorage.getItem(studentDashboardCacheKey)
+    const session = authStorage.getSession()
+    if (!session || session.user.role !== 'student') return null
+
+    const cacheKey = studentDashboardCacheKeyFor(session.user.id)
+    const raw = localStorage.getItem(cacheKey)
     if (!raw) return null
 
     try {
-      return JSON.parse(raw) as StudentDashboardData
+      const dashboard = JSON.parse(raw) as StudentDashboardData
+
+      if (dashboard.user.id !== session.user.id) {
+        localStorage.removeItem(cacheKey)
+        return null
+      }
+
+      return dashboard
     } catch {
-      localStorage.removeItem(studentDashboardCacheKey)
+      localStorage.removeItem(cacheKey)
       return null
     }
   },
   set: (dashboard: StudentDashboardData) => {
-    localStorage.setItem(studentDashboardCacheKey, JSON.stringify(dashboard))
+    localStorage.setItem(studentDashboardCacheKeyFor(dashboard.user.id), JSON.stringify(dashboard))
   },
   clear: () => {
-    localStorage.removeItem(studentDashboardCacheKey)
+    const session = authStorage.getSession()
+
+    if (session) {
+      localStorage.removeItem(studentDashboardCacheKeyFor(session.user.id))
+      return
+    }
+
+    clearStudentDashboardCaches()
   },
 }
 

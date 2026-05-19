@@ -44,14 +44,13 @@ const tabs: Array<{ id: AITab; label: string; icon: typeof FileText }> = [
   { id: 'quiz', label: 'แบบทดสอบ', icon: HelpCircle },
 ]
 
-const lessonAiCacheKey = (lessonId: string, type: 'summary' | 'quiz') =>
-  type === 'summary' ? `mycourse:lesson-ai:${type}:timeline-v2:${lessonId}` : `mycourse:lesson-ai:${type}:v2:${lessonId}`
+const getCurrentLearnerId = () => authStorage.getSession()?.user.id ?? 'guest'
 
-const hasTimelineSummary = (text?: string | null) => {
-  if (!text) return false
-
-  const timestampCount = text.match(/\[(?:\d{1,2}:)?\d{1,2}:\d{2}(?:\s*[-–]\s*(?:\d{1,2}:)?\d{1,2}:\d{2})?\]/g)?.length ?? 0
-  return timestampCount >= 4 || /รายนาที|นาทีที่|ช่วงนาที/.test(text)
+const lessonAiCacheKey = (lessonId: string, type: 'summary' | 'quiz') => {
+  const ownerId = getCurrentLearnerId()
+  return type === 'summary'
+    ? `mycourse:lesson-ai:${type}:timeline-v2:${ownerId}:${lessonId}`
+    : `mycourse:lesson-ai:${type}:v2:${ownerId}:${lessonId}`
 }
 
 const getCachedQuiz = (lessonId: string): QuizQuestion[] | null => {
@@ -174,7 +173,7 @@ export default function VideoLearning() {
   const previousLesson = lessonIndex > 0 ? course?.lessons[lessonIndex - 1] : undefined
   const nextLesson = course && lessonIndex >= 0 ? course.lessons[lessonIndex + 1] : undefined
   const isEnrolledStudent = course?.viewerState?.role === 'student' && course.viewerState.isEnrolled
-  const reviewStorageKey = lesson ? `mycourse:lesson-reviews:${lesson.id}` : null
+  const reviewStorageKey = lesson ? `mycourse:lesson-reviews:${getCurrentLearnerId()}:${lesson.id}` : null
   const lessonStatus = lessonCompleted ? 'เรียนแล้ว' : isEnrolledStudent ? 'กำลังเรียน' : 'ตัวอย่าง'
   const backPath = isEnrolledStudent ? dashboardPath : `/courses/${course?.slug ?? slug}`
 
@@ -224,7 +223,7 @@ export default function VideoLearning() {
     setAiError(null)
     setVideoProgress({ currentTime: 0, duration: 0, percent: 0 })
     window.localStorage.removeItem(`mycourse:lesson-ai:summary:${lesson.id}`)
-    setAiSummary(cachedSummary ?? (hasTimelineSummary(lesson.aiSummary) ? lesson.aiSummary ?? null : null))
+    setAiSummary(cachedSummary)
     setAiQuiz(getCachedQuiz(lesson.id))
   }, [lesson?.id])
 
@@ -643,7 +642,7 @@ export default function VideoLearning() {
                   <div className="flex h-full min-h-0 flex-col gap-4">
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
                     <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-xl border border-zinc-100 bg-zinc-50/70 p-4">
-                      <AiResponsePanel text={aiSummary ?? lesson.aiSummary ?? lesson.summary} />
+                      <AiResponsePanel text={aiSummary ?? lesson.summary} />
                     </div>
                     <button
                       type="button"
