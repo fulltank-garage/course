@@ -150,6 +150,57 @@ function PreviewModal({
   )
 }
 
+function AuthPromptModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4">
+      <div className="relative w-full max-w-[560px] rounded-lg border border-zinc-200 bg-white px-6 py-6 text-center shadow-2xl sm:px-8">
+        <button
+          type="button"
+          className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 transition hover:border-black hover:text-black"
+          onClick={onClose}
+          aria-label="ปิดหน้าต่างแจ้งเตือน"
+        >
+          <X size={18} strokeWidth={2} />
+        </button>
+
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-black">
+          <Lock size={24} strokeWidth={1.8} />
+        </div>
+        <h2 className="mt-6 text-xl font-semibold text-black">
+          กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อดำเนินการต่อ
+        </h2>
+        <p className="mt-4 text-base leading-7 text-zinc-600">
+          หากคุณยังไม่มีบัญชีผู้ใช้ กรุณาสมัครสมาชิกและเข้าสู่ระบบ
+        </p>
+
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          <Link
+            to="/register"
+            className="inline-flex h-12 items-center justify-center rounded-md border border-zinc-200 bg-white px-5 text-sm font-semibold text-black transition hover:border-black"
+          >
+            สมัครสมาชิก
+          </Link>
+          <Link
+            to="/login"
+            className="inline-flex h-12 items-center justify-center rounded-md bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          >
+            เข้าสู่ระบบ
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function CourseDetail() {
   const { slug = '' } = useParams()
   const navigate = useNavigate()
@@ -160,6 +211,7 @@ export default function CourseDetail() {
   const [error, setError] = useState<string | null>(null)
   const [purchaseError, setPurchaseError] = useState<string | null>(null)
   const [purchasing, setPurchasing] = useState(false)
+  const [authPromptOpen, setAuthPromptOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -221,7 +273,7 @@ export default function CourseDetail() {
         <div className="mx-auto max-w-xl rounded-lg border border-zinc-200 bg-white p-8 text-center">
           <h1 className="text-2xl font-semibold text-black">ไม่พบคอร์ส</h1>
           <p className="mt-2 text-sm text-zinc-500">{error ?? 'คอร์สนี้อาจถูกลบหรือ URL ไม่ถูกต้อง'}</p>
-          <Link to="/courses" className="mt-6 inline-flex h-11 items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white">
+          <Link to="/" className="mt-6 inline-flex h-11 items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white">
             กลับไปดูคอร์สทั้งหมด
           </Link>
         </div>
@@ -246,18 +298,18 @@ export default function CourseDetail() {
   const viewerStateLabel = isEnrolled
     ? 'คุณได้ซื้อคอร์สแล้ว'
     : !session
-    ? 'โหมดพรีวิวสำหรับผู้ใช้ทั่วไป'
+    ? ''
     : isStaffAccount
     ? 'บัญชีนี้ใช้จัดการระบบ'
     : 'พร้อมซื้อด้วยบัญชีนักเรียน'
   const viewerStateDescription = isEnrolled
     ? 'คอร์สนี้อยู่ในหน้าคอร์สของฉันแล้ว ใช้หน้านี้สำหรับดูรายละเอียดและพรีวิว'
     : !session
-    ? 'ดูรายละเอียดและวิดีโอตัวอย่างได้ก่อน แต่ต้องเข้าสู่ระบบด้วยบัญชีนักเรียนก่อนซื้อคอร์ส'
+    ? ''
     : isStaffAccount
     ? 'บัญชีครูหรือผู้ดูแลไม่สามารถซื้อคอร์สได้ ให้ใช้บัญชีนักเรียนสำหรับการซื้อ'
     : 'คุณเข้าสู่ระบบเป็นนักเรียนแล้ว สามารถซื้อคอร์สนี้และเข้าเรียนได้ทันที'
-  const returnPath = isStudent ? (isEnrolled ? '/student?section=my-courses' : '/student/store') : '/courses'
+  const returnPath = isStudent ? (isEnrolled ? '/student?section=my-courses' : '/student/store') : '/'
   const returnLabel = isStudent
     ? isEnrolled
       ? 'กลับไปคอร์สของฉัน'
@@ -271,7 +323,7 @@ export default function CourseDetail() {
     }
 
     if (!session) {
-      navigate('/login')
+      setAuthPromptOpen(true)
       return
     }
 
@@ -316,9 +368,11 @@ export default function CourseDetail() {
               <div className="flex flex-wrap gap-2 text-xs font-semibold text-zinc-600">
                 <span className="rounded-full bg-zinc-100 px-3 py-1">{course.category}</span>
                 <span className="rounded-full border border-zinc-200 px-3 py-1">{course.level}</span>
-                <span className={isEnrolled ? 'rounded-full bg-emerald-50 px-3 py-1 text-emerald-700' : 'rounded-full bg-black px-3 py-1 text-white'}>
-                  {isEnrolled ? 'คุณได้ซื้อคอร์สแล้ว' : 'พรีวิวคอร์ส'}
-                </span>
+                {isEnrolled ? (
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+                    คุณได้ซื้อคอร์สแล้ว
+                  </span>
+                ) : null}
               </div>
 
               <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-black sm:text-5xl">{course.title}</h1>
@@ -372,9 +426,9 @@ export default function CourseDetail() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-semibold text-black">บทเรียนในคอร์ส</h2>
-                  <p className="mt-2 text-sm text-zinc-500">ดูรายชื่อบทเรียนได้ก่อนสมัคร เฉพาะบท preview เท่านั้นที่เปิดวิดีโอได้</p>
+                  <p className="mt-2 text-sm text-zinc-500">ดูรายชื่อบทเรียนและรายละเอียดของคอร์สได้ก่อนดำเนินการต่อ</p>
                 </div>
-                {primaryPreviewLesson ? (
+                {primaryPreviewLesson && session ? (
                   <button
                     type="button"
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
@@ -388,7 +442,7 @@ export default function CourseDetail() {
 
               <div className="mt-5 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-[#ffffff]">
                 {course.lessons.map((lesson, index) => {
-                  const canPreview = lesson.preview && Boolean(lesson.videoUrl)
+                  const canPreview = Boolean(session || isEnrolled) && lesson.preview && Boolean(lesson.videoUrl)
 
                   return (
                     <div key={lesson.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -416,7 +470,7 @@ export default function CourseDetail() {
                           <CheckCircle2 size={14} />
                           เรียนได้ในห้องเรียน
                         </span>
-                      ) : lesson.preview ? (
+                      ) : (session || isEnrolled) && lesson.preview ? (
                         <span className="inline-flex h-9 items-center justify-center rounded-lg bg-zinc-100 px-3 text-sm font-semibold text-zinc-500">
                           Preview
                         </span>
@@ -458,24 +512,41 @@ export default function CourseDetail() {
             ) : (
               <>
                 <p className="text-3xl font-semibold tracking-tight text-black">{formatPrice(course.price)}</p>
-                <p className="mt-2 text-sm text-zinc-500">รายละเอียดคอร์สและพรีวิวใช้ธีมเดียวกัน สิทธิ์ซื้อและเข้าเรียนขึ้นกับบัญชีที่ใช้อยู่</p>
+                <p className="mt-2 text-sm text-zinc-500">
+                  {session
+                    ? 'รายละเอียดคอร์สและสิทธิ์ซื้อจะผูกกับบัญชีที่ใช้อยู่'
+                    : 'ดูรายละเอียดคอร์สก่อนเริ่มเรียนได้ หลังเข้าสู่ระบบด้วยบัญชีนักเรียนจึงดำเนินการต่อได้'}
+                </p>
               </>
             )}
 
-            <div className={['mt-5 rounded-lg border p-4 text-sm leading-6', isEnrolled ? 'border-zinc-200 bg-zinc-50 text-zinc-700' : 'border-zinc-200 bg-zinc-50 text-zinc-700'].join(' ')}>
-              <p className="font-semibold text-black">{viewerStateLabel}</p>
-              <p className="mt-1">{viewerStateDescription}</p>
-            </div>
+            {isEnrolled || session ? (
+              <div className={['mt-5 rounded-lg border p-4 text-sm leading-6', isEnrolled ? 'border-zinc-200 bg-zinc-50 text-zinc-700' : 'border-zinc-200 bg-zinc-50 text-zinc-700'].join(' ')}>
+                <p className="font-semibold text-black">{viewerStateLabel}</p>
+                <p className="mt-1">{viewerStateDescription}</p>
+              </div>
+            ) : null}
 
             <div className="mt-6 grid gap-3">
-              {primaryPreviewLesson ? (
+              {primaryPreviewLesson && session ? (
                 <button
                   type="button"
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-zinc-200 bg-[#ffffff] text-sm font-semibold text-black transition hover:border-black"
                   onClick={() => setPreviewLesson(primaryPreviewLesson)}
                 >
                   <PlayCircle size={17} />
-                  ดูวิดีโอตัวอย่าง
+                  ดูตัวอย่าง
+                </button>
+              ) : null}
+
+              {!isEnrolled && !session ? (
+                <button
+                  type="button"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-black text-sm font-semibold text-white transition hover:bg-zinc-800"
+                  onClick={handlePurchase}
+                >
+                  เริ่มเรียน
+                  <ArrowRight size={17} />
                 </button>
               ) : null}
 
@@ -500,20 +571,6 @@ export default function CourseDetail() {
                 </button>
               ) : null}
 
-              {!isEnrolled && !session ? (
-                <div className="rounded-lg border border-zinc-200 bg-[#ffffff] p-4 text-sm leading-6 text-zinc-700">
-                  <p className="font-semibold">ต้องเข้าสู่ระบบก่อนซื้อคอร์ส</p>
-                  <p className="mt-1">ใช้บัญชีนักเรียนเพื่อบันทึกคอร์สไว้ในหน้าเรียนของคุณ หลังเข้าสู่ระบบแล้วค่อยกดซื้อคอร์สได้ทันที</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Link to="/login" className="inline-flex h-9 items-center justify-center rounded-md bg-black px-3 text-sm font-semibold text-white transition hover:bg-zinc-800">
-                      เข้าสู่ระบบ
-                    </Link>
-                    <Link to="/register" className="inline-flex h-9 items-center justify-center rounded-md border border-zinc-200 bg-[#ffffff] px-3 text-sm font-semibold text-black transition hover:border-black">
-                      สมัครสมาชิก
-                    </Link>
-                  </div>
-                </div>
-              ) : null}
             </div>
 
             {purchaseError ? <p className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{purchaseError}</p> : null}
@@ -551,6 +608,7 @@ export default function CourseDetail() {
           isEnrolled={isEnrolled}
         />
       ) : null}
+      {authPromptOpen ? <AuthPromptModal onClose={() => setAuthPromptOpen(false)} /> : null}
     </section>
   )
 }

@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { BookOpen, LogOut, Menu, Moon, Sun, UserRound, X } from 'lucide-react'
+import { LogIn, LogOut, Menu, Moon, Sun, UserRound, X } from 'lucide-react'
 import { api, authStorage, type AuthSession } from '../services/api'
 
 const publicNavItems = [
   { to: '/', label: 'หน้าหลัก' },
   { to: '/contact', label: 'ติดต่อ' },
 ]
-
-const courseNavItem = { to: '/courses', label: 'คอร์ส' }
 
 const navItemClass = (isActive: boolean) =>
   [
@@ -48,6 +46,20 @@ function UserAvatar({ session, className = 'h-8 w-8' }: { session: AuthSession; 
     <span className={`${className} inline-flex items-center justify-center rounded-md bg-slate-950 text-white dark:bg-white dark:text-slate-950`}>
       <UserRound size={16} />
     </span>
+  )
+}
+
+function BrandMark() {
+  return (
+    <svg viewBox="0 0 64 64" className="h-10 w-10" aria-hidden="true">
+      <rect x="5" y="5" width="54" height="54" rx="14" fill="currentColor" />
+      <path d="M32 24.3c-4.7-2.3-10.3-2.7-16-1v22.4c5.7-1.7 11.3-1.3 16 1V24.3Z" fill="#f8fafc" />
+      <path d="M32 24.3c4.7-2.3 10.3-2.7 16-1v22.4c-5.7-1.7-11.3-1.3-16 1V24.3Z" fill="#d4d4d8" />
+      <path d="M32 22.1c2.6-3.8 7.6-5.5 12.8-4.5" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" />
+      <path d="M32 24.3v22.9" stroke="#18181b" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M20.5 30.4h7.8M20.5 35.1h7.8M20.5 39.8h7.8" stroke="#a1a1aa" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M36.2 31h7.3M36.2 35.7h7.3M36.2 40.4h6.1" stroke="#9ca3af" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
   )
 }
 
@@ -102,7 +114,6 @@ export default function Navbar() {
     }
 
     return [
-      courseNavItem,
       { to: '/admin', label: 'แดชบอร์ดระบบ' },
       { to: '/admin?section=users', label: 'จัดการผู้ใช้' },
       { to: '/admin?section=courses', label: 'จัดการคอร์ส' },
@@ -129,6 +140,7 @@ export default function Navbar() {
 
   const ThemeIcon = theme === 'dark' ? Sun : Moon
   const isStudentSession = session?.user.role === 'student'
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/register'
 
   if (session && isStudentSession) {
     return (
@@ -158,10 +170,10 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/95 backdrop-blur">
       <div className="container-page flex h-20 items-center justify-between">
         <Link to={session ? dashboardPath : '/'} className="flex items-center gap-2 text-slate-950">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-[6px] bg-black text-white">
-            <BookOpen size={22} className="fill-white" />
+          <span className="inline-flex h-10 w-10 items-center justify-center text-black">
+            <BrandMark />
           </span>
-          <span className="text-xl font-extrabold tracking-tight">LearnPro</span>
+          <span className="text-xl font-semibold tracking-tight">MyCourse</span>
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
@@ -199,18 +211,14 @@ export default function Navbar() {
                 {loggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
               </button>
             </>
-          ) : (
-            <>
-              <Link to="/login" className="px-3 py-2 text-sm font-semibold text-black transition hover:text-zinc-600">
-                เข้าสู่ระบบ
-              </Link>
-              <Link
-                to="/register"
-                className="inline-flex h-11 items-center justify-center rounded-[8px] bg-black px-5 text-sm font-bold text-white shadow-[0_10px_20px_rgba(0,0,0,0.16)] transition hover:bg-zinc-800"
-              >
-                สมัครสมาชิก
-              </Link>
-            </>
+          ) : isAuthPage ? null : (
+            <Link
+              to="/login"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800 hover:shadow-[0_18px_38px_rgba(0,0,0,0.24)]"
+            >
+              <LogIn size={16} />
+              เข้าสู่ระบบ
+            </Link>
           )}
         </div>
 
@@ -255,19 +263,14 @@ export default function Navbar() {
                   {loggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
                 </button>
               </div>
-            ) : (
+            ) : isAuthPage ? null : (
               <div className="grid gap-2 pt-2">
                 <Link
                   to="/login"
-                  className="flex items-center justify-center rounded-md border border-zinc-200 bg-white p-3 text-sm font-semibold text-black transition hover:border-black"
+                  className="flex items-center justify-center gap-2 rounded-full bg-black p-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800"
                 >
+                  <LogIn size={16} />
                   เข้าสู่ระบบ
-                </Link>
-                <Link
-                  to="/register"
-                  className="flex items-center justify-center rounded-md bg-black p-3 text-sm font-bold text-white transition hover:bg-zinc-800"
-                >
-                  สมัครสมาชิก
                 </Link>
               </div>
             )}

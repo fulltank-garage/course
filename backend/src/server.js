@@ -191,6 +191,21 @@ const ensureAuthSchema = async () => {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `)
+  await query(`
+    CREATE TABLE IF NOT EXISTS teacher_applications (
+      id TEXT PRIMARY KEY,
+      student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      display_name TEXT NOT NULL,
+      phone TEXT NOT NULL DEFAULT '',
+      expertise TEXT NOT NULL,
+      course_topic TEXT NOT NULL,
+      experience TEXT NOT NULL,
+      portfolio_url TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
 }
 
 const upsertSeedUserCredential = async ({ id, name, email, role, password, avatarUrl = null, title = null, bio = null }) => {
@@ -3298,6 +3313,57 @@ const updateStudentProfile = async (request) => {
   return { statusCode: 200, payload: { data: await getUserProfile(authUser.id) } }
 }
 
+const createTeacherApplication = async (request) => {
+  const { authUser, error } = await requireRole(request, ['student'])
+  if (error) return error
+
+  const body = await readBody(request)
+  const displayName = String(body.displayName ?? '').trim()
+  const phone = String(body.phone ?? '').trim()
+  const expertise = String(body.expertise ?? '').trim()
+  const courseTopic = String(body.courseTopic ?? '').trim()
+  const experience = String(body.experience ?? '').trim()
+  const portfolioUrl = String(body.portfolioUrl ?? '').trim()
+  const message = String(body.message ?? '').trim()
+
+  if (!displayName || !expertise || !courseTopic || !experience) {
+    return { statusCode: 400, payload: { message: 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน' } }
+  }
+
+  const applicationId = `ta-${crypto.randomUUID()}`
+  const result = await query(
+    `
+      INSERT INTO teacher_applications (
+        id, student_id, display_name, phone, expertise, course_topic,
+        experience, portfolio_url, message, status, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', NOW())
+      RETURNING id, display_name, phone, expertise, course_topic, experience, portfolio_url, message, status, created_at
+    `,
+    [applicationId, authUser.id, displayName, phone, expertise, courseTopic, experience, portfolioUrl, message],
+  )
+
+  const application = result.rows[0]
+
+  return {
+    statusCode: 201,
+    payload: {
+      data: {
+        id: application.id,
+        displayName: application.display_name,
+        phone: application.phone,
+        expertise: application.expertise,
+        courseTopic: application.course_topic,
+        experience: application.experience,
+        portfolioUrl: application.portfolio_url,
+        message: application.message,
+        status: application.status,
+        createdAt: application.created_at,
+      },
+    },
+  }
+}
+
 const updateTeacherProfile = async (request) => {
   const authUser = await getAuthUser(request)
 
@@ -4134,6 +4200,12 @@ const routeRequest = async (request, response) => {
 
   if (url.pathname === '/api/student/profile' && request.method === 'POST') {
     const result = await updateStudentProfile(request)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
+  if (url.pathname === '/api/student/teacher-application' && request.method === 'POST') {
+    const result = await createTeacherApplication(request)
     sendJson(response, result.statusCode, result.payload)
     return
   }

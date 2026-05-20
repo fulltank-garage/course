@@ -1,352 +1,266 @@
+import { useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowLeft,
-  ArrowRight,
-  Bell,
   BookOpen,
-  Bot,
+  Brain,
+  ChevronLeft,
   ChevronRight,
-  Home as HomeIcon,
   MonitorSmartphone,
-  MoreVertical,
-  PlayCircle,
-  Search,
   ShieldCheck,
   Sparkles,
   Star,
-  Trophy,
-  UserRound,
-  Video,
 } from 'lucide-react'
 import { useApi } from '../hooks/useApi'
 import { api } from '../services/api'
 import type { Course } from '../types/course'
 
-const featureHighlights = [
-  {
-    icon: Video,
-    title: 'คอร์สคุณภาพ',
-    description: 'เนื้อหาจากผู้สอนเชี่ยวชาญ และอัปเดตอยู่เสมอ',
-  },
-  {
-    icon: Sparkles,
-    title: 'AI ช่วยเรียนรู้',
-    description: 'สรุปเนื้อหา ตอบคำถาม และแนะนำสิ่งที่ควรเรียน',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'ใบรับรอง',
-    description: 'รับใบรับรองเมื่อเรียนจบ เพิ่มโอกาสในหน้าที่การงาน',
-  },
-  {
-    icon: MonitorSmartphone,
-    title: 'เรียนได้ทุกอุปกรณ์',
-    description: 'รองรับทุกอุปกรณ์ เรียนได้ทุกที่ ทุกเวลา',
-  },
-]
-
-const showcaseCourses = [
-  ['UI/UX Design Fundamentals', 'Lesson 8 • Color & Typography', '65%', 'UI/UX'],
-  ['React Mastery Course', 'โดย Code Master', '75%', '⚛'],
-  ['AI for Beginners', 'โดย AI Academy', '40%', 'AI'],
-  ['Figma UI Design', 'โดย Design Hub', '90%', 'F'],
-]
-
-const sidebarItems = [BookOpen, HomeIcon, PlayCircle, ShieldCheck, Bot, Trophy, UserRound]
-
 const formatPrice = (price: number) =>
-  new Intl.NumberFormat('th-TH', {
-    style: 'currency',
-    currency: 'THB',
-    maximumFractionDigits: 0,
-  }).format(price)
+  price === 0
+    ? 'ฟรี'
+    : new Intl.NumberFormat('th-TH', {
+        style: 'currency',
+        currency: 'THB',
+        maximumFractionDigits: 0,
+      }).format(price)
 
-function CourseTile({ course }: { course: Course }) {
+const formatNumber = (value: number) => value.toLocaleString('th-TH')
+const getLessonCount = (course: Course) => Math.max(course.lessonCount ?? 0, course.lessons.length)
+
+const getFeaturedCourses = (courses: Course[]) =>
+  [...courses]
+    .sort((left, right) => {
+      const popularScore = Number(Boolean(right.isPopular)) - Number(Boolean(left.isPopular))
+      if (popularScore !== 0) return popularScore
+      if (right.rating !== left.rating) return right.rating - left.rating
+      return right.students - left.students
+    })
+    .slice(0, 6)
+
+function HeroCarousel({ courses }: { courses: Course[] }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const hasMultipleCourses = courses.length > 1
+
+  const scrollCarousel = (direction: 'previous' | 'next') => {
+    const container = scrollRef.current
+    if (!container) return
+
+    const firstCard = container.querySelector<HTMLElement>('[data-hero-course-card]')
+    const cardWidth = firstCard?.offsetWidth ?? container.clientWidth
+    const gap = 20
+    const left = direction === 'previous' ? -(cardWidth + gap) : cardWidth + gap
+
+    container.scrollBy({ left, behavior: 'smooth' })
+  }
+
+  if (!courses.length) {
+    return (
+      <div className="rounded-[28px] border border-zinc-200 bg-zinc-50 p-8 text-center text-sm leading-7 text-zinc-600">
+        ยังไม่มีคอร์สที่เผยแพร่ในระบบ
+      </div>
+    )
+  }
+
+  return (
+    <section className="relative w-full overflow-hidden">
+      <div
+        ref={scrollRef}
+        className="flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth px-4 pb-2 sm:px-6 lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {courses.map((course) => (
+          <Link
+            key={course.id}
+            to={`/courses/${course.slug}`}
+            aria-label={course.title}
+            data-hero-course-card
+            className="group block w-[78vw] shrink-0 snap-center overflow-hidden rounded-[20px] border border-zinc-200 bg-zinc-100 shadow-[0_18px_50px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:border-zinc-300 sm:w-[520px] md:w-[600px] lg:w-[680px] xl:w-[760px]"
+          >
+            <div className="aspect-[16/5] overflow-hidden">
+              <img
+                src={course.coverImage}
+                alt={course.title}
+                className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.02]"
+              />
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {hasMultipleCourses ? (
+        <>
+          <button
+            type="button"
+            className="absolute left-6 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-[#ffffff] text-black shadow-[0_10px_30px_rgba(15,23,42,0.14)] ring-1 ring-zinc-200 transition hover:bg-zinc-50 lg:left-10"
+            onClick={() => scrollCarousel('previous')}
+            aria-label="คอร์สก่อนหน้า"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            type="button"
+            className="absolute right-6 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-[#ffffff] text-black shadow-[0_10px_30px_rgba(15,23,42,0.14)] ring-1 ring-zinc-200 transition hover:bg-zinc-50 lg:right-10"
+            onClick={() => scrollCarousel('next')}
+            aria-label="คอร์สถัดไป"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </>
+      ) : null}
+    </section>
+  )
+}
+
+function CompactCourseCard({ course }: { course: Course }) {
   return (
     <Link
       to={`/courses/${course.slug}`}
-      className="group min-w-[218px] rounded-[10px] border border-zinc-200 bg-white p-4 shadow-[0_14px_36px_rgba(0,0,0,0.05)] transition hover:-translate-y-1 hover:border-zinc-950 hover:shadow-[0_18px_42px_rgba(0,0,0,0.09)]"
+      className="group grid h-full grid-rows-[auto_1fr] overflow-hidden rounded-[18px] border border-zinc-200 bg-[#ffffff] transition hover:-translate-y-0.5 hover:border-black hover:shadow-[0_16px_42px_rgba(15,23,42,0.08)]"
     >
-      <div className="flex items-start gap-3">
+      <div className="relative aspect-[1.62] overflow-hidden bg-zinc-100">
         <img
           src={course.coverImage}
           alt={course.title}
-          className="h-14 w-14 rounded-[8px] bg-black object-cover ring-1 ring-zinc-200"
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
         />
-        <div className="min-w-0">
-          <h3 className="line-clamp-2 text-sm font-bold leading-5 text-black">{course.title}</h3>
-          <p className="mt-1 truncate text-xs text-zinc-500">{course.instructor.name}</p>
+      </div>
+      <div className="flex flex-col p-3.5">
+        <div className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-500">
+          <span>{course.category}</span>
+        </div>
+        <h3 className="mt-2.5 line-clamp-2 text-sm font-semibold leading-5 text-black">{course.title}</h3>
+        <p className="mt-1.5 line-clamp-1 text-xs text-zinc-500">{course.instructor.name}</p>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-zinc-500">
+          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-black">
+            <Star size={12} className="fill-black text-black" />
+            {course.rating.toFixed(1)}
+          </span>
+          <span className="rounded-full bg-zinc-100 px-2.5 py-1">{formatNumber(course.students)} ผู้เรียน</span>
+          <span className="rounded-full bg-zinc-100 px-2.5 py-1">{getLessonCount(course)} บทเรียน</span>
+        </div>
+        <div className="mt-auto flex items-center justify-between gap-3 pt-4">
+          <span className="text-sm font-semibold text-black">{formatPrice(course.price)}</span>
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-500">
+            ดูรายละเอียด
+            <ChevronRight size={14} />
+          </span>
         </div>
       </div>
-      <div className="mt-4 flex items-center gap-1.5 text-xs text-zinc-700">
-        <Star size={13} className="fill-black text-black" />
-        <span>{course.rating}</span>
-        <span className="text-zinc-400">({course.students.toLocaleString('th-TH')})</span>
-      </div>
-      <p className="mt-6 text-lg font-extrabold tracking-tight text-black">
-        {course.price === 0 ? 'ฟรี' : formatPrice(course.price)}
-      </p>
     </Link>
   )
 }
 
-function DashboardPreview() {
+function LoadingBlock() {
   return (
-    <div className="relative mx-auto w-full max-w-[680px] overflow-hidden rounded-[18px] border border-zinc-200 bg-white shadow-[0_24px_70px_rgba(0,0,0,0.10)]">
-      <div className="grid min-h-[480px] grid-cols-[64px_minmax(0,1fr)]">
-        <aside className="flex flex-col items-center justify-between bg-black py-7 text-white">
-          <div className="space-y-7">
-            <BookOpen size={27} className="fill-white" />
-            <div className="space-y-4">
-              {sidebarItems.slice(1).map((Icon, index) => (
-                <span
-                  key={index}
-                  className={`flex h-10 w-10 items-center justify-center rounded-[8px] ${
-                    index === 0 ? 'bg-white/12' : 'text-white/80'
-                  }`}
-                >
-                  <Icon size={17} />
-                </span>
-              ))}
-            </div>
-          </div>
-          <span className="flex h-10 w-10 items-center justify-center rounded-[8px] text-white/70">
-            <ArrowRight size={16} />
-          </span>
-        </aside>
-
-        <div className="p-7 sm:p-9">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-extrabold tracking-tight text-black">Hello, John 👋</h2>
-              <p className="mt-2 text-sm font-medium text-zinc-700">พร้อมเรียนรู้อะไรใหม่ ๆ วันนี้?</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <Search size={20} />
-              <Bell size={19} />
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">
-                <UserRound size={18} />
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-10">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-bold text-black">เรียนต่อ</p>
-            </div>
-            <div className="flex items-center gap-4 rounded-[12px] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_rgba(0,0,0,0.06)]">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[8px] bg-black text-center text-xs font-bold leading-4 text-white">
-                UI/UX
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-black">UI/UX Design Fundamentals</p>
-                <p className="mt-1 text-xs text-zinc-500">Lesson 8 • Color & Typography</p>
-              </div>
-              <div className="hidden h-1 w-24 overflow-hidden rounded-full bg-zinc-200 sm:block">
-                <div className="h-full w-[65%] rounded-full bg-black" />
-              </div>
-              <span className="text-sm font-semibold text-zinc-700">65%</span>
-              <button type="button" className="rounded-[8px] bg-black px-4 py-2 text-xs font-bold text-white">
-                เรียนต่อ
-              </button>
-              <ChevronRight size={17} />
-            </div>
-          </div>
-
-          <div className="mt-8">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-bold text-black">คอร์สของฉัน</p>
-              <Link to="/courses" className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500">
-                ดูทั้งหมด
-                <ArrowRight size={13} />
-              </Link>
-            </div>
-            <div className="space-y-3">
-              {showcaseCourses.slice(1).map(([title, owner, progress, mark], index) => (
-                <div key={title} className="grid grid-cols-[48px_minmax(0,1fr)_80px_72px_20px] items-center gap-4 border-b border-zinc-100 py-2 last:border-b-0">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-[8px] bg-black text-sm font-bold text-white">
-                    {mark}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-black">{title}</p>
-                    <p className="mt-1 truncate text-xs text-zinc-500">{owner}</p>
-                  </div>
-                  <div className="h-1 overflow-hidden rounded-full bg-zinc-200">
-                    <div
-                      className="h-full rounded-full bg-black"
-                      style={{ width: progress }}
-                    />
-                  </div>
-                  <button type="button" className="rounded-[8px] border border-zinc-200 px-3 py-2 text-xs font-bold text-black">
-                    {index === 2 ? 'ดูเนื้อหา' : 'เรียนต่อ'}
-                  </button>
-                  <MoreVertical size={16} className="text-zinc-500" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="grid gap-5 md:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div key={index} className="h-72 animate-pulse rounded-[22px] border border-zinc-200 bg-zinc-100" />
+      ))}
     </div>
   )
 }
 
 export default function Home() {
-  const { data: popularCourses, error, loading } = useApi(() => api.getCourses({ popular: true }), [])
-  const courses = popularCourses?.slice(0, 5) ?? []
-  const hasPopularCourses = courses.length > 0
+  const { data, error, loading } = useApi(() => api.getCourses(), [])
+
+  const publishedCourses = useMemo(
+    () => (data ?? []).filter((course) => (course.status ?? 'published') === 'published'),
+    [data],
+  )
+  const featuredCourses = useMemo(() => getFeaturedCourses(publishedCourses), [publishedCourses])
+  const courseTotal = publishedCourses.length
+  const categories = Array.from(new Set(publishedCourses.map((course) => course.category)))
+  const topCategories = categories.slice(0, 5)
 
   return (
-    <div className="bg-white text-black">
-      <section className="container-page grid gap-12 pb-14 pt-14 lg:grid-cols-[0.8fr_1.2fr] lg:items-center lg:pb-16 lg:pt-16">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-900">
-            <Sparkles size={15} />
-            เรียนได้ทุกที่ ทุกเวลา
-          </div>
-          <h1 className="mt-8 max-w-[560px] text-[44px] font-black leading-[1.08] tracking-[0] text-black sm:text-[60px] lg:text-[64px]">
-            เรียนรู้ทักษะใหม่
-            <br />
-            เพื่ออนาคตที่ดีกว่า
-          </h1>
-          <p className="mt-7 max-w-[430px] text-lg leading-9 text-zinc-600">
-            แพลตฟอร์มคอร์สออนไลน์คุณภาพสูง พร้อม AI ช่วยสรุปเนื้อหา ตอบคำถาม
-            และแนะนำสิ่งที่คุณควรเรียน
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              to="/courses"
-              className="inline-flex h-14 items-center justify-center gap-3 rounded-[8px] bg-black px-9 text-base font-bold text-white shadow-[0_12px_24px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800"
-            >
-              เริ่มเรียนฟรี
-              <ArrowRight size={19} />
-            </Link>
-            <Link
-              to="/courses"
-              className="inline-flex h-14 items-center justify-center gap-3 rounded-[8px] border border-zinc-300 bg-white px-8 text-base font-bold text-black transition hover:border-black"
-            >
-              <PlayCircle size={19} />
-              สำรวจคอร์ส
-            </Link>
-          </div>
-          <div className="mt-11 flex items-center gap-4">
-            <div className="flex -space-x-3">
-              {['A', 'B', 'C', 'D'].map((letter) => (
-                <span key={letter} className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-zinc-200 text-xs font-bold text-zinc-700">
-                  {letter}
-                </span>
-              ))}
-            </div>
-            <p className="text-sm leading-6 text-zinc-600">
-              มีผู้เรียนแล้วมากกว่า 50,000 คน
-              <br />
-              จาก 120+ ประเทศทั่วโลก
-            </p>
-          </div>
-        </div>
-
-        <DashboardPreview />
+    <div className="bg-[#ffffff] text-black">
+      <section className="w-full pb-10 pt-8 sm:pb-12 sm:pt-10">
+        <HeroCarousel courses={featuredCourses} />
       </section>
 
-      <section id="features" className="container-page py-8">
-        <div className="grid overflow-hidden rounded-[10px] bg-zinc-50 shadow-[0_18px_48px_rgba(0,0,0,0.04)] sm:grid-cols-2 lg:grid-cols-4">
-          {featureHighlights.map((feature, index) => {
-            const Icon = feature.icon
+      <section className="border-y border-zinc-200 bg-zinc-50/70">
+        <div className="container-page grid gap-4 py-5 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            [BookOpen, 'คอร์สจากระบบ', `${formatNumber(courseTotal)} คอร์สที่เผยแพร่`],
+            [Brain, 'AI Learning', 'สรุปบทเรียนและช่วยถามตอบ'],
+            [ShieldCheck, 'Certificate', 'รองรับใบรับรองเมื่อเรียนครบ'],
+            [MonitorSmartphone, 'Responsive', 'เรียนได้ทั้งมือถือและเดสก์ท็อป'],
+          ].map(([Icon, title, description]) => {
+            const FeatureIcon = Icon as typeof BookOpen
 
             return (
-              <article key={feature.title} className={`p-8 ${index > 0 ? 'border-zinc-200 lg:border-l' : ''}`}>
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-black">
-                  <Icon size={24} />
+              <article key={title as string} className="flex items-center gap-4 rounded-[18px] bg-[#ffffff] px-4 py-4 ring-1 ring-zinc-200/80">
+                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-black">
+                  <FeatureIcon size={20} />
                 </span>
-                <h2 className="mt-7 text-lg font-extrabold text-black">{feature.title}</h2>
-                <p className="mt-2 text-sm leading-7 text-zinc-600">{feature.description}</p>
+                <div>
+                  <h2 className="text-sm font-semibold text-black">{title as string}</h2>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">{description as string}</p>
+                </div>
               </article>
             )
           })}
         </div>
       </section>
 
-      <section id="pricing" className="container-page py-12">
-        <div className="mb-7 flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-extrabold tracking-tight text-black">คอร์สยอดนิยม</h2>
-          <Link to="/courses" className="inline-flex items-center gap-2 text-sm font-semibold text-black">
-            ดูทั้งหมด
-            <ArrowRight size={16} />
-          </Link>
-        </div>
-
-        {loading ? (
-          <div className="rounded-[10px] border border-zinc-200 bg-white p-6 text-sm text-zinc-500">กำลังโหลดคอร์ส...</div>
-        ) : null}
-        {error ? (
-          <div className="rounded-[10px] border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">{error}</div>
-        ) : null}
-        {!loading && !error && hasPopularCourses ? (
-          <div className="relative">
-            <button type="button" className="absolute -left-5 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-200 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.08)] lg:flex">
-              <ArrowLeft size={18} />
-            </button>
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              {courses.map((course) => (
-                <CourseTile key={course.id} course={course} />
-              ))}
-            </div>
-            <button type="button" className="absolute -right-5 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-200 bg-white shadow-[0_10px_24px_rgba(0,0,0,0.08)] lg:flex">
-              <ArrowRight size={18} />
-            </button>
-          </div>
-        ) : null}
-        {!loading && !error && !hasPopularCourses ? (
-          <div className="rounded-[10px] border border-zinc-200 bg-white p-7 shadow-[0_14px_36px_rgba(0,0,0,0.05)]">
-            <h3 className="text-lg font-extrabold text-black">ยังไม่ได้ตั้งคอร์สยอดนิยม</h3>
-            <p className="mt-2 text-sm leading-7 text-zinc-600">
-              เมื่อ admin ตั้งคอร์สเป็นยอดนิยม รายการจะแสดงตรงนี้โดยอัตโนมัติ
+      <section className="container-page py-14">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight text-black sm:text-4xl">คอร์สแนะนำจากข้อมูลจริง</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-600">
+              เรียงจากคอร์สยอดนิยม คะแนน และจำนวนผู้เรียนในระบบ เพื่อให้หน้า Home เปลี่ยนตามข้อมูลล่าสุดของโปรเจกต์
             </p>
           </div>
-        ) : null}
+        </div>
+
+        <div className="mt-8">
+          {loading ? <LoadingBlock /> : null}
+          {error ? (
+            <div className="rounded-[20px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{error}</div>
+          ) : null}
+          {!loading && !error && featuredCourses.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredCourses.map((course) => (
+                <CompactCourseCard key={course.id} course={course} />
+              ))}
+            </div>
+          ) : null}
+          {!loading && !error && featuredCourses.length === 0 ? (
+            <div className="rounded-[20px] border border-zinc-200 bg-zinc-50 p-6 text-sm leading-7 text-zinc-600">
+              ยังไม่มีคอร์สเผยแพร่สำหรับแสดงในหน้าแรก
+            </div>
+          ) : null}
+        </div>
       </section>
 
-      <section id="about" className="container-page py-8">
-        <article className="rounded-[10px] bg-zinc-50 px-8 py-9 shadow-[0_18px_48px_rgba(0,0,0,0.04)] sm:px-12">
-          <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div className="flex gap-8">
-              <span className="text-6xl font-black leading-none text-zinc-500">“</span>
+      {topCategories.length > 0 ? (
+        <section className="container-page pb-14">
+          <div className="rounded-[28px] border border-zinc-200 bg-black p-6 text-white sm:p-8">
+            <div className="grid gap-7 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
               <div>
-                <p className="max-w-xl text-xl font-semibold leading-9 text-black">
-                  เนื้อหาดี เข้าใจง่าย และมี AI ช่วยสรุปให้ด้วย ทำให้เรียนรู้ได้เร็วและสนุกมากครับ
+                <Sparkles size={24} />
+                <h2 className="mt-5 text-3xl font-semibold tracking-tight">เลือกเส้นทางเรียนจากหมวดที่มีอยู่</h2>
+                <p className="mt-3 text-sm leading-7 text-white/65">
+                  หมวดเหล่านี้สร้างจากคอร์สที่เผยแพร่จริงในฐานข้อมูล
                 </p>
-                <div className="mt-7 flex items-center gap-3">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-200 text-zinc-700">
-                    <UserRound size={20} />
-                  </span>
-                  <div>
-                    <p className="font-bold text-black">ณัฐวุฒิ ป.</p>
-                    <p className="text-sm text-zinc-500">Frontend Developer</p>
-                  </div>
-                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {topCategories.map((category) => {
+                  const count = publishedCourses.filter((course) => course.category === category).length
+
+                  return (
+                    <div
+                      key={category}
+                      className="flex items-center justify-between gap-4 rounded-[18px] border border-white/10 bg-white/10 px-4 py-4 text-sm font-semibold text-white transition hover:bg-white/15"
+                    >
+                      <span>{category}</span>
+                      <span className="text-white/65">{formatNumber(count)} คอร์ส</span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
-            <div className="flex gap-2 lg:justify-end">
-              <span className="h-2.5 w-4 rounded-full bg-black" />
-              <span className="h-2.5 w-2.5 rounded-full bg-zinc-300" />
-              <span className="h-2.5 w-2.5 rounded-full bg-zinc-300" />
-              <span className="h-2.5 w-2.5 rounded-full bg-zinc-300" />
-            </div>
           </div>
-        </article>
-      </section>
-
-      <section className="container-page py-14 text-center">
-        <h2 className="text-3xl font-extrabold tracking-tight text-black">พร้อมเริ่มต้นการเรียนรู้แล้วหรือยัง?</h2>
-        <p className="mt-3 text-base text-zinc-600">สมัครฟรีวันนี้ และเริ่มเรียนได้ทันที</p>
-        <Link
-          to="/courses"
-          className="mt-8 inline-flex h-14 items-center justify-center gap-3 rounded-[8px] bg-black px-9 text-base font-bold text-white shadow-[0_12px_24px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800"
-        >
-          เริ่มเรียนฟรี
-          <ArrowRight size={19} />
-        </Link>
-      </section>
+        </section>
+      ) : null}
     </div>
   )
 }

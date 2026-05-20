@@ -297,7 +297,7 @@ export default function StudentMessages() {
                       เมื่อซื้อคอร์สแล้ว รายการผู้สอนและคอร์สจะแสดงที่กล่องข้อความนี้
                     </p>
                     <Link
-                      to="/courses"
+                      to="/student/store"
                       className="mt-6 inline-flex h-11 items-center justify-center rounded-md bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
                     >
                       ค้นหาคอร์ส

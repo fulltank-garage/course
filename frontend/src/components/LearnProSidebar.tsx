@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Home,
+  GraduationCap,
   LibraryBig,
   LogIn,
   LogOut,
@@ -19,6 +20,7 @@ type SidebarKey =
   | 'my-courses'
   | 'certificates'
   | 'messages'
+  | 'teacher-application'
   | 'settings'
 
 interface LearnProSidebarProps {
@@ -44,12 +46,12 @@ export default function LearnProSidebar({
   const session = authStorage.getSession()
   const role = session?.user.role
   const dashboardPath =
-    role === 'student' ? '/student' : role === 'teacher' ? '/teacher' : role === 'admin' ? '/admin' : '/courses'
+    role === 'student' ? '/student' : role === 'teacher' ? '/teacher' : role === 'admin' ? '/admin' : '/'
   const settingsPath =
     role === 'student' ? '/student?section=settings' : role === 'teacher' ? '/teacher?section=profile' : '/login'
   const studentPath = role === 'student' ? '/student/messages' : '/login'
   const myCoursesPath = role === 'student' ? '/student?section=my-courses' : role === 'teacher' ? '/teacher' : '/login'
-  const coursesPath = role === 'student' ? '/student/store' : '/courses'
+  const coursesPath = role === 'student' ? '/student/store' : '/'
   const certificatesPath = role === 'student' ? '/student/certificates' : studentPath
   const displayName = profileName ?? session?.user.name ?? 'ผู้เยี่ยมชม'
   const avatarUrl = profileAvatarUrl ?? session?.user.avatarUrl
@@ -129,6 +131,27 @@ export default function LearnProSidebar({
             )
           })}
         </nav>
+
+        {role === 'student' ? (
+          <div className="mt-5 px-5">
+            <Link
+              to="/student/teacher-application"
+              onClick={onMobileClose}
+              className={[
+                'flex items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium transition',
+                active === 'teacher-application'
+                  ? 'border-white/15 bg-white/12 text-white shadow-inner shadow-white/5'
+                  : 'border-white/10 bg-white/[0.04] text-white/72 hover:border-white/20 hover:bg-white/[0.08] hover:text-white',
+              ].join(' ')}
+            >
+              <GraduationCap size={18} />
+              <span className="min-w-0">
+                <span className="block">สมัครเป็นครู</span>
+                <span className="mt-0.5 block truncate text-xs font-normal text-white/45">ส่งข้อมูลเพื่อเปิดสิทธิ์สอน</span>
+              </span>
+            </Link>
+          </div>
+        ) : null}
 
         <div className="mt-auto px-7 pb-7">
           <div className="border-t border-white/10 pt-5">

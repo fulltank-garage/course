@@ -4,7 +4,6 @@ import MainLayout from './layouts/MainLayout'
 import AdminDashboard from './pages/AdminDashboard'
 import Contact from './pages/Contact'
 import CourseDetail from './pages/CourseDetail'
-import Courses from './pages/Courses'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -12,6 +11,7 @@ import StudentCertificates from './pages/StudentCertificates'
 import StudentCourseStore from './pages/StudentCourseStore'
 import StudentDashboard from './pages/StudentDashboard'
 import StudentMessages from './pages/StudentMessages'
+import StudentTeacherApplication from './pages/StudentTeacherApplication'
 import TeacherDashboard from './pages/TeacherDashboard'
 import VideoLearning from './pages/VideoLearning'
 
@@ -21,9 +21,8 @@ function App() {
       <Routes>
         <Route element={<MainLayout />}>
           <Route index element={<Home />} />
-          <Route path="courses" element={<Courses />} />
           <Route path="contact" element={<Contact />} />
-          <Route path="cart" element={<Navigate to="/courses?cart=1" replace />} />
+          <Route path="cart" element={<Navigate to="/student/store?cart=1" replace />} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
           <Route path="courses/:slug" element={<CourseDetail />} />
@@ -35,6 +34,7 @@ function App() {
           <Route path="student/store" element={<StudentCourseStore />} />
           <Route path="student/messages" element={<StudentMessages />} />
           <Route path="student/certificates" element={<StudentCertificates />} />
+          <Route path="student/teacher-application" element={<StudentTeacherApplication />} />
         </Route>
 
         <Route element={<DashboardLayout role="teacher" />}>

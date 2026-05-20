@@ -59,7 +59,7 @@ export default function Contact() {
                 ส่งอีเมล
               </a>
               <Link
-                to="/courses"
+                to="/"
                 className="inline-flex items-center justify-center gap-2 rounded-md border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white hover:text-slate-950"
               >
                 ดูคอร์สทั้งหมด

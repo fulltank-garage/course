@@ -176,6 +176,22 @@ export interface RegisterPayload {
   title?: string
 }
 
+export interface TeacherApplicationPayload {
+  displayName: string
+  phone: string
+  expertise: string
+  courseTopic: string
+  experience: string
+  portfolioUrl: string
+  message: string
+}
+
+export interface TeacherApplicationResponse extends TeacherApplicationPayload {
+  id: string
+  status: string
+  createdAt: string
+}
+
 export interface AiSummaryResponse {
   summary: string
 }
@@ -810,6 +826,11 @@ export const api = {
   },
   updateStudentProfile: (payload: Omit<StudentProfile, 'updatedAt'>) =>
     request<StudentProfile>('/api/student/profile', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  createTeacherApplication: (payload: TeacherApplicationPayload) =>
+    request<TeacherApplicationResponse>('/api/student/teacher-application', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

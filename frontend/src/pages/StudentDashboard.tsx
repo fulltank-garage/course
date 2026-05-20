@@ -318,7 +318,7 @@ export default function StudentDashboard() {
               />
             </label>
             <div className="ml-auto flex items-center gap-3">
-              <Link to="/courses?cart=1" className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-black">
+              <Link to="/student/store?cart=1" className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-black">
                 <BookOpenCheck size={19} />
               </Link>
               <button type="button" className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white">
@@ -416,7 +416,7 @@ export default function StudentDashboard() {
                         ))}
                       </div>
                     </div>
-                    <Link to="/courses" className="hidden items-center gap-2 text-sm font-medium text-black sm:inline-flex">
+                    <Link to="/student/store" className="hidden items-center gap-2 text-sm font-medium text-black sm:inline-flex">
                       ดูทั้งหมด
                       <ArrowRightIcon />
                     </Link>
@@ -475,7 +475,7 @@ export default function StudentDashboard() {
                 <section>
                   <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-xl font-semibold tracking-tight text-black">คอร์สแนะนำสำหรับคุณ</h2>
-                    <Link to="/courses" className="inline-flex items-center gap-2 text-sm font-medium text-black">
+                    <Link to="/student/store" className="inline-flex items-center gap-2 text-sm font-medium text-black">
                       ดูทั้งหมด
                       <ArrowRightIcon />
                     </Link>
