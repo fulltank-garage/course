@@ -8,7 +8,7 @@ import { pipeline } from 'node:stream/promises'
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { GoogleGenAI } from '@google/genai'
-import { query } from './db.js'
+import { pool, query } from './db.js'
 
 const port = Number(process.env.PORT ?? 4000)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
@@ -164,6 +164,94 @@ const verifyPassword = (password, passwordHash, passwordSalt) => {
   return incoming.length === stored.length && crypto.timingSafeEqual(incoming, stored)
 }
 
+const ensureBaseSchema = async () => {
+  await query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL CHECK (role IN ('student', 'teacher', 'admin')),
+      avatar_url TEXT,
+      title TEXT,
+      bio TEXT,
+      rating NUMERIC(3, 2) DEFAULT 0,
+      total_students INTEGER DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at DATE NOT NULL DEFAULT CURRENT_DATE
+    )
+  `)
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS courses (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      teacher_id TEXT NOT NULL REFERENCES users(id),
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      cover_image TEXT NOT NULL,
+      price INTEGER NOT NULL DEFAULT 0,
+      category TEXT NOT NULL,
+      level TEXT NOT NULL,
+      duration TEXT NOT NULL,
+      rating NUMERIC(3, 2) NOT NULL DEFAULT 0,
+      students INTEGER NOT NULL DEFAULT 0,
+      outcomes JSONB NOT NULL DEFAULT '[]'::jsonb,
+      is_popular BOOLEAN NOT NULL DEFAULT false,
+      status TEXT NOT NULL DEFAULT 'published',
+      updated_at DATE NOT NULL DEFAULT CURRENT_DATE
+    )
+  `)
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS lessons (
+      id TEXT PRIMARY KEY,
+      course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      duration TEXT NOT NULL,
+      preview BOOLEAN NOT NULL DEFAULT false,
+      video_url TEXT,
+      summary TEXT NOT NULL,
+      ai_status TEXT NOT NULL DEFAULT 'idle' CHECK (ai_status IN ('idle', 'pending', 'processing', 'ready', 'failed')),
+      ai_error TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    )
+  `)
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS quiz_questions (
+      id TEXT PRIMARY KEY,
+      lesson_id TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+      question TEXT NOT NULL,
+      explanation TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    )
+  `)
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS quiz_options (
+      id TEXT PRIMARY KEY,
+      question_id TEXT NOT NULL REFERENCES quiz_questions(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      is_correct BOOLEAN NOT NULL DEFAULT false,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    )
+  `)
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS enrollments (
+      id TEXT PRIMARY KEY,
+      student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      progress INTEGER NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+      completed_lessons INTEGER NOT NULL DEFAULT 0,
+      last_lesson_id TEXT REFERENCES lessons(id),
+      last_accessed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      joined_at DATE NOT NULL DEFAULT CURRENT_DATE,
+      UNIQUE (student_id, course_id)
+    )
+  `)
+}
+
 const ensureAuthSchema = async () => {
   await query(`
     CREATE TABLE IF NOT EXISTS user_passwords (
@@ -317,6 +405,63 @@ const ensureCourseSchema = async () => {
   `)
 }
 
+const ensureReviewSchema = async () => {
+  await query(`
+    CREATE TABLE IF NOT EXISTS lesson_reviews (
+      id TEXT PRIMARY KEY,
+      lesson_id TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+      student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (lesson_id, student_id)
+    )
+  `)
+}
+
+const defaultSponsors = [
+  { name: 'AWS', websiteUrl: 'https://aws.amazon.com' },
+  { name: 'Microsoft', websiteUrl: 'https://www.microsoft.com' },
+  { name: 'Google Cloud', websiteUrl: 'https://cloud.google.com' },
+  { name: 'SCB TechX', websiteUrl: 'https://www.scbtechx.io' },
+  { name: 'KBTG', websiteUrl: 'https://www.kbtg.tech' },
+  { name: 'LINE MAN', websiteUrl: 'https://lineman.line.me' },
+  { name: 'Figma', websiteUrl: 'https://www.figma.com' },
+  { name: 'GitHub', websiteUrl: 'https://github.com' },
+]
+
+const ensureSponsorSchema = async () => {
+  await query(`
+    CREATE TABLE IF NOT EXISTS sponsors (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      logo_url TEXT,
+      website_url TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+}
+
+const seedDefaultSponsors = async () => {
+  const result = await query('SELECT COUNT(*)::int AS total FROM sponsors')
+  const total = Number(result.rows[0]?.total ?? 0)
+  if (total > 0) return
+
+  for (const [index, sponsor] of defaultSponsors.entries()) {
+    await query(
+      `
+        INSERT INTO sponsors (id, name, logo_url, website_url, is_active, display_order, created_at, updated_at)
+        VALUES ($1, $2, NULL, $3, true, $4, NOW(), NOW())
+      `,
+      [`sponsor-${crypto.randomUUID()}`, sponsor.name, sponsor.websiteUrl, index + 1],
+    )
+  }
+}
+
 const getLessonContent = async (lessonId) => {
   const result = await query(
     `
@@ -338,6 +483,122 @@ const getLessonContent = async (lessonId) => {
   )
 
   return result.rows[0] ?? null
+}
+
+const toLessonReview = (row) => ({
+  id: row.id,
+  studentId: row.student_id,
+  studentName: row.student_name,
+  studentAvatarUrl: row.student_avatar_url ?? undefined,
+  rating: Number(row.rating),
+  text: row.text,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const toSponsor = (row) => ({
+  id: row.id,
+  name: row.name,
+  logoUrl: row.logo_url ?? undefined,
+  websiteUrl: row.website_url ?? undefined,
+  isActive: Boolean(row.is_active),
+  displayOrder: Number(row.display_order ?? 0),
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const getSponsors = async ({ includeInactive = false } = {}) => {
+  const result = await query(
+    `
+      SELECT *
+      FROM sponsors
+      ${includeInactive ? '' : 'WHERE is_active = true'}
+      ORDER BY display_order ASC, updated_at DESC, created_at DESC
+    `,
+  )
+
+  return result.rows.map(toSponsor)
+}
+
+const getLessonRecord = async (lessonId) => {
+  const result = await query(
+    `
+      SELECT
+        l.id,
+        l.course_id,
+        c.slug AS course_slug,
+        c.status AS course_status
+      FROM lessons l
+      JOIN courses c ON c.id = l.course_id
+      WHERE l.id = $1
+      LIMIT 1
+    `,
+    [lessonId],
+  )
+
+  return result.rows[0] ?? null
+}
+
+const getLessonReviews = async (lessonId) => {
+  const result = await query(
+    `
+      SELECT
+        r.*,
+        u.name AS student_name,
+        u.avatar_url AS student_avatar_url
+      FROM lesson_reviews r
+      JOIN users u ON u.id = r.student_id
+      WHERE r.lesson_id = $1
+      ORDER BY r.updated_at DESC, r.created_at DESC
+    `,
+    [lessonId],
+  )
+
+  return result.rows.map(toLessonReview)
+}
+
+const getCourseReviewMetricsByCourseIds = async (courseIds) => {
+  if (courseIds.length === 0) return new Map()
+
+  const result = await query(
+    `
+      SELECT
+        l.course_id,
+        COUNT(r.id)::int AS review_count,
+        COALESCE(ROUND(AVG(r.rating)::numeric, 1), 0) AS review_average
+      FROM lessons l
+      LEFT JOIN lesson_reviews r ON r.lesson_id = l.id
+      WHERE l.course_id = ANY($1::text[])
+      GROUP BY l.course_id
+    `,
+    [courseIds],
+  )
+
+  return new Map(
+    result.rows.map((row) => [
+      row.course_id,
+      {
+        reviewCount: Number(row.review_count),
+        reviewAverage: Number(row.review_average),
+      },
+    ]),
+  )
+}
+
+const appendCourseReviewMetrics = async (courses) => {
+  if (courses.length === 0) return courses
+
+  const reviewMetricsByCourseId = await getCourseReviewMetricsByCourseIds(courses.map((course) => course.id))
+
+  return courses.map((course) => {
+    const reviewMetrics = reviewMetricsByCourseId.get(course.id)
+
+    return {
+      ...course,
+      reviewCount: reviewMetrics?.reviewCount ?? 0,
+      reviewAverage: reviewMetrics?.reviewAverage ?? 0,
+    }
+  })
 }
 
 const getGeminiText = (response) => {
@@ -2849,7 +3110,7 @@ const getCourses = async ({ popular, teacherId, includeUnpublished = false, view
     values,
   )
 
-  const courses = result.rows.map(toCourseSummary)
+  const courses = await appendCourseReviewMetrics(result.rows.map(toCourseSummary))
 
   if (viewer?.role !== 'student' || courses.length === 0) return courses
 
@@ -2975,8 +3236,10 @@ const getCourseBySlug = async (slug) => {
     }
   }
 
+  const [courseWithReviewMetrics] = await appendCourseReviewMetrics([toCourseSummary(courseRow)])
+
   return {
-    ...toCourseSummary(courseRow),
+    ...courseWithReviewMetrics,
     lessons: Array.from(lessonMap.values()),
   }
 }
@@ -3088,7 +3351,7 @@ const getTeacherDashboardCourses = async (teacherId) => {
     })
   }
 
-  return courses
+  return appendCourseReviewMetrics(courses)
 }
 
 const getEnrollmentRecord = async (studentId, courseId) => {
@@ -3113,6 +3376,85 @@ const getEnrollmentRecord = async (studentId, courseId) => {
     lastLessonId: row.last_lesson_id,
     lastAccessedAt: row.last_accessed_at,
     joinedAt: row.joined_at,
+  }
+}
+
+const listLessonReviews = async (lessonId) => {
+  await ensureReviewSchema()
+  const lesson = await getLessonRecord(lessonId)
+
+  if (!lesson) {
+    return { statusCode: 404, payload: { message: 'Lesson not found' } }
+  }
+
+  return { statusCode: 200, payload: { data: await getLessonReviews(lessonId) } }
+}
+
+const saveLessonReview = async (request, lessonId) => {
+  await ensureReviewSchema()
+  const authUser = await getAuthUser(request)
+
+  if (!authUser) {
+    return { statusCode: 401, payload: { message: 'กรุณาเข้าสู่ระบบก่อนส่งรีวิว' } }
+  }
+
+  if (authUser.role !== 'student') {
+    return { statusCode: 403, payload: { message: 'บัญชีนี้ไม่สามารถส่งรีวิวบทเรียนได้' } }
+  }
+
+  const lesson = await getLessonRecord(lessonId)
+
+  if (!lesson) {
+    return { statusCode: 404, payload: { message: 'Lesson not found' } }
+  }
+
+  const enrollment = await getEnrollmentRecord(authUser.id, lesson.course_id)
+
+  if (!enrollment) {
+    return { statusCode: 403, payload: { message: 'กรุณาสมัครเรียนคอร์สนี้ก่อนส่งรีวิว' } }
+  }
+
+  const body = await readBody(request)
+  const rating = Number(body.rating ?? 0)
+  const text = String(body.text ?? '').trim()
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return { statusCode: 400, payload: { message: 'กรุณาให้คะแนนรีวิว 1 ถึง 5 ดาว' } }
+  }
+
+  if (!text) {
+    return { statusCode: 400, payload: { message: 'กรุณากรอกข้อความรีวิว' } }
+  }
+
+  const existingReviewResult = await query(
+    `
+      SELECT id
+      FROM lesson_reviews
+      WHERE lesson_id = $1 AND student_id = $2
+      LIMIT 1
+    `,
+    [lessonId, authUser.id],
+  )
+  const reviewId = existingReviewResult.rows[0]?.id ?? `review-${crypto.randomUUID()}`
+
+  await query(
+    `
+      INSERT INTO lesson_reviews (id, lesson_id, student_id, rating, text, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+      ON CONFLICT (lesson_id, student_id)
+      DO UPDATE SET
+        rating = EXCLUDED.rating,
+        text = EXCLUDED.text,
+        updated_at = NOW()
+    `,
+    [reviewId, lessonId, authUser.id, rating, text],
+  )
+
+  return {
+    statusCode: 200,
+    payload: {
+      data: await getLessonReviews(lessonId),
+    },
   }
 }
 
@@ -3424,7 +3766,7 @@ const getTeacherDashboard = async (teacherId) => {
 }
 
 const getAdminDashboard = async () => {
-  const [usersResult, courses, statsResult] = await Promise.all([
+  const [usersResult, courses, sponsors, statsResult] = await Promise.all([
     query(`
       SELECT
         u.*,
@@ -3437,6 +3779,7 @@ const getAdminDashboard = async () => {
       ORDER BY u.created_at DESC
     `),
     getCourses({ includeUnpublished: true }),
+    getSponsors({ includeInactive: true }),
     query(`
       SELECT
         COUNT(*)::int AS total_users,
@@ -3451,13 +3794,93 @@ const getAdminDashboard = async () => {
   return {
     users: usersResult.rows.map(toUser),
     courses,
+    sponsors,
     stats: {
       totalUsers: statsResult.rows[0].total_users,
       totalCourses: courses.length,
       totalTeachers: statsResult.rows[0].total_teachers,
       totalStudents: statsResult.rows[0].total_students,
       activeUsers: statsResult.rows[0].active_users,
+      totalSponsors: sponsors.length,
     },
+  }
+}
+
+const saveSponsor = async (request, sponsorId = null) => {
+  const { error } = await requireRole(request, ['admin'])
+  if (error) return error
+
+  const body = await readBody(request)
+  const name = String(body.name ?? '').trim()
+  const logoUrl = String(body.logoUrl ?? '').trim()
+  const websiteUrl = String(body.websiteUrl ?? '').trim()
+  const isActive = Boolean(body.isActive)
+  const displayOrder = Math.max(0, Number(body.displayOrder ?? 0) || 0)
+
+  if (!name) {
+    return { statusCode: 400, payload: { message: 'Sponsor name is required' } }
+  }
+
+  const id = sponsorId ?? `sponsor-${crypto.randomUUID()}`
+
+  await query(
+    `
+      INSERT INTO sponsors (id, name, logo_url, website_url, is_active, display_order, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      ON CONFLICT (id) DO UPDATE
+      SET
+        name = EXCLUDED.name,
+        logo_url = EXCLUDED.logo_url,
+        website_url = EXCLUDED.website_url,
+        is_active = EXCLUDED.is_active,
+        display_order = EXCLUDED.display_order,
+        updated_at = NOW()
+    `,
+    [id, name, logoUrl || null, websiteUrl || null, isActive, displayOrder],
+  )
+
+  const result = await query('SELECT * FROM sponsors WHERE id = $1 LIMIT 1', [id])
+  return { statusCode: sponsorId ? 200 : 201, payload: { data: toSponsor(result.rows[0]) } }
+}
+
+const deleteSponsor = async (request, sponsorId) => {
+  const { error } = await requireRole(request, ['admin'])
+  if (error) return error
+
+  await query('DELETE FROM sponsors WHERE id = $1', [sponsorId])
+  return { statusCode: 200, payload: { data: { ok: true, id: sponsorId } } }
+}
+
+const deleteUser = async (request, userId) => {
+  const { authUser, error } = await requireRole(request, ['admin'])
+  if (error) return error
+
+  if (authUser.id === userId) {
+    return { statusCode: 400, payload: { message: 'ไม่สามารถลบบัญชีแอดมินที่กำลังใช้งานอยู่ได้' } }
+  }
+
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const userResult = await client.query('SELECT id, role FROM users WHERE id = $1 LIMIT 1', [userId])
+
+    if (userResult.rowCount === 0) {
+      await client.query('ROLLBACK')
+      return { statusCode: 404, payload: { message: 'ไม่พบผู้ใช้งานนี้' } }
+    }
+
+    await client.query('DELETE FROM courses WHERE teacher_id = $1', [userId])
+    await client.query('DELETE FROM users WHERE id = $1', [userId])
+    await client.query('COMMIT')
+
+    return { statusCode: 200, payload: { data: { ok: true, id: userId } } }
+  } catch (currentError) {
+    await client.query('ROLLBACK')
+    throw currentError
+  } finally {
+    client.release()
   }
 }
 
@@ -3960,6 +4383,7 @@ const routeRequest = async (request, response) => {
     await ensureAuthSchema()
     await ensureSeedCredentials()
     await ensureCourseSchema()
+    await ensureReviewSchema()
     sendJson(response, 200, {
       status: 'ok',
       service: 'mycourse-backend',
@@ -4040,6 +4464,24 @@ const routeRequest = async (request, response) => {
 
     if (request.method === 'POST' && action === 'quiz') {
       const result = await generateLessonQuiz(lessonId)
+      sendJson(response, result.statusCode, result.payload)
+      return
+    }
+  }
+
+  if (url.pathname.startsWith('/api/lessons/')) {
+    const parts = url.pathname.split('/')
+    const lessonId = decodeURIComponent(parts[3] ?? '')
+    const resource = parts[4]
+
+    if (resource === 'reviews' && request.method === 'GET') {
+      const result = await listLessonReviews(lessonId)
+      sendJson(response, result.statusCode, result.payload)
+      return
+    }
+
+    if (resource === 'reviews' && request.method === 'POST') {
+      const result = await saveLessonReview(request, lessonId)
       sendJson(response, result.statusCode, result.payload)
       return
     }
@@ -4186,6 +4628,13 @@ const routeRequest = async (request, response) => {
     return
   }
 
+  if (url.pathname.startsWith('/api/admin/users/') && request.method === 'POST' && url.pathname.endsWith('/delete')) {
+    const userId = decodeURIComponent(url.pathname.replace('/api/admin/users/', '').replace('/delete', ''))
+    const result = await deleteUser(request, userId)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
   if (url.pathname === '/api/student/dashboard' && request.method === 'GET') {
     const authUser = await getAuthUser(request)
     if (!authUser || authUser.role !== 'student') {
@@ -4239,6 +4688,31 @@ const routeRequest = async (request, response) => {
     return
   }
 
+  if (url.pathname === '/api/sponsors' && request.method === 'GET') {
+    sendJson(response, 200, { data: await getSponsors() })
+    return
+  }
+
+  if (url.pathname === '/api/admin/sponsors' && request.method === 'POST') {
+    const result = await saveSponsor(request)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
+  if (url.pathname.startsWith('/api/admin/sponsors/') && request.method === 'POST' && !url.pathname.endsWith('/delete')) {
+    const sponsorId = decodeURIComponent(url.pathname.replace('/api/admin/sponsors/', ''))
+    const result = await saveSponsor(request, sponsorId)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
+  if (url.pathname.startsWith('/api/admin/sponsors/') && request.method === 'POST' && url.pathname.endsWith('/delete')) {
+    const sponsorId = decodeURIComponent(url.pathname.replace('/api/admin/sponsors/', '').replace('/delete', ''))
+    const result = await deleteSponsor(request, sponsorId)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
   sendJson(response, 404, { message: 'Route not found' })
 }
 
@@ -4268,10 +4742,14 @@ const server = http.createServer((request, response) => {
   })
 })
 
-ensureAuthSchema()
+ensureBaseSchema()
+  .then(ensureAuthSchema)
   .then(ensureSeedCredentials)
   .then(ensureCourseSchema)
   .then(ensureAiSchema)
+  .then(ensureReviewSchema)
+  .then(ensureSponsorSchema)
+  .then(seedDefaultSponsors)
   .then(() => (normalizeExistingUploads ? normalizeExistingUploadedVideos() : undefined))
   .then(() => {
     server.listen(port, '0.0.0.0', () => {
