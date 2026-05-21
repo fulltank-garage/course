@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogIn, LogOut, Menu, Moon, Sun, UserRound, X } from 'lucide-react'
-import { api, authStorage, type AuthSession } from '../services/api'
+import { LogIn, LogOut, Menu, Moon, ShoppingCart, Sun, UserRound, X } from 'lucide-react'
+import { api, authStorage, cartStorage, type AuthSession } from '../services/api'
 
 const publicNavItems = [
   { to: '/', label: 'หน้าหลัก' },
@@ -70,6 +70,8 @@ export default function Navbar() {
   const [session, setSession] = useState<AuthSession | null>(() => authStorage.getSession())
   const [loggingOut, setLoggingOut] = useState(false)
   const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme())
+  const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
+  const [cartPulse, setCartPulse] = useState(false)
   const currentPath = `${location.pathname}${location.search}`
   const isNavItemActive = (to: string) => {
     if (to === '/') return location.pathname === '/' && !location.hash
@@ -77,6 +79,16 @@ export default function Navbar() {
   }
 
   useEffect(() => authStorage.subscribe(() => setSession(authStorage.getSession())), [])
+
+  useEffect(
+    () =>
+      cartStorage.subscribe(() => {
+        setCartItems(cartStorage.getItems())
+        setCartPulse(true)
+        window.setTimeout(() => setCartPulse(false), 450)
+      }),
+    [],
+  )
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -145,11 +157,22 @@ export default function Navbar() {
   if (session && isStudentSession) {
     return (
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-[rgba(255,255,255,0.95)] text-black backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-end gap-3 px-4 sm:px-6 lg:px-8">
           <Link
-            to="/student/store"
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+            to="/student/store?cart=1"
+            className={[
+              'relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-white text-[0px] text-black transition hover:border-black',
+              cartPulse ? 'scale-110 border-black shadow-sm' : '',
+            ].join(' ')}
+            aria-label="ตะกร้าสินค้า"
+            title="ตะกร้าสินค้า"
           >
+            <ShoppingCart size={18} />
+            {cartItems.length > 0 ? (
+              <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-black px-1 text-[11px] font-semibold text-white">
+                {cartItems.length}
+              </span>
+            ) : null}
             คอร์สทั้งหมดของนักเรียน
           </Link>
 

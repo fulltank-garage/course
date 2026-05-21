@@ -1227,14 +1227,20 @@ export default function TeacherDashboard() {
   const selectedMessageThread =
     messageThreads.find((thread) => thread.threadKey === selectedMessageKey) ?? messageThreads[0] ?? null
   const reviewCourses = useMemo(
-    () => [...courses].sort((left, right) => right.rating - left.rating || right.students - left.students),
+    () =>
+      [...courses].sort(
+        (left, right) =>
+          (right.reviewAverage ?? 0) - (left.reviewAverage ?? 0) ||
+          (right.reviewCount ?? 0) - (left.reviewCount ?? 0),
+      ),
     [courses],
   )
-  const totalCourseReviews = reviewCourses.reduce((total, course) => total + course.students, 0)
-  const averageCourseRating = reviewCourses.length
-    ? reviewCourses.reduce((total, course) => total + course.rating, 0) / reviewCourses.length
+  const coursesWithReviews = reviewCourses.filter((course) => (course.reviewCount ?? 0) > 0)
+  const totalCourseReviews = reviewCourses.reduce((total, course) => total + (course.reviewCount ?? 0), 0)
+  const averageCourseRating = coursesWithReviews.length
+    ? coursesWithReviews.reduce((total, course) => total + (course.reviewAverage ?? 0), 0) / coursesWithReviews.length
     : 0
-  const topRatedCourse = reviewCourses[0] ?? null
+  const topRatedCourse = coursesWithReviews[0] ?? null
   const resetDraft = () => {
     setDraft(createEmptyDraft())
     setCoverFile(null)
@@ -1815,11 +1821,11 @@ export default function TeacherDashboard() {
           ) : activeSection === 'reviews' ? (
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl">
-                <p className="text-base font-medium text-zinc-700">รีวิว</p>
-                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ภาพรวมรีวิวจากคอร์สของคุณ</h1>
-                <p className="mt-3 text-base leading-7 text-zinc-600">
-                  ดูคะแนนและจำนวนรีวิวของแต่ละคอร์สจากข้อมูลคอร์สเดิมในระบบ
-                </p>
+                  <p className="text-base font-medium text-zinc-700">รีวิว</p>
+                  <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ภาพรวมรีวิวจากคอร์สของคุณ</h1>
+                  <p className="mt-3 text-base leading-7 text-zinc-600">
+                    ดูคะแนนและจำนวนรีวิวของแต่ละคอร์สจากรีวิวบทเรียนที่นักเรียนส่งเข้ามาจริง
+                  </p>
               </div>
               <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white">
                 <Star size={24} />
@@ -1913,33 +1919,33 @@ export default function TeacherDashboard() {
                 ]
             : activeSection === 'reviews'
               ? [
-                  {
-                    label: 'คะแนนเฉลี่ย',
-                    value: averageCourseRating.toFixed(1),
-                    icon: Star,
-                    note: 'จากคอร์สทั้งหมด',
-                    trend: false,
-                  },
-                  {
-                    label: 'รีวิวทั้งหมด',
-                    value: totalCourseReviews.toLocaleString('th-TH'),
-                    icon: UsersRound,
-                    note: 'ตามข้อมูลคอร์ส',
-                    trend: false,
-                  },
-                  {
-                    label: 'คอร์สมีคะแนน',
-                    value: reviewCourses.filter((course) => course.rating > 0).length,
-                    icon: LibraryBig,
-                    note: 'คอร์ส',
-                    trend: false,
-                  },
-                  {
-                    label: 'คะแนนสูงสุด',
-                    value: topRatedCourse ? topRatedCourse.rating.toFixed(1) : '0.0',
-                    icon: Star,
-                    note: topRatedCourse ? topRatedCourse.title : 'ยังไม่มีข้อมูล',
-                    trend: false,
+                    {
+                      label: 'คะแนนเฉลี่ย',
+                      value: averageCourseRating.toFixed(1),
+                      icon: Star,
+                      note: 'จากคอร์สที่มีรีวิว',
+                      trend: false,
+                    },
+                    {
+                      label: 'รีวิวทั้งหมด',
+                      value: totalCourseReviews.toLocaleString('th-TH'),
+                      icon: UsersRound,
+                      note: 'จากรีวิวนักเรียน',
+                      trend: false,
+                    },
+                    {
+                      label: 'คอร์สมีคะแนน',
+                      value: coursesWithReviews.length,
+                      icon: LibraryBig,
+                      note: 'คอร์ส',
+                      trend: false,
+                    },
+                    {
+                      label: 'คะแนนสูงสุด',
+                      value: topRatedCourse ? (topRatedCourse.reviewAverage ?? 0).toFixed(1) : '0.0',
+                      icon: Star,
+                      note: topRatedCourse ? topRatedCourse.title : 'ยังไม่มีข้อมูล',
+                      trend: false,
                   },
                 ]
             : [
@@ -2306,7 +2312,7 @@ export default function TeacherDashboard() {
               <div className="flex flex-col gap-4 border-b border-zinc-200 p-6 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold tracking-tight text-black">รีวิวตามคอร์ส</h2>
-                  <p className="mt-1 text-sm text-zinc-500">แสดงคะแนนและจำนวนรีวิวจากข้อมูลคอร์สเดิม</p>
+                  <p className="mt-1 text-sm text-zinc-500">แสดงคะแนนและจำนวนรีวิวจากรีวิวบทเรียนที่ถูกบันทึกในระบบ</p>
                 </div>
                 <Link
                   to="/teacher?section=my-courses"
@@ -2342,19 +2348,19 @@ export default function TeacherDashboard() {
                         <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-xs text-zinc-500">คะแนน</span>
-                            <span className="text-sm font-semibold text-black">{course.rating.toFixed(1)}/5</span>
+                            <span className="text-sm font-semibold text-black">{(course.reviewAverage ?? 0).toFixed(1)}/5</span>
                           </div>
                           <div className="mt-2 flex items-center gap-1 text-black">
                             {[1, 2, 3, 4, 5].map((rating) => (
                               <Star
                                 key={rating}
                                 size={15}
-                                fill={rating <= Math.round(course.rating) ? 'currentColor' : 'none'}
-                                className={rating <= Math.round(course.rating) ? 'text-black' : 'text-zinc-300'}
+                                fill={rating <= Math.round(course.reviewAverage ?? 0) ? 'currentColor' : 'none'}
+                                className={rating <= Math.round(course.reviewAverage ?? 0) ? 'text-black' : 'text-zinc-300'}
                               />
                             ))}
                           </div>
-                          <p className="mt-3 text-xs text-zinc-500">{course.students.toLocaleString('th-TH')} รีวิว</p>
+                          <p className="mt-3 text-xs text-zinc-500">{(course.reviewCount ?? 0).toLocaleString('th-TH')} รีวิว</p>
                         </div>
                       </article>
                     )
@@ -2381,10 +2387,10 @@ export default function TeacherDashboard() {
                   </p>
                   <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-black">
                     <Star size={16} fill={topRatedCourse ? 'currentColor' : 'none'} />
-                    {topRatedCourse ? topRatedCourse.rating.toFixed(1) : '0.0'}
+                    {topRatedCourse ? (topRatedCourse.reviewAverage ?? 0).toFixed(1) : '0.0'}
                   </div>
                   <p className="mt-2 text-sm text-zinc-500">
-                    {topRatedCourse ? `${topRatedCourse.students.toLocaleString('th-TH')} รีวิว` : 'คะแนนจะแสดงเมื่อมีข้อมูลคอร์ส'}
+                    {topRatedCourse ? `${(topRatedCourse.reviewCount ?? 0).toLocaleString('th-TH')} รีวิว` : 'คะแนนจะแสดงเมื่อมีข้อมูลรีวิว'}
                   </p>
                 </div>
               </section>
@@ -2396,12 +2402,12 @@ export default function TeacherDashboard() {
                     <div key={course.id}>
                       <div className="flex items-center justify-between gap-3 text-sm">
                         <p className="line-clamp-1 font-medium text-black">{course.title}</p>
-                        <span className="text-zinc-500">{course.rating.toFixed(1)}</span>
+                        <span className="text-zinc-500">{(course.reviewAverage ?? 0).toFixed(1)}</span>
                       </div>
                       <div className="mt-2 h-1.5 rounded-full bg-zinc-200">
                         <div
                           className="h-1.5 rounded-full bg-black"
-                          style={{ width: `${Math.min(100, Math.max(0, Math.round((course.rating / 5) * 100)))}%` }}
+                          style={{ width: `${Math.min(100, Math.max(0, Math.round(((course.reviewAverage ?? 0) / 5) * 100)))}%` }}
                         />
                       </div>
                     </div>

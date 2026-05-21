@@ -104,6 +104,28 @@ CREATE TABLE IF NOT EXISTS ai_outputs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS lesson_reviews (
+  id TEXT PRIMARY KEY,
+  lesson_id TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (lesson_id, student_id)
+);
+
+CREATE TABLE IF NOT EXISTS sponsors (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  logo_url TEXT,
+  website_url TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 INSERT INTO users (id, name, email, role, avatar_url, title, bio, rating, total_students, status, created_at)
 VALUES
   ('u-student-1', 'มินตรา แก้ว', 'mintra@example.com', 'student', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80', NULL, NULL, 0, 0, 'active', '2026-01-08'),
@@ -225,4 +247,16 @@ VALUES
   ('enrollment-1', 'u-student-1', 'course-react-ai', 68, 2, 'lesson-react-3', '2026-04-18'),
   ('enrollment-2', 'u-student-1', 'course-design-system', 35, 1, 'lesson-design-2', '2026-04-22'),
   ('enrollment-3', 'u-student-1', 'course-data-story', 12, 0, 'lesson-data-1', '2026-05-01')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO sponsors (id, name, logo_url, website_url, is_active, display_order, created_at, updated_at)
+VALUES
+  ('sponsor-aws', 'AWS', NULL, 'https://aws.amazon.com', true, 1, NOW(), NOW()),
+  ('sponsor-microsoft', 'Microsoft', NULL, 'https://www.microsoft.com', true, 2, NOW(), NOW()),
+  ('sponsor-google-cloud', 'Google Cloud', NULL, 'https://cloud.google.com', true, 3, NOW(), NOW()),
+  ('sponsor-scb-techx', 'SCB TechX', NULL, 'https://www.scbtechx.io', true, 4, NOW(), NOW()),
+  ('sponsor-kbtg', 'KBTG', NULL, 'https://www.kbtg.tech', true, 5, NOW(), NOW()),
+  ('sponsor-line-man', 'LINE MAN', NULL, 'https://lineman.line.me', true, 6, NOW(), NOW()),
+  ('sponsor-figma', 'Figma', NULL, 'https://www.figma.com', true, 7, NOW(), NOW()),
+  ('sponsor-github', 'GitHub', NULL, 'https://github.com', true, 8, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;

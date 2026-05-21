@@ -31,6 +31,17 @@ export interface Lesson {
   quizQuestions: QuizQuestion[]
 }
 
+export interface LessonReview {
+  id: string
+  studentId: string
+  studentName: string
+  studentAvatarUrl?: string
+  rating: number
+  text: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface CourseStudent {
   id: string
   name: string
@@ -59,6 +70,8 @@ export interface Course {
   isPopular?: boolean
   status: 'draft' | 'published' | 'hidden'
   updatedAt: string
+  reviewCount?: number
+  reviewAverage?: number
   enrolledStudents?: CourseStudent[]
   viewerState?: {
     role: 'student' | 'teacher' | 'admin' | null

@@ -1,6 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import Navbar from '../components/Navbar'
 import Sidebar from '../components/Sidebar'
 import { authStorage } from '../services/api'
 import type { AuthSession } from '../services/api'
@@ -15,7 +14,6 @@ export default function DashboardLayout({ role }: DashboardLayoutProps) {
   const location = useLocation()
   const [session, setSession] = useState<AuthSession | null>(() => authStorage.getSession())
   const user: User | null = session?.user ?? null
-  const contentClass = 'container-page grid gap-6 py-6 lg:grid-cols-[260px_minmax(0,1fr)]'
 
   useEffect(() => {
     return authStorage.subscribe(() => {
@@ -40,9 +38,8 @@ export default function DashboardLayout({ role }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="app-shell">
-      <Navbar />
-      <div className={contentClass}>
+    <div className="min-h-screen bg-slate-50 text-slate-950">
+      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[248px_minmax(0,1fr)] lg:px-8">
         <Sidebar role={role} user={user} />
         <main className="min-w-0">
           <Outlet />

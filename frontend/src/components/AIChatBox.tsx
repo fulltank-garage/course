@@ -163,12 +163,15 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
     <div
       className={[
         embedded
-          ? 'flex min-h-0 flex-col overflow-hidden rounded-xl bg-zinc-50'
+          ? 'flex min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200/70 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
           : 'flex min-h-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm',
         className,
       ].join(' ')}
     >
-      <div className={embedded ? 'flex shrink-0 items-center justify-end px-3 pb-2' : 'flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3'}>
+      <div className={embedded
+          ? 'flex shrink-0 items-center justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-3 py-3'
+          : 'flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3'}>
+        {embedded ? <div className="min-w-0 flex-1" /> : null}
         {!embedded ? (
           <div className="flex min-w-0 items-center gap-2">
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black text-white">
@@ -179,7 +182,7 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
         ) : null}
         <button
           type="button"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-500 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="เคลียร์ข้อความแชท"
           title="เคลียร์ข้อความแชท"
           onClick={clearChat}
@@ -189,7 +192,7 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
         </button>
       </div>
 
-      <div ref={scrollPanelRef} className="ai-scroll-panel flex-1 space-y-4 overflow-y-auto bg-zinc-50 px-4 py-4">
+      <div ref={scrollPanelRef} className="ai-scroll-panel flex-1 space-y-4 overflow-y-auto bg-zinc-50/70 px-3 py-3">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -206,7 +209,7 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
               className={`min-h-0 max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-7 shadow-sm sm:max-w-[82%] ${
                 message.sender === 'user'
                   ? 'rounded-br-md bg-black text-white'
-                  : 'rounded-bl-md border border-zinc-200 bg-white text-zinc-800'
+                  : 'rounded-bl-xl border border-zinc-200 bg-white text-zinc-800'
               }`}
             >
               {message.text}
@@ -236,9 +239,9 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="shrink-0 bg-zinc-50 px-3 pb-3 pt-1">
+      <div className="shrink-0 border-t border-zinc-100 bg-zinc-50/70 px-3 pb-3 pt-3">
         <form
-          className="flex items-end gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm focus-within:border-black"
+          className="flex items-end gap-2 rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm focus-within:border-black focus-within:shadow-[0_0_0_3px_rgba(0,0,0,0.03)]"
           onSubmit={(event) => {
             event.preventDefault()
             askQuestion(question)
@@ -260,7 +263,7 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
           />
           <button
             type="submit"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-black text-white shadow-sm transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white shadow-sm transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="ส่งคำถาม"
             disabled={loading}
           >

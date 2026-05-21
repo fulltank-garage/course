@@ -15,7 +15,7 @@ const MuxPlayer = lazy(() => import('@mux/mux-player-react'))
 
 interface VideoPlayerProps {
   lesson: Lesson
-  poster: string
+  poster?: string
   courseTitle: string
   compact?: boolean
   onPlaybackProgress?: (progress: { currentTime: number; duration: number; percent: number }) => void

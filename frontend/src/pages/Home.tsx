@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BookOpen,
@@ -7,12 +7,12 @@ import {
   ChevronRight,
   MonitorSmartphone,
   ShieldCheck,
-  Sparkles,
   Star,
 } from 'lucide-react'
 import { useApi } from '../hooks/useApi'
 import { api } from '../services/api'
 import type { Course } from '../types/course'
+import type { Sponsor } from '../types/sponsor'
 
 const formatPrice = (price: number) =>
   price === 0
@@ -25,13 +25,18 @@ const formatPrice = (price: number) =>
 
 const formatNumber = (value: number) => value.toLocaleString('th-TH')
 const getLessonCount = (course: Course) => Math.max(course.lessonCount ?? 0, course.lessons.length)
+const getCourseReviewAverage = (course: Course) => course.reviewAverage ?? course.rating
+const getCourseReviewCount = (course: Course) => course.reviewCount ?? 0
 
 const getFeaturedCourses = (courses: Course[]) =>
   [...courses]
     .sort((left, right) => {
       const popularScore = Number(Boolean(right.isPopular)) - Number(Boolean(left.isPopular))
       if (popularScore !== 0) return popularScore
-      if (right.rating !== left.rating) return right.rating - left.rating
+      const averageDifference = getCourseReviewAverage(right) - getCourseReviewAverage(left)
+      if (averageDifference !== 0) return averageDifference
+      const reviewCountDifference = getCourseReviewCount(right) - getCourseReviewCount(left)
+      if (reviewCountDifference !== 0) return reviewCountDifference
       return right.students - left.students
     })
     .slice(0, 6)
@@ -110,10 +115,13 @@ function HeroCarousel({ courses }: { courses: Course[] }) {
 }
 
 function CompactCourseCard({ course }: { course: Course }) {
+  const reviewAverage = getCourseReviewAverage(course)
+  const reviewCount = getCourseReviewCount(course)
+
   return (
     <Link
       to={`/courses/${course.slug}`}
-      className="group grid h-full grid-rows-[auto_1fr] overflow-hidden rounded-[18px] border border-zinc-200 bg-[#ffffff] transition hover:-translate-y-0.5 hover:border-black hover:shadow-[0_16px_42px_rgba(15,23,42,0.08)]"
+      className="group mx-auto grid h-full w-full max-w-[360px] grid-rows-[auto_1fr] overflow-hidden rounded-[18px] border border-zinc-200 bg-[#ffffff] transition hover:-translate-y-0.5 hover:border-black hover:shadow-[0_16px_42px_rgba(15,23,42,0.08)]"
     >
       <div className="relative aspect-[1.62] overflow-hidden bg-zinc-100">
         <img
@@ -130,9 +138,10 @@ function CompactCourseCard({ course }: { course: Course }) {
         <p className="mt-1.5 line-clamp-1 text-xs text-zinc-500">{course.instructor.name}</p>
         <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-zinc-500">
           <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-black">
-            <Star size={12} className="fill-black text-black" />
-            {course.rating.toFixed(1)}
+            <Star size={12} className="fill-amber-400 text-amber-400" />
+            {reviewAverage.toFixed(1)}
           </span>
+          <span className="rounded-full bg-zinc-100 px-2.5 py-1">{formatNumber(reviewCount)} รีวิว</span>
           <span className="rounded-full bg-zinc-100 px-2.5 py-1">{formatNumber(course.students)} ผู้เรียน</span>
           <span className="rounded-full bg-zinc-100 px-2.5 py-1">{getLessonCount(course)} บทเรียน</span>
         </div>
@@ -158,17 +167,74 @@ function LoadingBlock() {
   )
 }
 
+function SponsorPill({ sponsor }: { sponsor: Sponsor }) {
+  const [imageError, setImageError] = useState(false)
+  const Wrapper = sponsor.websiteUrl ? 'a' : 'div'
+
+  return (
+    <Wrapper
+      {...(sponsor.websiteUrl
+        ? {
+            href: sponsor.websiteUrl,
+            target: '_blank',
+            rel: 'noreferrer',
+          }
+        : {})}
+      className="flex h-[4.5rem] min-w-[176px] items-center justify-center rounded-[20px] border border-white/12 bg-white/[0.06] px-6 text-center text-lg font-semibold tracking-[0.02em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm transition hover:border-white/20 hover:bg-white/[0.09]"
+    >
+      {sponsor.logoUrl && !imageError ? (
+        <img
+          src={sponsor.logoUrl}
+          alt={sponsor.name}
+          className="h-8 w-auto max-w-[132px] object-contain"
+          loading="lazy"
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <span className="whitespace-nowrap text-white/90">{sponsor.name}</span>
+      )}
+    </Wrapper>
+  )
+}
+
+function SponsorMarqueeRow({
+  items,
+  reverse = false,
+}: {
+  items: Sponsor[]
+  reverse?: boolean
+}) {
+  const repeatedItems = [...items, ...items]
+
+  return (
+    <div className="overflow-hidden">
+      <div className={reverse ? 'sponsor-marquee-track sponsor-marquee-track-reverse' : 'sponsor-marquee-track'}>
+        {repeatedItems.map((item, index) => (
+          <SponsorPill key={`${item.id}-${index}`} sponsor={item} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Home() {
-  const { data, error, loading } = useApi(() => api.getCourses(), [])
+  const { data, error, loading } = useApi(async () => {
+    const [courses, sponsors] = await Promise.all([api.getCourses(), api.getSponsors()])
+    return { courses, sponsors }
+  }, [])
 
   const publishedCourses = useMemo(
-    () => (data ?? []).filter((course) => (course.status ?? 'published') === 'published'),
-    [data],
+    () => (data?.courses ?? []).filter((course) => (course.status ?? 'published') === 'published'),
+    [data?.courses],
   )
   const featuredCourses = useMemo(() => getFeaturedCourses(publishedCourses), [publishedCourses])
+  const sponsors = useMemo(
+    () => [...(data?.sponsors ?? [])].sort((left, right) => left.displayOrder - right.displayOrder),
+    [data?.sponsors],
+  )
+  const sponsorRowA = sponsors.slice(0, Math.max(1, Math.ceil(sponsors.length / 2)))
+  const sponsorRowB = sponsors.slice(Math.max(1, Math.ceil(sponsors.length / 2)))
   const courseTotal = publishedCourses.length
-  const categories = Array.from(new Set(publishedCourses.map((course) => course.category)))
-  const topCategories = categories.slice(0, 5)
 
   return (
     <div className="bg-[#ffffff] text-black">
@@ -204,10 +270,7 @@ export default function Home() {
       <section className="container-page py-14">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="text-3xl font-semibold tracking-tight text-black sm:text-4xl">คอร์สแนะนำจากข้อมูลจริง</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-600">
-              เรียงจากคอร์สยอดนิยม คะแนน และจำนวนผู้เรียนในระบบ เพื่อให้หน้า Home เปลี่ยนตามข้อมูลล่าสุดของโปรเจกต์
-            </p>
+            <h2 className="text-3xl font-semibold tracking-tight text-black sm:text-4xl">คอร์สแนะนำ</h2>
           </div>
         </div>
 
@@ -217,7 +280,7 @@ export default function Home() {
             <div className="rounded-[20px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{error}</div>
           ) : null}
           {!loading && !error && featuredCourses.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {featuredCourses.map((course) => (
                 <CompactCourseCard key={course.id} course={course} />
               ))}
@@ -231,31 +294,29 @@ export default function Home() {
         </div>
       </section>
 
-      {topCategories.length > 0 ? (
-        <section className="container-page pb-14">
-          <div className="rounded-[28px] border border-zinc-200 bg-black p-6 text-white sm:p-8">
-            <div className="grid gap-7 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
-              <div>
-                <Sparkles size={24} />
-                <h2 className="mt-5 text-3xl font-semibold tracking-tight">เลือกเส้นทางเรียนจากหมวดที่มีอยู่</h2>
-                <p className="mt-3 text-sm leading-7 text-white/65">
-                  หมวดเหล่านี้สร้างจากคอร์สที่เผยแพร่จริงในฐานข้อมูล
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {topCategories.map((category) => {
-                  const count = publishedCourses.filter((course) => course.category === category).length
+      {sponsors.length > 0 ? (
+        <section className="w-full pb-14">
+          <div className="w-full overflow-hidden border-y border-zinc-200 bg-black py-7 text-white sm:py-8">
+            <div className="container-page">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/45">Sponsors</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                      ผู้สนับสนุนที่ร่วมผลักดันการเรียนรู้
+                    </h2>
+                  </div>
+                  <p className="max-w-2xl text-sm leading-7 text-white/60">
+                    โลโก้องค์กรที่ร่วมสนับสนุนการเติบโตของแพลตฟอร์มและประสบการณ์การเรียนรู้ของผู้ใช้
+                  </p>
+                </div>
 
-                  return (
-                    <div
-                      key={category}
-                      className="flex items-center justify-between gap-4 rounded-[18px] border border-white/10 bg-white/10 px-4 py-4 text-sm font-semibold text-white transition hover:bg-white/15"
-                    >
-                      <span>{category}</span>
-                      <span className="text-white/65">{formatNumber(count)} คอร์ส</span>
-                    </div>
-                  )
-                })}
+                <div className="relative space-y-4">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-black via-black/80 to-transparent" />
+                  <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-black via-black/80 to-transparent" />
+                  <SponsorMarqueeRow items={sponsorRowA} />
+                  <SponsorMarqueeRow items={sponsorRowB.length > 0 ? sponsorRowB : sponsorRowA} reverse />
+                </div>
               </div>
             </div>
           </div>

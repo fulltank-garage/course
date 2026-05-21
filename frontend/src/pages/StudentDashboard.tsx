@@ -10,6 +10,7 @@ import {
   MoreVertical,
   Search,
   Sparkles,
+  Star,
   UserRound,
 } from 'lucide-react'
 import { api, authStorage, studentDashboardStorage, type StudentCourse, type StudentProfile } from '../services/api'
@@ -54,6 +55,8 @@ const getNextLessonMeta = (item: StudentCourse) => {
 }
 
 const formatNumber = (value: number) => value.toLocaleString('en-US')
+const getCourseReviewAverage = (course: StudentCourse['course']) => course.reviewAverage ?? course.rating
+const getCourseReviewCount = (course: StudentCourse['course']) => course.reviewCount ?? 0
 
 const getCourseLearningProgress = (item: StudentCourse) => {
   const lessonCount = item.course.lessons.length
@@ -271,7 +274,14 @@ export default function StudentDashboard() {
   const recommendedCourses =
     data.courses.length <= 1
       ? data.courses
-      : [...data.courses].sort((left, right) => right.course.rating - left.course.rating).slice(0, 4)
+      : [...data.courses]
+          .sort((left, right) => {
+            const averageDifference = getCourseReviewAverage(right.course) - getCourseReviewAverage(left.course)
+            if (averageDifference !== 0) return averageDifference
+
+            return getCourseReviewCount(right.course) - getCourseReviewCount(left.course)
+          })
+          .slice(0, 4)
   const continueCourseProgress = continueCourse ? getCourseLearningProgress(continueCourse) : 0
   const coursesInProgress = data.courses.filter((item) => {
     const progress = getCourseLearningProgress(item)
@@ -485,7 +495,11 @@ export default function StudentDashboard() {
                       <Link key={item.course.id} to={`/courses/${item.course.slug}`} className="group block">
                         <CourseThumb item={item} />
                         <h3 className="mt-3 line-clamp-1 text-sm font-semibold text-black group-hover:underline">{item.course.title}</h3>
-                        <p className="mt-1 text-xs text-zinc-500">{item.course.rating.toFixed(1)} ★ ({formatNumber(item.course.students)})</p>
+                        <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
+                          <Star size={13} className="fill-amber-400 text-amber-400" />
+                          <span>{getCourseReviewAverage(item.course).toFixed(1)}</span>
+                          <span>{formatNumber(getCourseReviewCount(item.course))} รีวิว</span>
+                        </div>
                       </Link>
                     ))}
                   </div>

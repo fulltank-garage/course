@@ -4,7 +4,6 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
-  Bot,
   CheckCircle2,
   ChevronDown,
   ClipboardList,
@@ -25,22 +24,15 @@ import QuizCard from '../components/QuizCard'
 import VideoPlayer from '../components/VideoPlayer'
 import { useApi } from '../hooks/useApi'
 import { api, authStorage } from '../services/api'
-import type { StudentEnrollment } from '../types/course'
+import type { LessonReview, StudentEnrollment } from '../types/course'
 import type { QuizQuestion } from '../types/quiz'
 import { formatPlaybackPercent } from '../utils/playback'
 
-type AITab = 'summary' | 'ask' | 'quiz'
-
-type LessonReview = {
-  id: string
-  rating: number
-  text: string
-  createdAt: string
-}
+type AITab = 'summary' | 'assistant' | 'quiz'
 
 const tabs: Array<{ id: AITab; label: string; icon: typeof FileText }> = [
   { id: 'summary', label: 'สรุป', icon: FileText },
-  { id: 'ask', label: 'AI ผู้ช่วย', icon: Bot },
+  { id: 'assistant', label: 'AI \u0e1c\u0e39\u0e49\u0e0a\u0e48\u0e27\u0e22', icon: Sparkles },
   { id: 'quiz', label: 'แบบทดสอบ', icon: HelpCircle },
 ]
 
@@ -139,6 +131,9 @@ export default function VideoLearning() {
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewText, setReviewText] = useState('')
   const [lessonReviews, setLessonReviews] = useState<LessonReview[]>([])
+  const [reviewsLoading, setReviewsLoading] = useState(false)
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
+  const [reviewMessage, setReviewMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const { data: course, error, loading } = useApi(() => api.getCourse(slug), [slug])
   const session = authStorage.getSession()
   const sessionUser = session?.user
@@ -173,7 +168,6 @@ export default function VideoLearning() {
   const previousLesson = lessonIndex > 0 ? course?.lessons[lessonIndex - 1] : undefined
   const nextLesson = course && lessonIndex >= 0 ? course.lessons[lessonIndex + 1] : undefined
   const isEnrolledStudent = course?.viewerState?.role === 'student' && course.viewerState.isEnrolled
-  const reviewStorageKey = lesson ? `mycourse:lesson-reviews:${getCurrentLearnerId()}:${lesson.id}` : null
   const lessonStatus = lessonCompleted ? 'เรียนแล้ว' : isEnrolledStudent ? 'กำลังเรียน' : 'ตัวอย่าง'
   const backPath = isEnrolledStudent ? dashboardPath : `/courses/${course?.slug ?? slug}`
 
@@ -202,19 +196,38 @@ export default function VideoLearning() {
   useEffect(() => {
     setReviewRating(0)
     setReviewText('')
+    setReviewMessage(null)
 
-    if (!reviewStorageKey) {
+    if (!lesson) {
       setLessonReviews([])
       return
     }
 
-    try {
-      const savedReviews = window.localStorage.getItem(reviewStorageKey)
-      setLessonReviews(savedReviews ? JSON.parse(savedReviews) : [])
-    } catch {
-      setLessonReviews([])
+    let cancelled = false
+    setReviewsLoading(true)
+
+    api
+      .getLessonReviews(lesson.id)
+      .then((reviews) => {
+        if (!cancelled) setLessonReviews(reviews)
+      })
+      .catch((currentError) => {
+        if (cancelled) return
+
+        setLessonReviews([])
+        setReviewMessage({
+          tone: 'error',
+          text: currentError instanceof Error ? currentError.message : 'โหลดรีวิวไม่สำเร็จ',
+        })
+      })
+      .finally(() => {
+        if (!cancelled) setReviewsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
     }
-  }, [reviewStorageKey])
+  }, [lesson])
 
   useEffect(() => {
     if (!lesson) return
@@ -287,29 +300,35 @@ export default function VideoLearning() {
     }
   }
 
-  const submitReview = (event: FormEvent<HTMLFormElement>) => {
+  const submitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    const nextText = reviewText.trim()
-    if (!nextText || reviewRating === 0 || !reviewStorageKey) return
+    if (!lesson) return
 
-    const nextReviews = [
-      {
-        id: `${Date.now()}`,
+    const nextText = reviewText.trim()
+    if (!nextText || reviewRating === 0) return
+
+    setReviewSubmitting(true)
+    setReviewMessage(null)
+
+    try {
+      const nextReviews = await api.saveLessonReview(lesson.id, {
         rating: reviewRating,
         text: nextText,
-        createdAt: new Intl.DateTimeFormat('th-TH', {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        }).format(new Date()),
-      },
-      ...lessonReviews,
-    ].slice(0, 6)
+      })
 
-    setLessonReviews(nextReviews)
-    window.localStorage.setItem(reviewStorageKey, JSON.stringify(nextReviews))
-    setReviewRating(0)
-    setReviewText('')
+      setLessonReviews(nextReviews)
+      setReviewRating(0)
+      setReviewText('')
+      setReviewMessage({ tone: 'success', text: 'บันทึกรีวิวและอัปเดตรายการเรียบร้อยแล้ว' })
+    } catch (currentError) {
+      setReviewMessage({
+        tone: 'error',
+        text: currentError instanceof Error ? currentError.message : 'ส่งรีวิวไม่สำเร็จ',
+      })
+    } finally {
+      setReviewSubmitting(false)
+    }
   }
 
   if (loading) {
@@ -360,14 +379,6 @@ export default function VideoLearning() {
             </div>
 
             <div className="hidden items-center gap-3 sm:flex">
-              <button
-                type="button"
-                className="inline-flex h-11 items-center gap-2 rounded-lg bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
-                onClick={() => setActiveTab('ask')}
-              >
-                <Sparkles size={17} />
-                AI ผู้ช่วย
-              </button>
               {learnerAvatar ? (
                 <img src={learnerAvatar} alt={sessionUser?.name ?? 'ผู้เรียน'} className="h-11 w-11 rounded-full object-cover" />
               ) : (
@@ -418,7 +429,6 @@ export default function VideoLearning() {
 
             <VideoPlayer
               lesson={lesson}
-              poster={course.coverImage}
               courseTitle={course.title}
               compact
               onPlaybackProgress={setVideoProgress}
@@ -552,7 +562,7 @@ export default function VideoLearning() {
                           aria-label={`${rating} ดาว`}
                           aria-pressed={active}
                           className={`inline-flex h-9 w-9 items-center justify-center rounded-md transition ${
-                            active ? 'bg-zinc-100 text-black' : 'text-zinc-300 hover:bg-zinc-100 hover:text-black'
+                            active ? 'bg-amber-50 text-amber-500' : 'text-zinc-300 hover:bg-amber-50 hover:text-amber-500'
                           }`}
                           onClick={() => setReviewRating(rating)}
                         >
@@ -575,30 +585,52 @@ export default function VideoLearning() {
                   <button
                     type="submit"
                     className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                    disabled={!reviewText.trim() || reviewRating === 0}
+                    disabled={!reviewText.trim() || reviewRating === 0 || reviewSubmitting}
                   >
                     <Send size={16} />
-                    ส่งความคิดเห็น
+                    {reviewSubmitting ? 'กำลังบันทึก...' : 'ส่งความคิดเห็น'}
                   </button>
                 </div>
               </form>
 
+              {reviewMessage ? (
+                <p
+                  className={`mt-4 rounded-lg p-3 text-sm ${
+                    reviewMessage.tone === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                  }`}
+                >
+                  {reviewMessage.text}
+                </p>
+              ) : null}
+
               <div className="mt-5 space-y-3">
-                {lessonReviews.length > 0 ? (
+                {reviewsLoading ? (
+                  <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500">
+                    กำลังโหลดความคิดเห็น...
+                  </div>
+                ) : lessonReviews.length > 0 ? (
                   lessonReviews.map((review) => (
                     <article key={review.id} className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-1 text-black">
-                          {[1, 2, 3, 4, 5].map((rating) => (
-                            <Star
-                              key={rating}
-                              size={15}
-                              fill={rating <= review.rating ? 'currentColor' : 'none'}
-                              className={rating <= review.rating ? 'text-black' : 'text-zinc-300'}
-                            />
-                          ))}
+                        <div>
+                          <p className="text-sm font-semibold text-black">{review.studentName}</p>
+                          <div className="mt-1 flex items-center gap-1 text-amber-500">
+                            {[1, 2, 3, 4, 5].map((rating) => (
+                              <Star
+                                key={rating}
+                                size={15}
+                                fill={rating <= review.rating ? 'currentColor' : 'none'}
+                                className={rating <= review.rating ? 'text-amber-500' : 'text-zinc-300'}
+                              />
+                            ))}
+                          </div>
                         </div>
-                        <span className="text-xs text-zinc-400">{review.createdAt}</span>
+                        <span className="text-xs text-zinc-400">
+                          {new Intl.DateTimeFormat('th-TH', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          }).format(new Date(review.updatedAt || review.createdAt))}
+                        </span>
                       </div>
                       <p className="mt-3 text-sm leading-6 text-zinc-700">{review.text}</p>
                     </article>
@@ -613,22 +645,38 @@ export default function VideoLearning() {
           </div>
 
           <aside className="space-y-6">
-            <section className="flex min-h-[560px] flex-col rounded-xl border border-zinc-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-[760px]">
-              <div className="flex shrink-0 items-center gap-3">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-100 text-black">
+            <section className="flex min-h-[540px] flex-col rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-[760px]">
+              <div className="flex shrink-0 items-center gap-3 rounded-xl border border-zinc-100 bg-zinc-50/80 px-3 py-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black ring-1 ring-zinc-200/80">
                   <Sparkles size={18} />
                 </span>
-                <h2 className="text-lg font-semibold text-black">AI ผู้ช่วย</h2>
+                <div className="min-w-0 flex-1">
+                  <h2 className="min-w-0 text-lg font-semibold text-black">{'AI \u0e1c\u0e39\u0e49\u0e0a\u0e48\u0e27\u0e22'}</h2>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {'\u0e2a\u0e23\u0e38\u0e1b\u0e1a\u0e17\u0e40\u0e23\u0e35\u0e22\u0e19 \u0e16\u0e32\u0e21\u0e15\u0e2d\u0e1a \u0e41\u0e25\u0e30\u0e41\u0e1a\u0e1a\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u0e43\u0e19\u0e01\u0e23\u0e2d\u0e1a\u0e40\u0e14\u0e35\u0e22\u0e27'}
+                  </p>
+                </div>
+                {activeTab === 'summary' ? (
+                  <button
+                    type="button"
+                    className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={generateSummary}
+                    disabled={aiLoading === 'summary'}
+                  >
+                    <FileText size={15} />
+                    {aiLoading === 'summary' ? 'กำลังสรุป...' : 'สรุป AI'}
+                  </button>
+                ) : null}
               </div>
 
-              <div className="mt-4 grid shrink-0 grid-cols-3 rounded-lg bg-zinc-100 p-1 text-sm">
+              <div className="mt-3 grid shrink-0 grid-cols-3 rounded-xl border border-zinc-200 bg-zinc-50 p-1 text-sm">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     className={[
-                      'h-10 rounded-md px-2 font-semibold transition',
-                      activeTab === tab.id ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-black',
+                      'h-10 rounded-lg px-2 font-semibold transition',
+                      activeTab === tab.id ? 'bg-white text-black shadow-[0_8px_20px_rgba(15,23,42,0.08)] ring-1 ring-zinc-200/80' : 'text-zinc-500 hover:bg-white/70 hover:text-black',
                     ].join(' ')}
                     onClick={() => setActiveTab(tab.id)}
                   >
@@ -637,32 +685,30 @@ export default function VideoLearning() {
                 ))}
               </div>
 
-              <div className="mt-5 min-h-0 flex-1 overflow-hidden">
+              <div className="mt-4 min-h-0 flex-1 overflow-hidden">
                 {activeTab === 'summary' ? (
                   <div className="flex h-full min-h-0 flex-col gap-4">
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
-                    <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-xl border border-zinc-100 bg-zinc-50/70 p-4">
+                    <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                       <AiResponsePanel text={aiSummary ?? lesson.summary} />
                     </div>
-                    <button
-                      type="button"
-                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={generateSummary}
-                      disabled={aiLoading === 'summary'}
-                    >
-                      <FileText size={16} />
-                      {aiLoading === 'summary' ? 'AI กำลังสรุป...' : 'ให้ AI สรุป'}
-                    </button>
                   </div>
                 ) : null}
 
-                {activeTab === 'ask' ? <AIChatBox lessonId={lesson.id} lessonTitle={lesson.title} className="h-full max-h-none" embedded /> : null}
+                {activeTab === 'assistant' ? (
+                  <AIChatBox
+                    lessonId={lesson.id}
+                    lessonTitle={lesson.title}
+                    embedded
+                    className="h-full min-h-0 rounded-2xl border border-zinc-200/70 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                  />
+                ) : null}
 
                 {activeTab === 'quiz' ? (
                   <div className="flex h-full min-h-0 flex-col gap-4">
                     <button
                       type="button"
-                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                       onClick={generateQuiz}
                       disabled={aiLoading === 'quiz'}
                     >
@@ -670,7 +716,7 @@ export default function VideoLearning() {
                       {aiLoading === 'quiz' ? 'AI กำลังออกข้อสอบ...' : 'ให้ AI ออกข้อสอบ 10 ข้อ'}
                     </button>
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
-                    <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-xl border border-zinc-100 bg-zinc-50/70 p-3">
+                    <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                       <QuizCard questions={aiQuiz ?? lesson.quizQuestions} />
                     </div>
                   </div>

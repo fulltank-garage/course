@@ -3,9 +3,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
   BarChart3,
-  BookOpenCheck,
   Check,
   ChevronDown,
+  CreditCard,
   LoaderCircle,
   MoreVertical,
   Search,
@@ -26,6 +26,14 @@ const categoryOptions = [allOption, 'Technology', 'Business', 'Design', 'Marketi
 const levelOptions = [allOption, 'Beginner', 'Intermediate', 'Advanced']
 
 type SortOption = 'popular' | 'rating' | 'price-low' | 'price-high'
+type CheckoutModalState =
+  | { mode: 'single'; course: Course }
+  | { mode: 'all' }
+  | null
+type CheckoutStep = 'cart' | 'payment' | 'confirm'
+
+const getCourseReviewAverage = (course: Course) => course.reviewAverage ?? course.rating
+const getCourseReviewCount = (course: Course) => course.reviewCount ?? 0
 
 const sortOptions: Array<{ value: SortOption; label: string }> = [
   { value: 'popular', label: 'ล่าสุด' },
@@ -37,7 +45,14 @@ const sortOptions: Array<{ value: SortOption; label: string }> = [
 const sortCourses = (items: Course[], sortBy: SortOption) => {
   const nextItems = [...items]
 
-  if (sortBy === 'rating') return nextItems.sort((a, b) => b.rating - a.rating)
+  if (sortBy === 'rating') {
+    return nextItems.sort((a, b) => {
+      const averageDifference = getCourseReviewAverage(b) - getCourseReviewAverage(a)
+      if (averageDifference !== 0) return averageDifference
+
+      return getCourseReviewCount(b) - getCourseReviewCount(a)
+    })
+  }
   if (sortBy === 'price-low') return nextItems.sort((a, b) => a.price - b.price)
   if (sortBy === 'price-high') return nextItems.sort((a, b) => b.price - a.price)
 
@@ -56,6 +71,13 @@ const formatPrice = (price: number) =>
         maximumFractionDigits: 0,
       }).format(price)
 
+const cartMetricClass = 'rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-center'
+const minimalSecondaryButtonClass =
+  'inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:text-zinc-400'
+const minimalPrimaryButtonClass =
+  'inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300'
+const minimalTertiaryButtonClass =
+  'inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-zinc-500 transition hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300'
 const coursePathFor = (course: Course) => `/courses/${course.slug}`
 
 function FilterCheckbox({
@@ -96,6 +118,8 @@ function CourseGridCard({
 }) {
   const isEnrolled = Boolean(course.viewerState?.isEnrolled)
   const canBuy = course.status === 'published' && !isEnrolled
+  const reviewAverage = getCourseReviewAverage(course)
+  const reviewCount = getCourseReviewCount(course)
 
   return (
     <article className="group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg">
@@ -129,8 +153,9 @@ function CourseGridCard({
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <span className="inline-flex items-center gap-1 text-amber-500">
             <Star size={14} className="fill-amber-400" />
-            {course.rating.toFixed(1)}
+            {reviewAverage.toFixed(1)}
           </span>
+          <span>{reviewCount.toLocaleString('th-TH')} รีวิว</span>
           <span>({Math.max(course.lessons.length, course.lessonCount ?? 0)})</span>
           <span>•</span>
           <span>{course.level}</span>
@@ -203,6 +228,8 @@ export default function StudentCourseStore() {
   const [cartMessage, setCartMessage] = useState<string | null>(null)
   const [checkoutSlug, setCheckoutSlug] = useState<string | null>(null)
   const [checkoutAll, setCheckoutAll] = useState(false)
+  const [checkoutModal, setCheckoutModal] = useState<CheckoutModalState>(null)
+  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart')
   const deferredSearchTerm = useDeferredValue(searchTerm)
   const { data: courses, error: courseError, loading } = useApi(() => api.getCourses(), [])
 
@@ -261,6 +288,7 @@ export default function StudentCourseStore() {
 
   const closeCart = () => {
     setCartOpen(false)
+    setCheckoutStep('cart')
 
     if (searchParams.get('cart') === '1') {
       const nextParams = new URLSearchParams(searchParams)
@@ -269,15 +297,23 @@ export default function StudentCourseStore() {
     }
   }
 
+  const openCheckoutModal = (nextCheckoutModal: CheckoutModalState) => {
+    setCheckoutModal(nextCheckoutModal)
+  }
+
+  const closeCheckoutModal = () => setCheckoutModal(null)
+
   const removeCourse = (slug: string) => {
     setCartError(null)
     setCartMessage(null)
+    setCheckoutStep('cart')
     setCartItems(cartStorage.removeItem(slug))
   }
 
   const clearCart = () => {
     setCartError(null)
     setCartMessage(null)
+    setCheckoutStep('cart')
     setCartItems(cartStorage.clearItems())
   }
 
@@ -306,6 +342,7 @@ export default function StudentCourseStore() {
       const result = await api.enrollCourse(course.slug)
       cartStorage.removeItem(course.slug)
       setCartItems(cartStorage.getItems())
+      closeCheckoutModal()
       setCartMessage(`ซื้อคอร์ส "${course.title}" สำเร็จแล้ว กำลังพาไปหน้าเรียน...`)
 
       window.setTimeout(() => {
@@ -329,6 +366,7 @@ export default function StudentCourseStore() {
     setCheckoutAll(true)
     setCartError(null)
     setCartMessage(null)
+    setCheckoutStep('confirm')
 
     try {
       let firstEnrollmentPath = session?.dashboardPath ?? '/student'
@@ -346,6 +384,7 @@ export default function StudentCourseStore() {
 
       cartStorage.clearItems()
       setCartItems([])
+      closeCheckoutModal()
       setCartMessage(`ซื้อคอร์สสำเร็จแล้ว ${cartCourses.length} คอร์ส กำลังพาไปหน้าเรียน...`)
 
       window.setTimeout(() => {
@@ -364,6 +403,15 @@ export default function StudentCourseStore() {
   const totalCartPrice = cartCourses.reduce((sum, course) => sum + course.price, 0)
   const freeCartCourses = cartCourses.filter((course) => course.price === 0).length
   const paidCartCourses = cartCourses.length - freeCartCourses
+  const modalCourses = checkoutModal?.mode === 'single' ? [checkoutModal.course] : cartCourses
+  const modalTotal = modalCourses.reduce((sum, course) => sum + course.price, 0)
+  const modalActionLoading =
+    checkoutModal?.mode === 'single'
+      ? checkoutSlug === checkoutModal.course.slug
+      : checkoutAll
+  const cartStepItems = ['ตะกร้าสินค้า', 'ชำระเงิน', 'ยืนยันการชำระเงิน']
+  const cartTotalLabel = formatPrice(totalCartPrice)
+  const activeCheckoutStepIndex = checkoutStep === 'cart' ? 0 : checkoutStep === 'payment' ? 1 : 2
 
   return (
     <section className="min-h-screen bg-white text-black lg:pl-[280px]">
@@ -560,15 +608,214 @@ export default function StudentCourseStore() {
 
       <div
         className={[
-          'fixed inset-0 z-[80] bg-black/35 transition-opacity duration-200',
+          'fixed inset-0 z-[95] overflow-y-auto bg-white transition-opacity duration-200',
           cartOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
+        ].join(' ')}
+        aria-hidden={!cartOpen}
+      >
+        <div className="mx-auto min-h-screen w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-10">
+          <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 text-xs font-semibold text-zinc-500">
+            {cartStepItems.map((item, index) => (
+              <div key={item} className="flex min-w-0 items-center gap-3">
+                <span
+                  className={[
+                    'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs',
+                    index <= activeCheckoutStepIndex ? 'border-black bg-black text-white' : 'border-zinc-300 bg-white text-black',
+                  ].join(' ')}
+                >
+                  {index + 1}
+                </span>
+                <span className={index <= activeCheckoutStepIndex ? 'truncate text-black' : 'truncate'}>{item}</span>
+                {index < cartStepItems.length - 1 ? <span className="hidden h-px w-20 bg-zinc-300 sm:block" /> : null}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-black">รถเข็น / รายการสั่งซื้อ</h2>
+              <p className="mt-1 text-sm text-zinc-500">{cartCourses.length} รายการในตะกร้า</p>
+            </div>
+            <button
+              type="button"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-black transition hover:border-black"
+              onClick={closeCart}
+              aria-label="ปิดตะกร้า"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between border-b border-zinc-200 pb-4">
+                <h3 className="text-lg font-semibold text-black">คอร์สที่คุณเลือก</h3>
+                {cartCourses.length > 0 ? (
+                  <button
+                    type="button"
+                    className="text-sm font-medium text-zinc-500 transition hover:text-black"
+                    onClick={clearCart}
+                  >
+                    ล้างตะกร้า
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mt-5">
+                {loading ? (
+                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-500">กำลังโหลดตะกร้า...</div>
+                ) : courseError || cartError ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{cartError ?? courseError}</div>
+                ) : cartMessage ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm font-medium text-emerald-700">{cartMessage}</div>
+                ) : cartCourses.length === 0 ? (
+                  <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 text-center">
+                    <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-black shadow-sm">
+                      <ShoppingBag size={24} />
+                    </span>
+                    <h3 className="mt-4 text-lg font-semibold text-black">ตะกร้ายังว่าง</h3>
+                    <button
+                      type="button"
+                      className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                      onClick={closeCart}
+                    >
+                      เลือกคอร์สเพิ่ม
+                      <ArrowRight size={15} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-zinc-200">
+                    {cartCourses.map((course) => (
+                      <article key={course.id} className="grid gap-4 py-5 sm:grid-cols-[136px_minmax(0,1fr)_auto]">
+                        <img src={course.coverImage} alt={course.title} className="h-24 w-full rounded-lg bg-zinc-100 object-cover sm:w-[136px]" />
+                        <div className="min-w-0">
+                          <h3 className="line-clamp-2 text-base font-semibold text-black">{course.title}</h3>
+                          <p className="mt-1 text-sm text-zinc-500">โดย {course.instructor.name}</p>
+                          <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-zinc-500">
+                            <span className="inline-flex items-center gap-1">
+                              <UsersRound size={14} />
+                              {course.students.toLocaleString('th-TH')} คนเรียน
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Star size={14} className="fill-amber-400 text-amber-400" />
+                              {getCourseReviewAverage(course).toFixed(1)}
+                            </span>
+                            <span>{course.level}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 sm:block sm:text-right">
+                          <p className="text-lg font-semibold text-black">{formatPrice(course.price)}</p>
+                          <button
+                            type="button"
+                            className="mt-0 inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-rose-700 sm:mt-4"
+                            onClick={() => removeCourse(course.slug)}
+                            aria-label={`ลบ ${course.title}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <aside className="h-fit rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:sticky lg:top-6">
+              <h3 className="text-lg font-semibold text-black">สรุปการชำระเงิน</h3>
+              <div className="mt-6 space-y-4 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-zinc-500">ราคาคอร์ส</span>
+                  <span className="font-medium text-black">{cartTotalLabel}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-zinc-500">คอร์สฟรี</span>
+                  <span className="font-medium text-black">{freeCartCourses.toLocaleString('th-TH')}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-zinc-500">คอร์สเสียเงิน</span>
+                  <span className="font-medium text-black">{paidCartCourses.toLocaleString('th-TH')}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 border-t border-zinc-200 pt-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-black">ยอดรวมทั้งหมด</p>
+                    <p className="mt-1 text-xs text-zinc-500">จากรายการจริงในตะกร้า</p>
+                  </div>
+                  <p className="text-3xl font-semibold tracking-tight text-black">{cartTotalLabel}</p>
+                </div>
+              </div>
+
+              {checkoutStep === 'payment' ? (
+                <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="text-sm font-semibold text-black">ช่องทางชำระเงิน</p>
+                  <div className="mt-4 grid gap-3">
+                    <label className="flex items-center gap-3 rounded-xl border border-black bg-white px-4 py-3 text-sm font-semibold text-black">
+                      <input type="radio" checked readOnly className="h-4 w-4 accent-black" />
+                      ชำระผ่านระบบของแพลตฟอร์ม
+                    </label>
+                    <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-500">
+                      ระบบจะยืนยันรายการและเพิ่มคอร์สเข้าบัญชีนักเรียนหลังชำระเงินสำเร็จ
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-6 rounded-2xl bg-zinc-50 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-black shadow-sm">
+                    <CreditCard size={18} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-black">พร้อมดำเนินการชำระเงิน</p>
+                    <p className="mt-1 text-xs text-zinc-500">ระบบจะลงทะเบียนคอร์สให้หลังยืนยันสำเร็จ</p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                onClick={checkoutStep === 'cart' ? () => setCheckoutStep('payment') : checkoutAllCourses}
+                disabled={cartCourses.length === 0 || checkoutAll || Boolean(checkoutSlug)}
+              >
+                {checkoutAll ? <LoaderCircle size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                ดำเนินการชำระเงิน
+              </button>
+
+              {checkoutStep !== 'cart' ? (
+                <button
+                  type="button"
+                  className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-lg border border-zinc-200 bg-white text-sm font-semibold text-black transition hover:border-black"
+                  onClick={() => setCheckoutStep('cart')}
+                  disabled={checkoutAll}
+                >
+                  กลับไปตรวจรายการ
+                </button>
+              ) : null}
+
+              <p className="mt-4 flex items-center justify-center gap-2 text-xs text-zinc-500">
+                <Check size={14} />
+                ใช้ขั้นตอนซื้อคอร์สเดิมของระบบ
+              </p>
+            </aside>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={[
+          'hidden fixed inset-0 z-[80] bg-black/35 transition-opacity duration-200',
+          'pointer-events-none opacity-0',
         ].join(' ')}
         onClick={closeCart}
       />
       <aside
         className={[
-          'fixed inset-y-0 right-0 z-[90] flex w-full max-w-[440px] flex-col border-l border-zinc-200 bg-white text-black shadow-2xl transition-transform duration-300 ease-out',
-          cartOpen ? 'translate-x-0' : 'translate-x-full',
+          'hidden fixed inset-y-0 right-0 z-[90] w-full max-w-[440px] flex-col border-l border-zinc-200 bg-white text-black shadow-2xl transition-transform duration-300 ease-out',
+          'translate-x-full',
         ].join(' ')}
         aria-label="ตะกร้าสินค้า"
       >
@@ -642,18 +889,20 @@ export default function StudentCourseStore() {
                           <Trash2 size={16} />
                         </button>
                       </div>
-                      <p className="mt-3 text-base font-semibold text-black">{course.price === 0 ? 'ฟรี' : formatPrice(course.price)}</p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <p className="text-base font-semibold text-black">{course.price === 0 ? 'ฟรี' : formatPrice(course.price)}</p>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-black transition hover:border-black"
+                          onClick={() => openCheckoutModal({ mode: 'single', course })}
+                          disabled={checkoutSlug === course.slug || checkoutAll}
+                        >
+                          <CreditCard size={13} />
+                          ซื้อ
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-black text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
-                    onClick={() => checkoutCourse(course)}
-                    disabled={checkoutSlug === course.slug || checkoutAll}
-                  >
-                    {checkoutSlug === course.slug ? <LoaderCircle size={15} className="animate-spin" /> : <BookOpenCheck size={15} />}
-                    {checkoutSlug === course.slug ? 'รอดำเนินการ...' : 'ซื้อคอร์สนี้'}
-                  </button>
                 </article>
               ))}
             </div>
@@ -661,57 +910,164 @@ export default function StudentCourseStore() {
         </div>
 
         <footer className="border-t border-zinc-200 bg-white p-5">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-center">
-              <p className="text-xs text-zinc-500">ทั้งหมด</p>
-              <p className="mt-1 text-lg font-semibold text-black">{cartCourses.length}</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className={cartMetricClass}>
+              <p className="text-xs text-zinc-500">{'\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14'}</p>
+              <p className="mt-2 text-2xl font-semibold text-black">{cartCourses.length}</p>
             </div>
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-center">
-              <p className="text-xs text-zinc-500">ฟรี</p>
-              <p className="mt-1 text-lg font-semibold text-black">{freeCartCourses}</p>
+            <div className={cartMetricClass}>
+              <p className="text-xs text-zinc-500">{'\u0e1f\u0e23\u0e35'}</p>
+              <p className="mt-2 text-2xl font-semibold text-black">{freeCartCourses}</p>
             </div>
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-center">
-              <p className="text-xs text-zinc-500">เสียเงิน</p>
-              <p className="mt-1 text-lg font-semibold text-black">{paidCartCourses}</p>
+            <div className={cartMetricClass}>
+              <p className="text-xs text-zinc-500">{'\u0e40\u0e2a\u0e35\u0e22\u0e40\u0e07\u0e34\u0e19'}</p>
+              <p className="mt-2 text-2xl font-semibold text-black">{paidCartCourses}</p>
             </div>
           </div>
 
-          <div className="mt-5 flex items-center justify-between border-t border-zinc-200 pt-5">
-            <span className="text-sm text-zinc-500">ยอดรวม</span>
-            <span className="text-2xl font-semibold text-black">{formatPrice(totalCartPrice)}</span>
+          <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm text-zinc-500">{'\u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21'}</span>
+              <span className="text-3xl font-semibold tracking-tight text-black">{formatPrice(totalCartPrice)}</span>
+            </div>
           </div>
 
-          <div className="mt-4 grid gap-2">
+          <div className="mt-4 grid gap-3">
             {cartCourses.length > 0 ? (
               <button
                 type="button"
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-black text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
-                onClick={checkoutAllCourses}
+                className={minimalPrimaryButtonClass}
+                onClick={() => openCheckoutModal({ mode: 'all' })}
                 disabled={checkoutAll || Boolean(checkoutSlug)}
               >
-                {checkoutAll ? <LoaderCircle size={16} className="animate-spin" /> : <BookOpenCheck size={16} />}
-                {checkoutAll ? 'รอดำเนินการ...' : 'ซื้อคอร์สทั้งหมด'}
+                <CreditCard size={16} />
+                {'\u0e14\u0e33\u0e40\u0e19\u0e34\u0e19\u0e01\u0e32\u0e23\u0e0a\u0e33\u0e23\u0e30\u0e40\u0e07\u0e34\u0e19'}
               </button>
             ) : null}
-            <button
-              type="button"
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-zinc-200 bg-white text-sm font-semibold text-black transition hover:border-black"
-              onClick={closeCart}
-            >
-              เลือกคอร์สเพิ่ม
-              <ArrowRight size={16} />
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-11 w-full items-center justify-center rounded-md border border-zinc-200 bg-white text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:text-zinc-400"
-              onClick={clearCart}
-              disabled={cartCourses.length === 0}
-            >
-              ล้างตะกร้า
-            </button>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                className={minimalTertiaryButtonClass}
+                onClick={closeCart}
+              >
+                {'\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e04\u0e2d\u0e23\u0e4c\u0e2a\u0e40\u0e1e\u0e34\u0e48\u0e21'}
+                <ArrowRight size={15} />
+              </button>
+              <button
+                type="button"
+                className={minimalTertiaryButtonClass}
+                onClick={clearCart}
+                disabled={cartCourses.length === 0}
+              >
+                {'\u0e25\u0e49\u0e32\u0e07\u0e15\u0e30\u0e01\u0e23\u0e49\u0e32'}
+              </button>
+            </div>
           </div>
         </footer>
       </aside>
+
+      <div
+        className={[
+          'fixed inset-0 z-[120] bg-black/30 px-4 transition-opacity duration-200',
+          checkoutModal ? 'opacity-100' : 'pointer-events-none opacity-0',
+        ].join(' ')}
+        onClick={closeCheckoutModal}
+      >
+        <div className="flex min-h-full items-center justify-center py-8">
+          <section
+            className={[
+              'w-full max-w-[560px] rounded-[32px] border border-zinc-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)] transition duration-200 sm:p-6',
+              checkoutModal ? 'translate-y-0 scale-100' : 'translate-y-3 scale-[0.98]',
+            ].join(' ')}
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="ชำระเงิน"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-400">Invoice</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-black">ชำระเงินคอร์ส</h2>
+                <p className="mt-2 text-sm text-zinc-500">ตรวจสอบบิลและกรอกข้อมูลการชำระเงินให้ครบก่อนยืนยัน</p>
+              </div>
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-500 transition hover:border-black hover:text-black"
+                onClick={closeCheckoutModal}
+                aria-label="ปิดหน้าชำระเงิน"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-3xl border border-zinc-200 bg-zinc-50 p-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className={cartMetricClass}>
+                  <p className="text-[11px] text-zinc-500">{'\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14'}</p>
+                  <p className="mt-1 text-xl font-semibold text-black">{modalCourses.length}</p>
+                </div>
+                <div className={cartMetricClass}>
+                  <p className="text-[11px] text-zinc-500">{'\u0e1f\u0e23\u0e35'}</p>
+                  <p className="mt-1 text-xl font-semibold text-black">{modalCourses.filter((course) => course.price === 0).length}</p>
+                </div>
+                <div className={cartMetricClass}>
+                  <p className="text-[11px] text-zinc-500">{'\u0e40\u0e2a\u0e35\u0e22\u0e40\u0e07\u0e34\u0e19'}</p>
+                  <p className="mt-1 text-xl font-semibold text-black">{modalCourses.filter((course) => course.price > 0).length}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-zinc-200 bg-white px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-zinc-500">{'\u0e22\u0e2d\u0e14\u0e0a\u0e33\u0e23\u0e30'}</span>
+                  <span className="text-3xl font-semibold tracking-tight text-black">{formatPrice(modalTotal)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-4">
+                <p className="text-sm font-medium text-black">
+                  {checkoutModal?.mode === 'single'
+                    ? checkoutModal.course.title
+                    : `${modalCourses.length} คอร์สในรายการชำระเงิน`}
+                </p>
+                <p className="mt-1 text-sm text-zinc-500">
+                  {checkoutModal?.mode === 'single'
+                    ? 'ชำระเฉพาะคอร์สที่เลือก'
+                    : 'ยืนยันการซื้อคอร์สทั้งหมดในตะกร้าพร้อมกัน'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className={minimalPrimaryButtonClass}
+                onClick={() => {
+                  if (!checkoutModal) return
+                  if (checkoutModal.mode === 'single') {
+                    checkoutCourse(checkoutModal.course)
+                    return
+                  }
+                  checkoutAllCourses()
+                }}
+                disabled={modalActionLoading}
+              >
+                {modalActionLoading ? <LoaderCircle size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                {modalActionLoading
+                  ? '\u0e01\u0e33\u0e25\u0e31\u0e07\u0e14\u0e33\u0e40\u0e19\u0e34\u0e19\u0e01\u0e32\u0e23...'
+                  : '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e0a\u0e33\u0e23\u0e30\u0e40\u0e07\u0e34\u0e19'}
+              </button>
+              <button
+                type="button"
+                className={minimalSecondaryButtonClass}
+                onClick={closeCheckoutModal}
+                disabled={modalActionLoading}
+              >
+                {'\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01'}
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
     </section>
   )
 }

@@ -6,15 +6,14 @@ import {
   BookOpen,
   CheckCircle2,
   Clock3,
-  CreditCard,
-  LoaderCircle,
   Lock,
   PlayCircle,
+  ShoppingCart,
   Star,
   UserRound,
   X,
 } from 'lucide-react'
-import { api, authStorage } from '../services/api'
+import { api, authStorage, cartStorage } from '../services/api'
 import type { Course, Lesson } from '../types/course'
 import { resolveVideoSource } from '../utils/video'
 
@@ -210,8 +209,12 @@ export default function CourseDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [purchaseError, setPurchaseError] = useState<string | null>(null)
-  const [purchasing, setPurchasing] = useState(false)
+  const purchasing = false
+  const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
+  const [cartMessage, setCartMessage] = useState<string | null>(null)
   const [authPromptOpen, setAuthPromptOpen] = useState(false)
+
+  useEffect(() => cartStorage.subscribe(() => setCartItems(cartStorage.getItems())), [])
 
   useEffect(() => {
     let active = true
@@ -288,27 +291,28 @@ export default function CourseDetail() {
   const session = authStorage.getSession()
   const isStudent = session?.user.role === 'student'
   const isStaffAccount = Boolean(session && !isStudent)
+  const isInCart = cartItems.includes(course.slug)
   const purchaseLabel = !session
     ? 'เข้าสู่ระบบเพื่อซื้อคอร์ส'
     : isStaffAccount
     ? 'กลับแดชบอร์ด'
-    : course.price === 0
-      ? 'สมัครเรียนฟรี'
-      : 'ซื้อคอร์สนี้'
+    : isInCart
+    ? 'อยู่ในตะกร้าแล้ว'
+    : 'เพิ่มลงตะกร้า'
   const viewerStateLabel = isEnrolled
     ? 'คุณได้ซื้อคอร์สแล้ว'
     : !session
     ? ''
     : isStaffAccount
     ? 'บัญชีนี้ใช้จัดการระบบ'
-    : 'พร้อมซื้อด้วยบัญชีนักเรียน'
+    : 'พร้อมเพิ่มลงตะกร้าด้วยบัญชีนักเรียน'
   const viewerStateDescription = isEnrolled
     ? 'คอร์สนี้อยู่ในหน้าคอร์สของฉันแล้ว ใช้หน้านี้สำหรับดูรายละเอียดและพรีวิว'
     : !session
     ? ''
     : isStaffAccount
     ? 'บัญชีครูหรือผู้ดูแลไม่สามารถซื้อคอร์สได้ ให้ใช้บัญชีนักเรียนสำหรับการซื้อ'
-    : 'คุณเข้าสู่ระบบเป็นนักเรียนแล้ว สามารถซื้อคอร์สนี้และเข้าเรียนได้ทันที'
+    : 'คุณเข้าสู่ระบบเป็นนักเรียนแล้ว สามารถเพิ่มคอร์สนี้ลงตะกร้าเพื่อไปชำระเงินต่อได้'
   const returnPath = isStudent ? (isEnrolled ? '/student?section=my-courses' : '/student/store') : '/'
   const returnLabel = isStudent
     ? isEnrolled
@@ -332,22 +336,11 @@ export default function CourseDetail() {
       return
     }
 
-    setPurchasing(true)
     setPurchaseError(null)
-
-    try {
-      const result = await api.enrollCourse(course.slug)
-      navigate(
-        result.enrollment.lastLessonId
-          ? `/learn/${course.slug}?lesson=${result.enrollment.lastLessonId}`
-          : `/learn/${course.slug}`,
-        { replace: true },
-      )
-    } catch (currentError) {
-      setPurchaseError(currentError instanceof Error ? currentError.message : 'ซื้อคอร์สไม่สำเร็จ')
-    } finally {
-      setPurchasing(false)
-    }
+    setCartMessage('เพิ่มลงตะกร้าแล้ว')
+    cartStorage.addItem(course.slug)
+    setPreviewLesson(null)
+    window.setTimeout(() => setCartMessage(null), 1800)
   }
 
   return (
@@ -442,7 +435,7 @@ export default function CourseDetail() {
 
               <div className="mt-5 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-[#ffffff]">
                 {course.lessons.map((lesson, index) => {
-                  const canPreview = Boolean(session || isEnrolled) && lesson.preview && Boolean(lesson.videoUrl)
+                  const canPreview = Boolean(session || isEnrolled) && lesson.id === primaryPreviewLesson?.id
 
                   return (
                     <div key={lesson.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -557,8 +550,8 @@ export default function CourseDetail() {
                   onClick={handlePurchase}
                   disabled={purchasing}
                 >
-                  {purchasing ? <LoaderCircle size={17} className="animate-spin" /> : <CreditCard size={17} />}
-                  {purchasing ? 'กำลังดำเนินการ...' : purchaseLabel}
+                  <ShoppingCart size={17} />
+                  {purchaseLabel}
                 </button>
               ) : isStaffAccount ? (
                 <button
@@ -573,6 +566,7 @@ export default function CourseDetail() {
 
             </div>
 
+            {cartMessage ? <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{cartMessage}</p> : null}
             {purchaseError ? <p className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{purchaseError}</p> : null}
 
             <div className="mt-6 space-y-4 border-t border-zinc-200 pt-6 text-sm text-zinc-700">

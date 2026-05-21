@@ -1,5 +1,6 @@
-import type { Course, StudentEnrollment } from '../types/course'
+import type { Course, LessonReview, StudentEnrollment } from '../types/course'
 import type { QuizQuestion } from '../types/quiz'
+import type { Sponsor } from '../types/sponsor'
 import type { User, UserRole } from '../types/user'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -50,13 +51,23 @@ export interface TeacherDashboardData {
 export interface AdminDashboardData {
   users: User[]
   courses: Course[]
+  sponsors: Sponsor[]
   stats: {
     totalUsers: number
     totalCourses: number
     totalTeachers: number
     totalStudents: number
     activeUsers: number
+    totalSponsors: number
   }
+}
+
+export interface SaveSponsorPayload {
+  name: string
+  logoUrl?: string
+  websiteUrl?: string
+  displayOrder: number
+  isActive: boolean
 }
 
 export interface CreateCoursePayload {
@@ -190,6 +201,11 @@ export interface TeacherApplicationResponse extends TeacherApplicationPayload {
   id: string
   status: string
   createdAt: string
+}
+
+export interface SaveLessonReviewPayload {
+  rating: number
+  text: string
 }
 
 export interface AiSummaryResponse {
@@ -774,6 +790,12 @@ export const api = {
     return request<Course[]>(`/api/courses${queryString ? `?${queryString}` : ''}`)
   },
   getCourse: (slug: string) => request<Course>(`/api/courses/${slug}`),
+  getLessonReviews: (lessonId: string) => request<LessonReview[]>(`/api/lessons/${lessonId}/reviews`),
+  saveLessonReview: (lessonId: string, payload: SaveLessonReviewPayload) =>
+    request<LessonReview[]>(`/api/lessons/${lessonId}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   enrollCourse: (slug: string) =>
     request<EnrollCourseResponse>(`/api/courses/${slug}/enroll`, {
       method: 'POST',
@@ -840,5 +862,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  getSponsors: () => request<Sponsor[]>('/api/sponsors'),
   getAdminDashboard: () => request<AdminDashboardData>('/api/admin/dashboard'),
+  deleteUser: (userId: string) =>
+    request<{ ok: boolean; id: string }>(`/api/admin/users/${userId}/delete`, {
+      method: 'POST',
+    }),
+  saveSponsor: (payload: SaveSponsorPayload, sponsorId?: string) =>
+    request<Sponsor>(sponsorId ? `/api/admin/sponsors/${sponsorId}` : '/api/admin/sponsors', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  deleteSponsor: (sponsorId: string) =>
+    request<{ ok: boolean; id: string }>(`/api/admin/sponsors/${sponsorId}/delete`, {
+      method: 'POST',
+    }),
 }

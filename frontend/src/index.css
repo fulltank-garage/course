@@ -60,6 +60,16 @@ html {
   }
 }
 
+@keyframes sponsorMarquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(calc(-50% - 0.75rem));
+  }
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
@@ -125,6 +135,18 @@ video {
     @apply mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-950 focus:ring-2 focus:ring-slate-200 dark:border-white/15 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-white dark:focus:ring-white/10;
   }
 
+  .minimal-input {
+    @apply h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-slate-950 focus:ring-2 focus:ring-slate-100;
+  }
+
+  .minimal-action {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .minimal-icon-button {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
   .stat-card {
     @apply rounded-lg border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/70 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md hover:shadow-slate-300/50 dark:border-white/10 dark:bg-slate-900 dark:shadow-black/30 dark:hover:border-white/20 dark:hover:shadow-black/50;
   }
@@ -169,6 +191,18 @@ video {
     border: 2px solid transparent;
     border-radius: 999px;
     background-clip: padding-box;
+  }
+
+  .sponsor-marquee-track {
+    display: flex;
+    width: max-content;
+    gap: 1.5rem;
+    animation: sponsorMarquee 26s linear infinite;
+    will-change: transform;
+  }
+
+  .sponsor-marquee-track-reverse {
+    animation-direction: reverse;
   }
 }
 
