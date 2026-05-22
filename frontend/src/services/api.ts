@@ -395,14 +395,26 @@ export const cartStorage = {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = authStorage.getSession()?.token
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
-    ...init,
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers,
+      },
+      ...init,
+    })
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message === 'Failed to fetch'
+        ? 'เชื่อมต่อ API ไม่สำเร็จ กรุณาตรวจสอบ backend, CORS หรือ VITE_API_BASE_URL'
+        : error instanceof Error
+          ? error.message
+          : 'เชื่อมต่อ API ไม่สำเร็จ'
+    throw new Error(message)
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Request failed' }))
@@ -756,10 +768,12 @@ export const api = {
   transcribeLesson: (lessonId: string) =>
     request<{ lessonId: string; transcript: string; source: string }>(`/api/ai/lessons/${lessonId}/transcribe`, {
       method: 'POST',
+      body: JSON.stringify({}),
     }),
   summarizeLesson: (lessonId: string) =>
     request<AiSummaryResponse>(`/api/ai/lessons/${lessonId}/summarize`, {
       method: 'POST',
+      body: JSON.stringify({}),
     }),
   askLesson: (lessonId: string, question: string) =>
     request<AiAnswerResponse>(`/api/ai/lessons/${lessonId}/ask`, {
@@ -769,6 +783,7 @@ export const api = {
   generateLessonQuiz: (lessonId: string) =>
     request<AiQuizResponse>(`/api/ai/lessons/${lessonId}/quiz`, {
       method: 'POST',
+      body: JSON.stringify({}),
     }),
   uploadAsset: (payload: UploadAssetPayload) => {
     const formData = new FormData()

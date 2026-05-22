@@ -4317,6 +4317,7 @@ const readBody = async (request) =>
     request.on('data', (chunk) => {
       body += chunk
     })
+    request.on('error', reject)
     request.on('end', () => {
       try {
         resolve(body ? JSON.parse(body) : {})
