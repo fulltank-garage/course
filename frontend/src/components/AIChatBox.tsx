@@ -9,6 +9,12 @@ interface Message {
   createdAt: string
 }
 
+interface PendingChat {
+  question: string
+  userMessageId: string
+  createdAt: string
+}
+
 interface AIChatBoxProps {
   lessonId: string
   lessonTitle: string
@@ -17,6 +23,9 @@ interface AIChatBoxProps {
 }
 
 const chatStoragePrefix = 'mycourse_ai_chat'
+const chatPendingPrefix = 'mycourse_ai_chat_pending'
+const chatUpdateEvent = 'mycourse_ai_chat_update'
+const inFlightResponses = new Map<string, Promise<Message | null>>()
 
 const getChatOwnerId = () => authStorage.getSession()?.user.id ?? 'guest'
 
@@ -28,6 +37,19 @@ const createWelcomeMessage = (lessonTitle: string): Message => ({
 })
 
 const getChatStorageKey = (lessonId: string) => `${chatStoragePrefix}:${getChatOwnerId()}:${lessonId}`
+
+const getChatPendingKey = (lessonId: string) => `${chatPendingPrefix}:${getChatOwnerId()}:${lessonId}`
+
+const notifyChatUpdate = (lessonId: string, messageId?: string) => {
+  window.dispatchEvent(
+    new CustomEvent(chatUpdateEvent, {
+      detail: {
+        storageKey: getChatStorageKey(lessonId),
+        messageId,
+      },
+    }),
+  )
+}
 
 const getStoredMessages = (lessonId: string, lessonTitle: string): Message[] => {
   const raw = localStorage.getItem(getChatStorageKey(lessonId))
@@ -57,6 +79,85 @@ const getStoredMessages = (lessonId: string, lessonTitle: string): Message[] => 
   }
 }
 
+const getPendingChat = (lessonId: string): PendingChat | null => {
+  try {
+    const raw = localStorage.getItem(getChatPendingKey(lessonId))
+    const pending = raw ? JSON.parse(raw) : null
+
+    if (
+      pending &&
+      typeof pending.question === 'string' &&
+      typeof pending.userMessageId === 'string' &&
+      typeof pending.createdAt === 'string'
+    ) {
+      return pending
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+const setPendingChat = (lessonId: string, pending: PendingChat) => {
+  localStorage.setItem(getChatPendingKey(lessonId), JSON.stringify(pending))
+}
+
+const clearPendingChat = (lessonId: string) => {
+  localStorage.removeItem(getChatPendingKey(lessonId))
+}
+
+const appendStoredMessage = (lessonId: string, lessonTitle: string, message: Message) => {
+  const currentMessages = getStoredMessages(lessonId, lessonTitle)
+
+  if (currentMessages.some((item) => item.id === message.id)) return currentMessages
+
+  const nextMessages = [...currentMessages, message]
+  localStorage.setItem(getChatStorageKey(lessonId), JSON.stringify(nextMessages))
+
+  return nextMessages
+}
+
+const startPersistentAiResponse = (lessonId: string, lessonTitle: string, pending: PendingChat) => {
+  const storageKey = getChatStorageKey(lessonId)
+  const runningRequest = inFlightResponses.get(storageKey)
+
+  if (runningRequest) return runningRequest
+
+  const request = api
+    .askLesson(lessonId, pending.question)
+    .then((result): Message => ({
+      id: `ai-${Date.now()}`,
+      sender: 'ai',
+      text: result.answer,
+      createdAt: new Date().toISOString(),
+    }))
+    .catch((error): Message => ({
+      id: `ai-error-${Date.now()}`,
+      sender: 'ai',
+      text: error instanceof Error ? error.message : 'ไม่สามารถเชื่อมต่อ AI ได้ครับ กรุณาตรวจสอบ Gemini API',
+      createdAt: new Date().toISOString(),
+    }))
+    .then((message) => {
+      const activePending = getPendingChat(lessonId)
+
+      if (activePending?.userMessageId !== pending.userMessageId) return null
+
+      appendStoredMessage(lessonId, lessonTitle, message)
+      clearPendingChat(lessonId)
+      notifyChatUpdate(lessonId, message.id)
+
+      return message
+    })
+    .finally(() => {
+      inFlightResponses.delete(storageKey)
+    })
+
+  inFlightResponses.set(storageKey, request)
+
+  return request
+}
+
 const formatMessageTime = (value: string) =>
   new Intl.DateTimeFormat('th-TH', {
     hour: '2-digit',
@@ -74,6 +175,47 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
 
   useEffect(() => {
     setMessages(getStoredMessages(lessonId, lessonTitle))
+    const pending = getPendingChat(lessonId)
+    const storageKey = getChatStorageKey(lessonId)
+
+    if (!pending) {
+      setLoading(inFlightResponses.has(storageKey))
+      return
+    }
+
+    setLoading(true)
+    let active = true
+
+    startPersistentAiResponse(lessonId, lessonTitle, pending).finally(() => {
+      if (!active) return
+
+      setMessages(getStoredMessages(lessonId, lessonTitle))
+      setLoading(false)
+    })
+
+    return () => {
+      active = false
+    }
+  }, [lessonId, lessonTitle])
+
+  useEffect(() => {
+    const storageKey = getChatStorageKey(lessonId)
+
+    const handleChatUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ storageKey?: string; messageId?: string }>).detail
+
+      if (detail?.storageKey !== storageKey) return
+
+      setMessages(getStoredMessages(lessonId, lessonTitle))
+      setFocusedAiMessageId(detail.messageId ?? null)
+      setLoading(Boolean(getPendingChat(lessonId)) || inFlightResponses.has(storageKey))
+    }
+
+    window.addEventListener(chatUpdateEvent, handleChatUpdate)
+
+    return () => {
+      window.removeEventListener(chatUpdateEvent, handleChatUpdate)
+    }
   }, [lessonId, lessonTitle])
 
   useEffect(() => {
@@ -106,12 +248,15 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
     const welcomeMessage = createWelcomeMessage(lessonTitle)
 
     localStorage.removeItem(getChatStorageKey(lessonId))
+    clearPendingChat(lessonId)
     setQuestion('')
+    setLoading(false)
     setFocusedAiMessageId(null)
     setMessages([welcomeMessage])
+    notifyChatUpdate(lessonId)
   }
 
-  const askQuestion = async (text: string) => {
+  const askQuestion = (text: string) => {
     const trimmed = text.trim()
 
     if (!trimmed || loading) return
@@ -122,41 +267,25 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
       text: trimmed,
       createdAt: new Date().toISOString(),
     }
-    setMessages((current) => [...current, userMessage])
+    const pending: PendingChat = {
+      question: trimmed,
+      userMessageId: userMessage.id,
+      createdAt: userMessage.createdAt,
+    }
+
+    appendStoredMessage(lessonId, lessonTitle, userMessage)
+    setPendingChat(lessonId, pending)
+    setMessages(getStoredMessages(lessonId, lessonTitle))
     setFocusedAiMessageId(null)
     setQuestion('')
     setLoading(true)
+    notifyChatUpdate(lessonId)
 
-    try {
-      const result = await api.askLesson(lessonId, trimmed)
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
-        sender: 'ai',
-        text: result.answer,
-        createdAt: new Date().toISOString(),
-      }
-
-      setFocusedAiMessageId(aiMessage.id)
-      setMessages((current) => [
-        ...current,
-        aiMessage,
-      ])
-    } catch (error) {
-      const errorMessage: Message = {
-        id: `ai-error-${Date.now()}`,
-        sender: 'ai',
-        text: error instanceof Error ? error.message : 'ไม่สามารถเชื่อมต่อ AI ได้ครับ กรุณาตรวจสอบ Gemini API',
-        createdAt: new Date().toISOString(),
-      }
-
-      setFocusedAiMessageId(errorMessage.id)
-      setMessages((current) => [
-        ...current,
-        errorMessage,
-      ])
-    } finally {
+    startPersistentAiResponse(lessonId, lessonTitle, pending).then((message) => {
+      setMessages(getStoredMessages(lessonId, lessonTitle))
+      setFocusedAiMessageId(message?.id ?? null)
       setLoading(false)
-    }
+    })
   }
 
   return (
@@ -168,9 +297,13 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
         className,
       ].join(' ')}
     >
-      <div className={embedded
-          ? 'flex shrink-0 items-center justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-3 py-3'
-          : 'flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3'}>
+      <div
+        className={
+          embedded
+            ? 'flex shrink-0 items-center justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-3 py-3'
+            : 'flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3'
+        }
+      >
         {embedded ? <div className="min-w-0 flex-1" /> : null}
         {!embedded ? (
           <div className="flex min-w-0 items-center gap-2">

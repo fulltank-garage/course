@@ -2623,13 +2623,52 @@ const transcribeLessonVideo = async (request, lessonId) => {
   }
 }
 
-const summarizeLesson = async (lessonId) => {
+const ensureLessonTranscriptForAi = async (request, lessonId) => {
   await ensureAiSchema()
-  const lesson = await getLessonContent(lessonId)
+  const { lesson: accessibleLesson, error: accessError } = await getAiAccessibleLesson(request, lessonId)
+  if (accessError) return { lesson: null, error: accessError }
 
-  if (!lesson) return { statusCode: 404, payload: { message: 'Lesson not found' } }
+  let lesson = await getLessonContent(lessonId)
+  if (!lesson) return { lesson: null, error: { statusCode: 404, payload: { message: 'Lesson not found' } } }
 
-  const hasTimestamp = /\[(?:\d{1,2}:)?\d{1,2}:\d{2}\]/.test(String(lesson.content ?? ''))
+  if (String(lesson.transcript ?? '').trim()) return { lesson, error: null }
+
+  const videoUrl = String(accessibleLesson.videoUrl ?? lesson.videoUrl ?? '').trim()
+
+  if (!videoUrl) {
+    return {
+      lesson: null,
+      error: {
+        statusCode: 400,
+        payload: { message: 'ยังไม่มีสคริปต์ของบทเรียนนี้ และบทเรียนนี้ไม่มีวิดีโอให้ AI ถอดสคริปต์ครับ' },
+      },
+    }
+  }
+
+  const transcriptResult = await transcribeLessonVideo(request, lessonId)
+  if (transcriptResult.statusCode >= 400) return { lesson: null, error: transcriptResult }
+
+  lesson = await getLessonContent(lessonId)
+
+  if (!String(lesson?.transcript ?? '').trim()) {
+    return {
+      lesson: null,
+      error: {
+        statusCode: 400,
+        payload: { message: 'ยังไม่มีสคริปต์ของบทเรียนนี้ครับ กรุณาลองถอดสคริปต์อีกครั้ง' },
+      },
+    }
+  }
+
+  return { lesson, error: null }
+}
+
+const summarizeLesson = async (request, lessonId) => {
+  const { lesson, error } = await ensureLessonTranscriptForAi(request, lessonId)
+  if (error) return error
+
+  const transcript = String(lesson.transcript ?? '').trim()
+  const hasTimestamp = /\[(?:\d{1,2}:)?\d{1,2}:\d{2}\]/.test(transcript)
   const timestampRule = hasTimestamp
     ? '- ใช้ timestamp จาก transcript เท่านั้น ห้ามเดาเวลาใหม่'
     : '- transcript นี้ยังไม่มี timestamp ให้เขียนประโยคนี้ก่อน timeline: "ยังไม่มี timestamp ใน transcript จึงระบุนาทีแบบแม่นยำไม่ได้" ถ้ามี transcript ยาวพอ ให้แบ่งเป็น "ช่วงที่ 1", "ช่วงที่ 2" ตามลำดับเนื้อหาแทน'
@@ -2666,7 +2705,7 @@ ${timestampRule}
 ชื่อบทเรียน: ${lesson.title}
 ความยาวบทเรียน: ${lesson.duration ?? '-'}
 เนื้อหา:
-${lesson.content}
+${transcript}
 `
   const summary = await callAiProvider(prompt)
   const result = { summary }
@@ -2775,11 +2814,11 @@ ${transcript}
   return { statusCode: 200, payload: { data: result } }
 }
 
-const generateLessonQuiz = async (lessonId) => {
-  await ensureAiSchema()
-  const lesson = await getLessonContent(lessonId)
+const generateLessonQuiz = async (request, lessonId) => {
+  const { lesson, error } = await ensureLessonTranscriptForAi(request, lessonId)
+  if (error) return error
 
-  if (!lesson) return { statusCode: 404, payload: { message: 'Lesson not found' } }
+  const transcript = String(lesson.transcript ?? '').trim()
 
   const prompt = `
 สร้างแบบทดสอบจากเนื้อหาบทเรียนนี้ จำนวน 10 ข้อ
@@ -2802,7 +2841,7 @@ const generateLessonQuiz = async (lessonId) => {
 
 ชื่อบทเรียน: ${lesson.title}
 เนื้อหา:
-${lesson.content}
+${transcript}
 `
   const raw = await callAiProvider(prompt, { json: true })
   const parsed = parseJsonResponse(raw)
@@ -4618,7 +4657,7 @@ const routeRequest = async (request, response) => {
     }
 
     if (request.method === 'POST' && action === 'summarize') {
-      const result = await summarizeLesson(lessonId)
+      const result = await summarizeLesson(request, lessonId)
       sendJson(response, result.statusCode, result.payload)
       return
     }
@@ -4630,7 +4669,7 @@ const routeRequest = async (request, response) => {
     }
 
     if (request.method === 'POST' && action === 'quiz') {
-      const result = await generateLessonQuiz(lessonId)
+      const result = await generateLessonQuiz(request, lessonId)
       sendJson(response, result.statusCode, result.payload)
       return
     }
