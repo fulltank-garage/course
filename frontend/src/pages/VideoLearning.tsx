@@ -235,8 +235,7 @@ export default function VideoLearning() {
     const cachedSummary = window.localStorage.getItem(lessonAiCacheKey(lesson.id, 'summary'))
     setAiError(null)
     setVideoProgress({ currentTime: 0, duration: 0, percent: 0 })
-    window.localStorage.removeItem(`mycourse:lesson-ai:summary:${lesson.id}`)
-    setAiSummary(cachedSummary)
+    setAiSummary(cachedSummary ?? lesson.aiSummary ?? null)
     setAiQuiz(getCachedQuiz(lesson.id))
   }, [lesson?.id])
 

@@ -18,7 +18,7 @@ const aiRequestTimeoutSeconds = Math.max(30, Number(process.env.AI_REQUEST_TIMEO
 const aiPromptTranscriptMaxChars = Math.max(12000, Number(process.env.AI_PROMPT_TRANSCRIPT_MAX_CHARS ?? 28000) || 28000)
 const aiQuestionContextMaxChars = Math.max(8000, Number(process.env.AI_QUESTION_CONTEXT_MAX_CHARS ?? 18000) || 18000)
 const aiSummaryChunkChars = Math.max(8000, Number(process.env.AI_SUMMARY_CHUNK_CHARS ?? 14000) || 14000)
-const aiSummaryMaxChunks = Math.max(3, Number(process.env.AI_SUMMARY_MAX_CHUNKS ?? 6) || 6)
+const aiSummaryMaxChunks = Math.max(3, Number(process.env.AI_SUMMARY_MAX_CHUNKS ?? 4) || 4)
 const transcribeModel = process.env.TRANSCRIBE_MODEL ?? aiModel
 const geminiApiKey = process.env.GEMINI_API_KEY ?? ''
 const ffmpegBinary = process.env.FFMPEG_PATH ?? 'ffmpeg'
@@ -614,11 +614,34 @@ const appendCourseReviewMetrics = async (courses) => {
 }
 
 const getGeminiText = (response) => {
-  if (typeof response.text === 'function') return response.text()
-  if (typeof response.text === 'string') return response.text
+  try {
+    if (typeof response.text === 'function') {
+      const text = response.text()
+      if (typeof text === 'string' && text.trim()) return text.trim()
+    }
+  } catch {}
 
-  const candidateParts = response.candidates?.[0]?.content?.parts ?? []
-  return candidateParts.map((part) => part.text ?? '').join('').trim()
+  if (typeof response.text === 'string' && response.text.trim()) return response.text.trim()
+
+  const candidates = Array.isArray(response?.candidates) ? response.candidates : []
+  for (const candidate of candidates) {
+    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : []
+    const text = parts.map((part) => part?.text ?? '').join('').trim()
+    if (text) return text
+  }
+
+  return ''
+}
+
+const getGeminiFailureReason = (response) => {
+  const promptBlockReason = response?.promptFeedback?.blockReason
+  if (promptBlockReason) return `Gemini blocked prompt: ${promptBlockReason}`
+
+  const candidate = Array.isArray(response?.candidates) ? response.candidates[0] : null
+  const finishReason = candidate?.finishReason
+  if (finishReason && finishReason !== 'STOP') return `Gemini finish reason: ${finishReason}`
+
+  return 'Gemini returned an empty response'
 }
 
 const ensureGeminiClient = () => {
@@ -816,9 +839,7 @@ const summarizeLongTranscriptForAi = async (lesson, transcript) => {
           const sourceIndex = Math.round((index * (allChunks.length - 1)) / (aiSummaryMaxChunks - 1))
           return allChunks[sourceIndex]
         })
-  const chunkSummaries = []
-
-  for (let index = 0; index < chunks.length; index += 1) {
+  const chunkSummaries = await Promise.all(chunks.map(async (chunk, index) => {
     const chunkPrompt = `
 สรุปเนื้อหาบทเรียนช่วงที่ ${index + 1}/${chunks.length} เป็นภาษาไทย
 
@@ -836,11 +857,11 @@ const summarizeLongTranscriptForAi = async (lesson, transcript) => {
         : `บทเรียนแบ่งเป็น ${chunks.length} ช่วง`
     }
 เนื้อหาช่วงนี้:
-${chunks[index]}
+${chunk}
 `
     const chunkSummary = await callAiProvider(chunkPrompt)
-    chunkSummaries.push(`ช่วงที่ ${index + 1}\n${chunkSummary.trim()}`)
-  }
+    return `ช่วงที่ ${index + 1}\n${chunkSummary.trim()}`
+  }))
 
   return `บทเรียนนี้ยาวมาก ระบบจึงสรุปเป็นช่วงก่อนรวมผล\n\n${chunkSummaries.join('\n\n---\n\n')}`
 }
@@ -887,6 +908,21 @@ const saveAiOutput = async ({ lessonId, outputType, prompt, result }) => {
     `,
     [`ai-${crypto.randomUUID()}`, lessonId, outputType, prompt, JSON.stringify(result), aiModel],
   )
+}
+
+const getLatestAiOutput = async (lessonId, outputType) => {
+  const result = await query(
+    `
+      SELECT result
+      FROM ai_outputs
+      WHERE lesson_id = $1 AND output_type = $2
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [lessonId, outputType],
+  )
+
+  return result.rows[0]?.result ?? null
 }
 
 const ensureUploadsDir = async () => {
@@ -1466,29 +1502,51 @@ const transcribeVideoWithGemini = async (absolutePath) => {
 - ถ้าเสียงไม่ชัดให้ใส่ [ไม่ชัดเจน] เฉพาะจุดนั้น
 - ส่งกลับเฉพาะ transcript ไม่ต้องสรุป
 `
-  const response = await client.models.generateContent({
-    model: transcribeModel,
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          { text: prompt },
+  let response
+
+  try {
+    response = await withTimeout(
+      client.models.generateContent({
+        model: transcribeModel,
+        contents: [
           {
-            inlineData: {
-              mimeType: mimeTypeForFile(absolutePath),
-              data: mediaBuffer.toString('base64'),
-            },
+            role: 'user',
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: mimeTypeForFile(absolutePath),
+                  data: mediaBuffer.toString('base64'),
+                },
+              },
+            ],
           },
         ],
-      },
-    ],
-    config: {
-      temperature: 0,
-    },
-  })
+        config: {
+          temperature: 0,
+        },
+      }),
+      aiRequestTimeoutSeconds,
+      'AI ใช้เวลานานเกินไปในการถอดเสียง กรุณาลองใหม่อีกครั้ง',
+    )
+  } catch (error) {
+    const status = Number(error?.status ?? error?.statusCode ?? 500)
+    const message = String(error?.message ?? '')
+    const friendlyError = new Error(
+      status === 429 || message.toLowerCase().includes('quota')
+        ? 'AI ใช้งานเกินโควต้า Gemini ชั่วคราว กรุณารอสักครู่แล้วลองใหม่'
+        : message || 'ไม่สามารถเชื่อมต่อ Gemini เพื่อถอดเสียงได้',
+    )
+    friendlyError.statusCode = status === 429 ? 429 : status === 504 ? 504 : status >= 400 && status < 500 ? status : 503
+    throw friendlyError
+  }
 
-  const transcript = getGeminiText(response).trim()
-  if (!transcript) throw new Error('Gemini did not return transcript')
+  const transcript = getGeminiText(response)
+  if (!transcript) {
+    const error = new Error(`Gemini did not return transcript (${getGeminiFailureReason(response)})`)
+    error.statusCode = 502
+    throw error
+  }
 
   return transcript
 }
@@ -2799,6 +2857,14 @@ const ensureLessonTranscriptForAi = async (request, lessonId) => {
 const summarizeLesson = async (request, lessonId) => {
   const { lesson, error } = await ensureLessonTranscriptForAi(request, lessonId)
   if (error) return error
+
+  const body = await readBody(request)
+  if (!body.refresh) {
+    const cachedSummary = await getLatestAiOutput(lessonId, 'summary')
+    if (cachedSummary?.summary) {
+      return { statusCode: 200, payload: { data: { summary: cachedSummary.summary, cached: true } } }
+    }
+  }
 
   const transcript = compactTextForAi(String(lesson.transcript ?? '').trim())
   const summaryContext = await summarizeLongTranscriptForAi(lesson, transcript)
