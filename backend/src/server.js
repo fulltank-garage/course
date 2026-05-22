@@ -15,6 +15,10 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const aiProvider = process.env.AI_PROVIDER ?? 'none'
 const aiModel = process.env.AI_MODEL ?? 'not-configured'
 const aiRequestTimeoutSeconds = Math.max(30, Number(process.env.AI_REQUEST_TIMEOUT_SECONDS ?? 90) || 90)
+const aiPromptTranscriptMaxChars = Math.max(12000, Number(process.env.AI_PROMPT_TRANSCRIPT_MAX_CHARS ?? 28000) || 28000)
+const aiQuestionContextMaxChars = Math.max(8000, Number(process.env.AI_QUESTION_CONTEXT_MAX_CHARS ?? 18000) || 18000)
+const aiSummaryChunkChars = Math.max(8000, Number(process.env.AI_SUMMARY_CHUNK_CHARS ?? 14000) || 14000)
+const aiSummaryMaxChunks = Math.max(3, Number(process.env.AI_SUMMARY_MAX_CHUNKS ?? 6) || 6)
 const transcribeModel = process.env.TRANSCRIBE_MODEL ?? aiModel
 const geminiApiKey = process.env.GEMINI_API_KEY ?? ''
 const ffmpegBinary = process.env.FFMPEG_PATH ?? 'ffmpeg'
@@ -710,6 +714,135 @@ const parseJsonResponse = (text) => {
     if (!match) throw new Error('AI did not return valid JSON')
     return JSON.parse(match[0])
   }
+}
+
+const compactTextForAi = (text) =>
+  String(text ?? '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+const splitTextForAi = (text, maxChars) => {
+  const compactedText = compactTextForAi(text)
+  if (!compactedText) return []
+  if (compactedText.length <= maxChars) return [compactedText]
+
+  const paragraphs = compactedText.split(/\n{2,}/)
+  const chunks = []
+  let current = ''
+
+  for (const paragraph of paragraphs) {
+    if (paragraph.length > maxChars) {
+      if (current) {
+        chunks.push(current.trim())
+        current = ''
+      }
+
+      for (let index = 0; index < paragraph.length; index += maxChars) {
+        chunks.push(paragraph.slice(index, index + maxChars).trim())
+      }
+      continue
+    }
+
+    const next = current ? `${current}\n\n${paragraph}` : paragraph
+    if (next.length > maxChars) {
+      chunks.push(current.trim())
+      current = paragraph
+    } else {
+      current = next
+    }
+  }
+
+  if (current.trim()) chunks.push(current.trim())
+  return chunks
+}
+
+const getQuestionTerms = (question) =>
+  Array.from(
+    new Set(
+      String(question ?? '')
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}_]+/u)
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 2),
+    ),
+  ).slice(0, 20)
+
+const selectLessonContextForQuestion = (transcript, question) => {
+  const compactedTranscript = compactTextForAi(transcript)
+  if (compactedTranscript.length <= aiQuestionContextMaxChars) return compactedTranscript
+
+  const chunkSize = Math.max(5000, Math.floor(aiQuestionContextMaxChars / 3))
+  const chunks = splitTextForAi(compactedTranscript, chunkSize)
+  const terms = getQuestionTerms(question)
+  const scoredChunks = chunks.map((chunk, index) => {
+    const normalizedChunk = chunk.toLowerCase()
+    const score = terms.reduce((total, term) => total + (normalizedChunk.includes(term) ? 1 : 0), 0)
+    return { chunk, index, score }
+  })
+
+  const selectedIndexes = new Set([0])
+  scoredChunks
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .slice(0, 4)
+    .forEach((item) => selectedIndexes.add(item.index))
+
+  if (selectedIndexes.size < 3 && chunks.length > 1) selectedIndexes.add(Math.floor(chunks.length / 2))
+  if (selectedIndexes.size < 4 && chunks.length > 2) selectedIndexes.add(chunks.length - 1)
+
+  let selectedContext = Array.from(selectedIndexes)
+    .sort((left, right) => left - right)
+    .map((index) => `ช่วงเนื้อหาที่ ${index + 1}\n${chunks[index]}`)
+    .join('\n\n---\n\n')
+
+  if (selectedContext.length > aiQuestionContextMaxChars) {
+    selectedContext = `${selectedContext.slice(0, aiQuestionContextMaxChars)}\n\n[ตัดเนื้อหาบางส่วนออกเพื่อให้ AI ตอบได้เร็วขึ้น]`
+  }
+
+  return `บทเรียนนี้ยาวมาก ระบบเลือกช่วงที่เกี่ยวข้องที่สุดกับคำถามมาให้ใช้ตอบ\n\n${selectedContext}`
+}
+
+const summarizeLongTranscriptForAi = async (lesson, transcript) => {
+  const compactedTranscript = compactTextForAi(transcript)
+  if (compactedTranscript.length <= aiPromptTranscriptMaxChars) return compactedTranscript
+
+  const allChunks = splitTextForAi(compactedTranscript, aiSummaryChunkChars)
+  const chunks =
+    allChunks.length <= aiSummaryMaxChunks
+      ? allChunks
+      : Array.from({ length: aiSummaryMaxChunks }, (_, index) => {
+          const sourceIndex = Math.round((index * (allChunks.length - 1)) / (aiSummaryMaxChunks - 1))
+          return allChunks[sourceIndex]
+        })
+  const chunkSummaries = []
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const chunkPrompt = `
+สรุปเนื้อหาบทเรียนช่วงที่ ${index + 1}/${chunks.length} เป็นภาษาไทย
+
+กติกา:
+- ยึดจากเนื้อหาที่ให้มาเท่านั้น
+- ถ้ามีเวลา/timestamp ให้คงเวลาไว้
+- สรุปประเด็นสำคัญ 4-8 ข้อ
+- ถ้ามีโจทย์ สูตร ขั้นตอน หรือคำศัพท์สำคัญ ให้เก็บไว้
+- ตอบกระชับเพื่อใช้รวมเป็นสรุปบทเรียนยาว
+
+ชื่อบทเรียน: ${lesson.title}
+หมายเหตุ: ${
+      allChunks.length > chunks.length
+        ? `บทเรียนยาวมาก ระบบสุ่มช่วงแบบกระจายจากทั้งหมด ${allChunks.length} ช่วงมา ${chunks.length} ช่วง`
+        : `บทเรียนแบ่งเป็น ${chunks.length} ช่วง`
+    }
+เนื้อหาช่วงนี้:
+${chunks[index]}
+`
+    const chunkSummary = await callAiProvider(chunkPrompt)
+    chunkSummaries.push(`ช่วงที่ ${index + 1}\n${chunkSummary.trim()}`)
+  }
+
+  return `บทเรียนนี้ยาวมาก ระบบจึงสรุปเป็นช่วงก่อนรวมผล\n\n${chunkSummaries.join('\n\n---\n\n')}`
 }
 
 const isLessonRelatedQuestion = (question, lessonTitle = '') => {
@@ -2667,8 +2800,9 @@ const summarizeLesson = async (request, lessonId) => {
   const { lesson, error } = await ensureLessonTranscriptForAi(request, lessonId)
   if (error) return error
 
-  const transcript = String(lesson.transcript ?? '').trim()
-  const hasTimestamp = /\[(?:\d{1,2}:)?\d{1,2}:\d{2}\]/.test(transcript)
+  const transcript = compactTextForAi(String(lesson.transcript ?? '').trim())
+  const summaryContext = await summarizeLongTranscriptForAi(lesson, transcript)
+  const hasTimestamp = /\[(?:\d{1,2}:)?\d{1,2}:\d{2}\]/.test(summaryContext)
   const timestampRule = hasTimestamp
     ? '- ใช้ timestamp จาก transcript เท่านั้น ห้ามเดาเวลาใหม่'
     : '- transcript นี้ยังไม่มี timestamp ให้เขียนประโยคนี้ก่อน timeline: "ยังไม่มี timestamp ใน transcript จึงระบุนาทีแบบแม่นยำไม่ได้" ถ้ามี transcript ยาวพอ ให้แบ่งเป็น "ช่วงที่ 1", "ช่วงที่ 2" ตามลำดับเนื้อหาแทน'
@@ -2705,7 +2839,7 @@ ${timestampRule}
 ชื่อบทเรียน: ${lesson.title}
 ความยาวบทเรียน: ${lesson.duration ?? '-'}
 เนื้อหา:
-${transcript}
+${summaryContext}
 `
   const summary = await callAiProvider(prompt)
   const result = { summary }
@@ -2743,13 +2877,25 @@ const askLessonAi = async (request, lessonId) => {
     lesson = await getLessonContent(lessonId)
   }
 
-  const transcript = String(lesson.transcript ?? '').trim()
+  const transcript = compactTextForAi(String(lesson.transcript ?? '').trim())
+  const quizContext =
+    transcript.length <= aiPromptTranscriptMaxChars
+      ? transcript
+      : [
+          transcript.slice(0, Math.floor(aiPromptTranscriptMaxChars * 0.45)),
+          transcript.slice(
+            Math.max(0, Math.floor(transcript.length / 2 - aiPromptTranscriptMaxChars * 0.2)),
+            Math.floor(transcript.length / 2 + aiPromptTranscriptMaxChars * 0.2),
+          ),
+          transcript.slice(Math.max(0, transcript.length - Math.floor(aiPromptTranscriptMaxChars * 0.15))),
+        ].join('\n\n---\n\n')
   if (!transcript) {
     return {
       statusCode: 400,
       payload: { message: 'ยังไม่มีสคริปต์ของบทเรียนนี้ครับ กรุณาลองถอดสคริปต์อีกครั้ง' },
     }
   }
+  const lessonContext = selectLessonContextForQuestion(transcript, question)
 
   const prompt = `
 คำสั่งสำคัญสำหรับสไตล์คำตอบ:
@@ -2811,7 +2957,7 @@ const askLessonAi = async (request, lessonId) => {
 
 ชื่อบทเรียน: ${lesson.title}
 เนื้อหาบทเรียนสำหรับอ้างอิง:
-${transcript}
+${lessonContext}
 
 คำถาม: ${question}
 `
@@ -2849,7 +2995,7 @@ const generateLessonQuiz = async (request, lessonId) => {
 
 ชื่อบทเรียน: ${lesson.title}
 เนื้อหา:
-${transcript}
+${quizContext}
 `
   const raw = await callAiProvider(prompt, { json: true })
   const parsed = parseJsonResponse(raw)
