@@ -3028,7 +3028,18 @@ const generateLessonQuiz = async (request, lessonId) => {
   const { lesson, error } = await ensureLessonTranscriptForAi(request, lessonId)
   if (error) return error
 
-  const transcript = String(lesson.transcript ?? '').trim()
+  const transcript = compactTextForAi(String(lesson.transcript ?? '').trim())
+  const quizContext =
+    transcript.length <= aiPromptTranscriptMaxChars
+      ? transcript
+      : [
+          transcript.slice(0, Math.floor(aiPromptTranscriptMaxChars * 0.45)),
+          transcript.slice(
+            Math.max(0, Math.floor(transcript.length / 2 - aiPromptTranscriptMaxChars * 0.2)),
+            Math.floor(transcript.length / 2 + aiPromptTranscriptMaxChars * 0.2),
+          ),
+          transcript.slice(Math.max(0, transcript.length - Math.floor(aiPromptTranscriptMaxChars * 0.15))),
+        ].join('\n\n---\n\n')
 
   const prompt = `
 สร้างแบบทดสอบจากเนื้อหาบทเรียนนี้ จำนวน 10 ข้อ
