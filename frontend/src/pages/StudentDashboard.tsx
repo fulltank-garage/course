@@ -73,13 +73,13 @@ const getCourseLearningProgress = (item: StudentCourse) => {
   return Math.max(item.enrollment.progress, Math.round(watchedProgress * 10) / 10)
 }
 
-function CourseThumb({ item, compact = false }: { item: StudentCourse; compact?: boolean }) {
+function CourseThumb({ course, compact = false }: { course: StudentCourse['course']; compact?: boolean }) {
   return (
     <div className={`relative overflow-hidden rounded-md bg-black ${compact ? 'h-16 w-28' : 'h-20 w-32'}`}>
-      <img src={item.course.coverImage} alt={item.course.title} className="h-full w-full object-cover opacity-75" />
+      <img src={course.coverImage} alt={course.title} className="h-full w-full object-cover opacity-75" />
       <div className="absolute inset-0 bg-gradient-to-tr from-black via-black/50 to-black/10" />
       <div className="absolute inset-x-3 bottom-2">
-        <p className="line-clamp-2 text-xs font-semibold leading-4 text-white">{item.course.title}</p>
+        <p className="line-clamp-2 text-xs font-semibold leading-4 text-white">{course.title}</p>
       </div>
     </div>
   )
@@ -166,6 +166,7 @@ export default function StudentDashboard() {
   const section = searchParams.get('section')
   const activeSection = section === 'settings' || section === 'profile' || section === 'my-courses' ? section : 'home'
   const { data, error, loading } = useApi(() => api.getStudentDashboard(), [], studentDashboardStorage.get())
+  const { data: storeCourses } = useApi(() => api.getCourses(), [])
   const [profile, setProfile] = useState<StudentProfile | null>(null)
   const [draft, setDraft] = useState<ProfileDraft>(emptyProfile)
   const [profileError, setProfileError] = useState<string | null>(null)
@@ -271,17 +272,19 @@ export default function StudentDashboard() {
         : courseFilter === 'saved'
           ? data.courses.slice(0, 3)
           : data.courses
-  const recommendedCourses =
-    data.courses.length <= 1
-      ? data.courses
-      : [...data.courses]
-          .sort((left, right) => {
-            const averageDifference = getCourseReviewAverage(right.course) - getCourseReviewAverage(left.course)
-            if (averageDifference !== 0) return averageDifference
+  const enrolledCourseIds = new Set(data.courses.map((item) => item.course.id))
+  const recommendedCourses = (storeCourses ?? [])
+    .filter((course) => course.status === 'published')
+    .filter((course) => !enrolledCourseIds.has(course.id) && !course.viewerState?.isEnrolled)
+    .sort((left, right) => {
+      if (left.isPopular !== right.isPopular) return right.isPopular ? 1 : -1
 
-            return getCourseReviewCount(right.course) - getCourseReviewCount(left.course)
-          })
-          .slice(0, 4)
+      const averageDifference = getCourseReviewAverage(right) - getCourseReviewAverage(left)
+      if (averageDifference !== 0) return averageDifference
+
+      return getCourseReviewCount(right) - getCourseReviewCount(left)
+    })
+    .slice(0, 4)
   const continueCourseProgress = continueCourse ? getCourseLearningProgress(continueCourse) : 0
   const coursesInProgress = data.courses.filter((item) => {
     const progress = getCourseLearningProgress(item)
@@ -385,7 +388,7 @@ export default function StudentDashboard() {
                   <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
                     <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">เรียนต่อจากครั้งล่าสุด</p>
                     <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center">
-                      <CourseThumb item={continueCourse} compact />
+                      <CourseThumb course={continueCourse.course} compact />
                       <div className="min-w-0 flex-1">
                         <h2 className="line-clamp-1 text-base font-semibold text-black">{continueCourse.course.title}</h2>
                         <p className="mt-1 line-clamp-1 text-sm text-zinc-500">{getNextLessonMeta(continueCourse)}</p>
@@ -439,7 +442,7 @@ export default function StudentDashboard() {
 
                         return (
                         <article key={item.course.id} className="flex flex-col gap-4 border-b border-zinc-200 p-4 last:border-b-0 md:flex-row md:items-center">
-                          <CourseThumb item={item} compact />
+                          <CourseThumb course={item.course} compact />
                           <div className="min-w-0 flex-1">
                             <h3 className="line-clamp-1 text-base font-semibold text-black">{item.course.title}</h3>
                             <p className="mt-1 text-sm text-zinc-500">โดย {item.course.instructor.name}</p>
@@ -482,6 +485,7 @@ export default function StudentDashboard() {
                   </div>
                 </section>
 
+                {recommendedCourses.length > 0 ? (
                 <section>
                   <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-xl font-semibold tracking-tight text-black">คอร์สแนะนำสำหรับคุณ</h2>
@@ -492,18 +496,19 @@ export default function StudentDashboard() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     {recommendedCourses.map((item) => (
-                      <Link key={item.course.id} to={`/courses/${item.course.slug}`} className="group block">
-                        <CourseThumb item={item} />
-                        <h3 className="mt-3 line-clamp-1 text-sm font-semibold text-black group-hover:underline">{item.course.title}</h3>
+                      <Link key={item.id} to={`/courses/${item.slug}`} className="group block">
+                        <CourseThumb course={item} />
+                        <h3 className="mt-3 line-clamp-1 text-sm font-semibold text-black group-hover:underline">{item.title}</h3>
                         <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
                           <Star size={13} className="fill-amber-400 text-amber-400" />
-                          <span>{getCourseReviewAverage(item.course).toFixed(1)}</span>
-                          <span>{formatNumber(getCourseReviewCount(item.course))} รีวิว</span>
+                          <span>{getCourseReviewAverage(item).toFixed(1)}</span>
+                          <span>{formatNumber(getCourseReviewCount(item))} รีวิว</span>
                         </div>
                       </Link>
                     ))}
                   </div>
                 </section>
+                ) : null}
               </div>
 
               <aside className="space-y-6">

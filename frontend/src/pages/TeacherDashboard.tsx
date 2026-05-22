@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
   Bell,
-  BookOpen,
   Camera,
   CircleDollarSign,
   Clock3,
@@ -26,6 +25,7 @@ import {
   Video,
   X,
 } from 'lucide-react'
+import BrandMark from '../components/BrandMark'
 import { useApi } from '../hooks/useApi'
 import { api, authStorage, type StudentProfile } from '../services/api'
 import type { Course, CourseStudent, Lesson } from '../types/course'
@@ -334,12 +334,12 @@ function TeacherShell({
   return (
     <div className="min-h-screen bg-white text-black lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="hidden min-h-screen bg-black text-white lg:flex lg:flex-col">
-        <div className="flex h-24 items-center px-8">
+        <div className="flex h-20 items-center px-8">
           <Link to="/teacher" className="flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white text-black">
-              <BookOpen size={20} />
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black">
+              <BrandMark className="h-10 w-10" />
             </span>
-            <span className="text-xl font-semibold tracking-tight">เรียนโปร</span>
+            <span className="text-xl font-semibold tracking-tight">MyCourse</span>
           </Link>
         </div>
 
@@ -397,10 +397,10 @@ function TeacherShell({
         <div className="mx-auto max-w-[1560px] px-4 py-5 sm:px-6 lg:px-8">
           <header className="mb-8 flex items-center justify-between gap-4">
             <Link to="/teacher" className="flex items-center gap-3 lg:hidden">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-black text-white">
-                <BookOpen size={20} />
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
+                <BrandMark className="h-10 w-10" />
               </span>
-              <span className="text-lg font-semibold">เรียนโปร</span>
+              <span className="text-lg font-semibold">MyCourse</span>
             </Link>
             <div className="ml-auto flex items-center gap-3">
               <button
