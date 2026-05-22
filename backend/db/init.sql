@@ -86,6 +86,33 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   expires_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS user_profiles (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  headline TEXT NOT NULL DEFAULT '',
+  bio TEXT NOT NULL DEFAULT '',
+  learning_goal TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS teacher_applications (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  display_name TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  expertise TEXT NOT NULL,
+  course_topic TEXT NOT NULL,
+  experience TEXT NOT NULL,
+  portfolio_url TEXT NOT NULL DEFAULT '',
+  message TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  review_note TEXT NOT NULL DEFAULT '',
+  reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS lesson_transcripts (
   lesson_id TEXT PRIMARY KEY REFERENCES lessons(id) ON DELETE CASCADE,
   transcript TEXT NOT NULL,

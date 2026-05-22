@@ -8,6 +8,7 @@ import {
   ArrowUp,
   BookOpen,
   Building2,
+  Check,
   Eye,
   GraduationCap,
   LoaderCircle,
@@ -21,12 +22,12 @@ import {
   X,
 } from 'lucide-react'
 import { useApi } from '../hooks/useApi'
-import { api } from '../services/api'
+import { api, type AdminTeacherApplication } from '../services/api'
 import type { Course } from '../types/course'
 import type { Sponsor } from '../types/sponsor'
 import type { User } from '../types/user'
 
-type AdminSection = 'overview' | 'users' | 'courses' | 'sponsors'
+type AdminSection = 'overview' | 'applications' | 'users' | 'courses' | 'sponsors'
 
 type SponsorDraft = {
   name: string
@@ -45,7 +46,7 @@ const courseStatusLabel: Record<Course['status'], string> = {
   hidden: 'ซ่อน',
 }
 
-const adminSections: AdminSection[] = ['overview', 'users', 'courses', 'sponsors']
+const adminSections: AdminSection[] = ['overview', 'applications', 'users', 'courses', 'sponsors']
 
 const createSponsorDraft = (displayOrder = 1): SponsorDraft => ({
   name: '',
@@ -69,6 +70,18 @@ const normalizeSponsors = (items: Sponsor[]) =>
     return left.name.localeCompare(right.name)
   })
 
+const applicationStatusLabel: Record<AdminTeacherApplication['status'], string> = {
+  pending: 'รอตรวจสอบ',
+  approved: 'อนุมัติแล้ว',
+  rejected: 'ไม่อนุมัติ',
+}
+
+const applicationStatusTone: Record<AdminTeacherApplication['status'], 'success' | 'warning' | 'muted'> = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'muted',
+}
+
 export default function AdminDashboard() {
   const [searchParams] = useSearchParams()
   const sectionParam = searchParams.get('section') as AdminSection | null
@@ -81,8 +94,10 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
+  const [teacherApplications, setTeacherApplications] = useState<AdminTeacherApplication[]>([])
   const [editingSponsorId, setEditingSponsorId] = useState<string | null>(null)
   const [sponsorDraft, setSponsorDraft] = useState<SponsorDraft>(createSponsorDraft())
+  const [reviewingApplicationId, setReviewingApplicationId] = useState<string | null>(null)
   const [popularUpdatingSlug, setPopularUpdatingSlug] = useState<string | null>(null)
   const [statusUpdatingSlug, setStatusUpdatingSlug] = useState<string | null>(null)
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null)
@@ -92,12 +107,16 @@ export default function AdminDashboard() {
   const [deletingSponsorId, setDeletingSponsorId] = useState<string | null>(null)
   const [courseActionError, setCourseActionError] = useState<string | null>(null)
   const [userActionError, setUserActionError] = useState<string | null>(null)
+  const [applicationActionError, setApplicationActionError] = useState<string | null>(null)
+  const [applicationActionSuccess, setApplicationActionSuccess] = useState<string | null>(null)
   const [sponsorError, setSponsorError] = useState<string | null>(null)
   const [sponsorSuccess, setSponsorSuccess] = useState<string | null>(null)
   const [userSearch, setUserSearch] = useState('')
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | User['role']>('all')
   const [courseSearch, setCourseSearch] = useState('')
   const [courseStatusFilter, setCourseStatusFilter] = useState<'all' | Course['status']>('all')
+  const [applicationSearch, setApplicationSearch] = useState('')
+  const [applicationStatusFilter, setApplicationStatusFilter] = useState<'all' | AdminTeacherApplication['status']>('all')
 
   useEffect(() => {
     if (data?.courses) setCourses(data.courses)
@@ -117,6 +136,10 @@ export default function AdminDashboard() {
       setSponsorDraft(createSponsorDraft(nextSponsors.length + 1))
     }
   }, [data?.sponsors, editingSponsorId])
+
+  useEffect(() => {
+    if (data?.teacherApplications) setTeacherApplications(data.teacherApplications)
+  }, [data?.teacherApplications])
 
   const orderedSponsors = useMemo(() => normalizeSponsors(sponsors), [sponsors])
   const activeSponsors = useMemo(() => orderedSponsors.filter((sponsor) => sponsor.isActive), [orderedSponsors])
@@ -150,6 +173,23 @@ export default function AdminDashboard() {
     })
   }, [courseSearch, courseStatusFilter, courses])
 
+  const filteredTeacherApplications = useMemo(() => {
+    const normalizedSearch = applicationSearch.trim().toLowerCase()
+
+    return teacherApplications.filter((application) => {
+      const matchesStatus = applicationStatusFilter === 'all' || application.status === applicationStatusFilter
+      const matchesSearch =
+        !normalizedSearch ||
+        application.displayName.toLowerCase().includes(normalizedSearch) ||
+        application.studentName.toLowerCase().includes(normalizedSearch) ||
+        application.studentEmail.toLowerCase().includes(normalizedSearch) ||
+        application.expertise.toLowerCase().includes(normalizedSearch) ||
+        application.courseTopic.toLowerCase().includes(normalizedSearch)
+
+      return matchesStatus && matchesSearch
+    })
+  }, [applicationSearch, applicationStatusFilter, teacherApplications])
+
   if (loading) {
     return <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-500">กำลังโหลดแดชบอร์ด...</div>
   }
@@ -161,6 +201,7 @@ export default function AdminDashboard() {
   if (!data) return null
 
   const stats = [
+    { label: 'คำขอครู', value: data.stats.pendingTeacherApplications, icon: GraduationCap },
     { label: 'ผู้ใช้', value: users.length, icon: Users },
     { label: 'คอร์ส', value: data.stats.totalCourses, icon: BookOpen },
     { label: 'ครู', value: users.filter((user) => user.role === 'teacher').length, icon: ShieldCheck },
@@ -174,6 +215,7 @@ export default function AdminDashboard() {
   const publishedCourses = courses.filter((course) => course.status === 'published')
   const draftCourses = courses.filter((course) => course.status === 'draft')
   const popularCourses = courses.filter((course) => course.isPopular)
+  const pendingTeacherApplications = teacherApplications.filter((application) => application.status === 'pending')
 
   const resetSponsorEditor = (displayOrder = orderedSponsors.length + 1) => {
     setEditingSponsorId(null)
@@ -201,6 +243,39 @@ export default function AdminDashboard() {
       setUserActionError(currentError instanceof Error ? currentError.message : 'ไม่สามารถลบผู้ใช้งานได้')
     } finally {
       setDeletingUserId(null)
+    }
+  }
+
+  const reviewApplication = async (application: AdminTeacherApplication, status: 'approved' | 'rejected') => {
+    setReviewingApplicationId(application.id)
+    setApplicationActionError(null)
+    setApplicationActionSuccess(null)
+
+    try {
+      const reviewedApplication = await api.reviewTeacherApplication(application.id, {
+        status,
+        reviewNote: status === 'approved' ? 'Approved by admin' : 'Rejected by admin',
+      })
+
+      setTeacherApplications((current) =>
+        current.map((item) => (item.id === reviewedApplication.id ? reviewedApplication : item)),
+      )
+
+      if (status === 'approved') {
+        setUsers((current) =>
+          current.map((user) =>
+            user.id === reviewedApplication.studentId
+              ? { ...user, name: reviewedApplication.displayName, role: 'teacher', status: 'active' }
+              : user,
+          ),
+        )
+      }
+
+      setApplicationActionSuccess(status === 'approved' ? 'อนุมัติคำขอคุณครูแล้ว' : 'บันทึกผลไม่อนุมัติแล้ว')
+    } catch (currentError) {
+      setApplicationActionError(currentError instanceof Error ? currentError.message : 'ไม่สามารถอัปเดตคำขอได้')
+    } finally {
+      setReviewingApplicationId(null)
     }
   }
 
@@ -351,6 +426,137 @@ export default function AdminDashboard() {
           timeStyle: 'short',
         }).format(new Date(value))
       : '-'
+
+  if (activeSection === 'applications') {
+    return (
+      <div className="space-y-5">
+        <AdminHeader
+          title="คำขอสมัครเป็นคุณครู"
+          description="ตรวจสอบโปรไฟล์ ความเชี่ยวชาญ และหัวข้อคอร์สก่อนเปิดสิทธิ์ผู้สอน"
+        />
+
+        <section className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm font-medium text-slate-500">รอตรวจสอบ</p>
+            <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+              {pendingTeacherApplications.length}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm font-medium text-slate-500">อนุมัติแล้ว</p>
+            <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+              {teacherApplications.filter((application) => application.status === 'approved').length}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm font-medium text-slate-500">ไม่อนุมัติ</p>
+            <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+              {teacherApplications.filter((application) => application.status === 'rejected').length}
+            </p>
+          </div>
+        </section>
+
+        <Panel>
+          <PanelToolbar title="รายการคำขอ" description={`${filteredTeacherApplications.length.toLocaleString('th-TH')} รายการ`}>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,240px)_150px]">
+              <SearchField value={applicationSearch} onChange={setApplicationSearch} placeholder="ค้นหาผู้สมัคร" />
+              <select
+                className="minimal-input"
+                value={applicationStatusFilter}
+                onChange={(event) => setApplicationStatusFilter(event.target.value as 'all' | AdminTeacherApplication['status'])}
+              >
+                <option value="all">ทุกสถานะ</option>
+                <option value="pending">รอตรวจสอบ</option>
+                <option value="approved">อนุมัติแล้ว</option>
+                <option value="rejected">ไม่อนุมัติ</option>
+              </select>
+            </div>
+          </PanelToolbar>
+
+          {applicationActionError ? <InlineNotice tone="danger">{applicationActionError}</InlineNotice> : null}
+          {applicationActionSuccess ? <InlineNotice tone="success">{applicationActionSuccess}</InlineNotice> : null}
+
+          <div className="divide-y divide-slate-100">
+            {filteredTeacherApplications.map((application) => {
+              const busy = reviewingApplicationId === application.id
+              const locked = application.status !== 'pending'
+
+              return (
+                <article key={application.id} className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.8fr)_auto] xl:items-start">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-950 text-white">
+                        <GraduationCap size={18} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-semibold text-slate-950">{application.displayName}</p>
+                        <p className="truncate text-sm text-slate-500">{application.studentEmail}</p>
+                      </div>
+                      <StatusBadge tone={applicationStatusTone[application.status]}>
+                        {applicationStatusLabel[application.status]}
+                      </StatusBadge>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <InfoTile label="ความเชี่ยวชาญ" value={application.expertise} />
+                      <InfoTile label="หัวข้อคอร์ส" value={application.courseTopic} />
+                      <InfoTile label="เบอร์โทร" value={application.phone || '-'} />
+                      <InfoTile label="ส่งเมื่อ" value={formatDate(application.createdAt)} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Profile</p>
+                    <p className="mt-3 text-sm font-semibold text-slate-950">ประสบการณ์</p>
+                    <p className="mt-1 line-clamp-4 text-sm leading-6 text-slate-600">{application.experience}</p>
+                    {application.message ? (
+                      <>
+                        <p className="mt-4 text-sm font-semibold text-slate-950">ข้อความเพิ่มเติม</p>
+                        <p className="mt-1 line-clamp-3 text-sm leading-6 text-slate-600">{application.message}</p>
+                      </>
+                    ) : null}
+                    {application.portfolioUrl ? (
+                      <a
+                        href={application.portfolioUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-4 inline-flex text-sm font-semibold text-slate-950 underline decoration-slate-300 underline-offset-4"
+                      >
+                        เปิดผลงาน
+                      </a>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 xl:justify-end">
+                    <button
+                      type="button"
+                      className="minimal-action border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-50"
+                      onClick={() => reviewApplication(application, 'approved')}
+                      disabled={busy || locked}
+                    >
+                      {busy ? <LoaderCircle size={15} className="animate-spin" /> : <Check size={15} />}
+                      อนุมัติ
+                    </button>
+                    <button
+                      type="button"
+                      className="minimal-action border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100 disabled:opacity-50"
+                      onClick={() => reviewApplication(application, 'rejected')}
+                      disabled={busy || locked}
+                    >
+                      {busy ? <LoaderCircle size={15} className="animate-spin" /> : <X size={15} />}
+                      ไม่อนุมัติ
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+            {filteredTeacherApplications.length === 0 ? (
+              <EmptyState title="ยังไม่มีคำขอที่ตรงกับตัวกรอง" description="เมื่อผู้เรียนส่งคำขอสมัครเป็นคุณครู รายการจะแสดงที่นี่" />
+            ) : null}
+          </div>
+        </Panel>
+      </div>
+    )
+  }
 
   if (activeSection === 'users') {
     return (

@@ -1,5 +1,15 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, BookOpenCheck, Building2, Library, LogOut, ShieldCheck, UserRound, Users } from 'lucide-react'
+import {
+  BarChart3,
+  BookOpenCheck,
+  Building2,
+  GraduationCap,
+  Library,
+  LogOut,
+  ShieldCheck,
+  UserRound,
+  Users,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { api, authStorage } from '../services/api'
 import type { User, UserRole } from '../types/user'
@@ -21,6 +31,7 @@ const itemsByRole: Record<Extract<UserRole, 'student' | 'teacher' | 'admin'>, Si
   ],
   admin: [
     { to: '/admin', label: 'ภาพรวม', icon: BarChart3 },
+    { to: '/admin?section=applications', label: 'คำขอคุณครู', icon: GraduationCap },
     { to: '/admin?section=users', label: 'ผู้ใช้', icon: Users },
     { to: '/admin?section=courses', label: 'คอร์ส', icon: Library },
     { to: '/admin?section=sponsors', label: 'ผู้สนับสนุน', icon: Building2 },

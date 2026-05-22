@@ -52,6 +52,7 @@ export interface AdminDashboardData {
   users: User[]
   courses: Course[]
   sponsors: Sponsor[]
+  teacherApplications: AdminTeacherApplication[]
   stats: {
     totalUsers: number
     totalCourses: number
@@ -59,6 +60,7 @@ export interface AdminDashboardData {
     totalStudents: number
     activeUsers: number
     totalSponsors: number
+    pendingTeacherApplications: number
   }
 }
 
@@ -199,8 +201,24 @@ export interface TeacherApplicationPayload {
 
 export interface TeacherApplicationResponse extends TeacherApplicationPayload {
   id: string
-  status: string
+  status: 'pending' | 'approved' | 'rejected'
   createdAt: string
+  updatedAt?: string | null
+  reviewedAt?: string | null
+  reviewNote?: string
+}
+
+export interface AdminTeacherApplication extends TeacherApplicationResponse {
+  studentId: string
+  studentName: string
+  studentEmail: string
+  studentAvatarUrl?: string
+  reviewedByName?: string
+}
+
+export interface ReviewTeacherApplicationPayload {
+  status: 'approved' | 'rejected'
+  reviewNote?: string
 }
 
 export interface SaveLessonReviewPayload {
@@ -851,6 +869,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  getStudentTeacherApplication: () => request<TeacherApplicationResponse | null>('/api/student/teacher-application'),
   createTeacherApplication: (payload: TeacherApplicationPayload) =>
     request<TeacherApplicationResponse>('/api/student/teacher-application', {
       method: 'POST',
@@ -864,6 +883,11 @@ export const api = {
     }),
   getSponsors: () => request<Sponsor[]>('/api/sponsors'),
   getAdminDashboard: () => request<AdminDashboardData>('/api/admin/dashboard'),
+  reviewTeacherApplication: (applicationId: string, payload: ReviewTeacherApplicationPayload) =>
+    request<AdminTeacherApplication>(`/api/admin/teacher-applications/${applicationId}/review`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   deleteUser: (userId: string) =>
     request<{ ok: boolean; id: string }>(`/api/admin/users/${userId}/delete`, {
       method: 'POST',

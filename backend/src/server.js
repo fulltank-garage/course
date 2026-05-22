@@ -290,10 +290,18 @@ const ensureAuthSchema = async () => {
       experience TEXT NOT NULL,
       portfolio_url TEXT NOT NULL DEFAULT '',
       message TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'pending',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+      review_note TEXT NOT NULL DEFAULT '',
+      reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      reviewed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `)
+  await query(`ALTER TABLE teacher_applications ADD COLUMN IF NOT EXISTS review_note TEXT NOT NULL DEFAULT ''`)
+  await query(`ALTER TABLE teacher_applications ADD COLUMN IF NOT EXISTS reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL`)
+  await query(`ALTER TABLE teacher_applications ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ`)
+  await query(`ALTER TABLE teacher_applications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`)
 }
 
 const upsertSeedUserCredential = async ({ id, name, email, role, password, avatarUrl = null, title = null, bio = null }) => {
@@ -3655,6 +3663,65 @@ const updateStudentProfile = async (request) => {
   return { statusCode: 200, payload: { data: await getUserProfile(authUser.id) } }
 }
 
+const toTeacherApplication = (row) => ({
+  id: row.id,
+  studentId: row.student_id,
+  studentName: row.student_name ?? undefined,
+  studentEmail: row.student_email ?? undefined,
+  studentAvatarUrl: row.student_avatar_url ?? undefined,
+  displayName: row.display_name,
+  phone: row.phone,
+  expertise: row.expertise,
+  courseTopic: row.course_topic,
+  experience: row.experience,
+  portfolioUrl: row.portfolio_url,
+  message: row.message,
+  status: row.status,
+  reviewNote: row.review_note ?? '',
+  reviewedByName: row.reviewed_by_name ?? undefined,
+  reviewedAt: row.reviewed_at ?? null,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at ?? null,
+})
+
+const getLatestTeacherApplicationForStudent = async (studentId) => {
+  const result = await query(
+    `
+      SELECT ta.*, reviewer.name AS reviewed_by_name
+      FROM teacher_applications ta
+      LEFT JOIN users reviewer ON reviewer.id = ta.reviewed_by
+      WHERE ta.student_id = $1
+      ORDER BY ta.created_at DESC, ta.updated_at DESC
+      LIMIT 1
+    `,
+    [studentId],
+  )
+
+  return result.rows[0] ? toTeacherApplication(result.rows[0]) : null
+}
+
+const getTeacherApplications = async () => {
+  const result = await query(
+    `
+      SELECT
+        ta.*,
+        applicant.name AS student_name,
+        applicant.email AS student_email,
+        applicant.avatar_url AS student_avatar_url,
+        reviewer.name AS reviewed_by_name
+      FROM teacher_applications ta
+      JOIN users applicant ON applicant.id = ta.student_id
+      LEFT JOIN users reviewer ON reviewer.id = ta.reviewed_by
+      ORDER BY
+        CASE ta.status WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END,
+        ta.created_at DESC,
+        ta.updated_at DESC
+    `,
+  )
+
+  return result.rows.map(toTeacherApplication)
+}
+
 const createTeacherApplication = async (request) => {
   const { authUser, error } = await requireRole(request, ['student'])
   if (error) return error
@@ -3672,36 +3739,133 @@ const createTeacherApplication = async (request) => {
     return { statusCode: 400, payload: { message: 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน' } }
   }
 
-  const applicationId = `ta-${crypto.randomUUID()}`
-  const result = await query(
+  const existingApplicationResult = await query(
     `
-      INSERT INTO teacher_applications (
-        id, student_id, display_name, phone, expertise, course_topic,
-        experience, portfolio_url, message, status, created_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', NOW())
-      RETURNING id, display_name, phone, expertise, course_topic, experience, portfolio_url, message, status, created_at
+      SELECT id, status
+      FROM teacher_applications
+      WHERE student_id = $1
+      ORDER BY created_at DESC, updated_at DESC
+      LIMIT 1
     `,
-    [applicationId, authUser.id, displayName, phone, expertise, courseTopic, experience, portfolioUrl, message],
+    [authUser.id],
   )
 
-  const application = result.rows[0]
+  if (existingApplicationResult.rows[0]?.status === 'approved') {
+    return { statusCode: 409, payload: { message: 'บัญชีนี้ได้รับการอนุมัติเป็นคุณครูแล้ว' } }
+  }
+
+  const applicationId = existingApplicationResult.rows[0]?.id ?? `ta-${crypto.randomUUID()}`
+
+  if (existingApplicationResult.rows[0]) {
+    await query(
+      `
+        UPDATE teacher_applications
+        SET
+          display_name = $2,
+          phone = $3,
+          expertise = $4,
+          course_topic = $5,
+          experience = $6,
+          portfolio_url = $7,
+          message = $8,
+          status = 'pending',
+          review_note = '',
+          reviewed_by = NULL,
+          reviewed_at = NULL,
+          updated_at = NOW()
+        WHERE id = $1
+      `,
+      [applicationId, displayName, phone, expertise, courseTopic, experience, portfolioUrl, message],
+    )
+  } else {
+    await query(
+      `
+        INSERT INTO teacher_applications (
+          id, student_id, display_name, phone, expertise, course_topic,
+          experience, portfolio_url, message, status, review_note, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', '', NOW(), NOW())
+      `,
+      [applicationId, authUser.id, displayName, phone, expertise, courseTopic, experience, portfolioUrl, message],
+    )
+  }
+
+  const application = await getLatestTeacherApplicationForStudent(authUser.id)
 
   return {
-    statusCode: 201,
+    statusCode: existingApplicationResult.rows[0] ? 200 : 201,
     payload: {
-      data: {
-        id: application.id,
-        displayName: application.display_name,
-        phone: application.phone,
-        expertise: application.expertise,
-        courseTopic: application.course_topic,
-        experience: application.experience,
-        portfolioUrl: application.portfolio_url,
-        message: application.message,
-        status: application.status,
-        createdAt: application.created_at,
-      },
+      data: application,
+    },
+  }
+}
+
+const getStudentTeacherApplication = async (request) => {
+  const { authUser, error } = await requireRole(request, ['student'])
+  if (error) return error
+
+  return {
+    statusCode: 200,
+    payload: {
+      data: await getLatestTeacherApplicationForStudent(authUser.id),
+    },
+  }
+}
+
+const reviewTeacherApplication = async (request, applicationId) => {
+  const { authUser, error } = await requireRole(request, ['admin'])
+  if (error) return error
+
+  const body = await readBody(request)
+  const status = String(body.status ?? '').trim()
+  const reviewNote = String(body.reviewNote ?? '').trim()
+
+  if (!['approved', 'rejected'].includes(status)) {
+    return { statusCode: 400, payload: { message: 'สถานะการอนุมัติไม่ถูกต้อง' } }
+  }
+
+  const applicationResult = await query('SELECT * FROM teacher_applications WHERE id = $1 LIMIT 1', [applicationId])
+  const application = applicationResult.rows[0]
+
+  if (!application) {
+    return { statusCode: 404, payload: { message: 'ไม่พบใบสมัครนี้' } }
+  }
+
+  if (status === 'approved') {
+    await query(
+      `
+        UPDATE users
+        SET
+          role = 'teacher',
+          status = 'active',
+          name = COALESCE(NULLIF($2, ''), name),
+          title = CASE WHEN COALESCE(NULLIF(title, ''), '') = '' THEN $3 ELSE title END
+        WHERE id = $1
+      `,
+      [application.student_id, application.display_name, application.expertise],
+    )
+  }
+
+  await query(
+    `
+      UPDATE teacher_applications
+      SET
+        status = $2,
+        review_note = $3,
+        reviewed_by = $4,
+        reviewed_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $1
+    `,
+    [applicationId, status, reviewNote, authUser.id],
+  )
+
+  const reviewedApplication = (await getTeacherApplications()).find((item) => item.id === applicationId) ?? null
+
+  return {
+    statusCode: 200,
+    payload: {
+      data: reviewedApplication,
     },
   }
 }
@@ -3766,7 +3930,7 @@ const getTeacherDashboard = async (teacherId) => {
 }
 
 const getAdminDashboard = async () => {
-  const [usersResult, courses, sponsors, statsResult] = await Promise.all([
+  const [usersResult, courses, sponsors, teacherApplications, statsResult] = await Promise.all([
     query(`
       SELECT
         u.*,
@@ -3780,6 +3944,7 @@ const getAdminDashboard = async () => {
     `),
     getCourses({ includeUnpublished: true }),
     getSponsors({ includeInactive: true }),
+    getTeacherApplications(),
     query(`
       SELECT
         COUNT(*)::int AS total_users,
@@ -3795,6 +3960,7 @@ const getAdminDashboard = async () => {
     users: usersResult.rows.map(toUser),
     courses,
     sponsors,
+    teacherApplications,
     stats: {
       totalUsers: statsResult.rows[0].total_users,
       totalCourses: courses.length,
@@ -3802,6 +3968,7 @@ const getAdminDashboard = async () => {
       totalStudents: statsResult.rows[0].total_students,
       activeUsers: statsResult.rows[0].active_users,
       totalSponsors: sponsors.length,
+      pendingTeacherApplications: teacherApplications.filter((application) => application.status === 'pending').length,
     },
   }
 }
@@ -4653,6 +4820,12 @@ const routeRequest = async (request, response) => {
     return
   }
 
+  if (url.pathname === '/api/student/teacher-application' && request.method === 'GET') {
+    const result = await getStudentTeacherApplication(request)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
   if (url.pathname === '/api/student/teacher-application' && request.method === 'POST') {
     const result = await createTeacherApplication(request)
     sendJson(response, result.statusCode, result.payload)
@@ -4685,6 +4858,13 @@ const routeRequest = async (request, response) => {
     }
 
     sendJson(response, 200, { data: await getAdminDashboard() })
+    return
+  }
+
+  if (url.pathname.startsWith('/api/admin/teacher-applications/') && request.method === 'POST' && url.pathname.endsWith('/review')) {
+    const applicationId = decodeURIComponent(url.pathname.replace('/api/admin/teacher-applications/', '').replace('/review', ''))
+    const result = await reviewTeacherApplication(request, applicationId)
+    sendJson(response, result.statusCode, result.payload)
     return
   }
 
