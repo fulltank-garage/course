@@ -12,6 +12,7 @@ import {
   Video,
   X,
 } from 'lucide-react'
+import BrandMark from './BrandMark'
 import { api, authStorage } from '../services/api'
 
 type SidebarKey =
@@ -100,8 +101,8 @@ export default function LearnProSidebar({
       >
         <div className="flex h-20 items-center justify-between px-8">
           <Link to={dashboardPath} className="flex items-center gap-3" onClick={onMobileClose}>
-            <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white text-black">
-              <img src="/my-course-logo.png" alt="My Course" className="h-full w-full object-cover" />
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black">
+              <BrandMark className="h-10 w-10" />
             </span>
             <span className="text-xl font-semibold tracking-tight">My Course</span>
           </Link>

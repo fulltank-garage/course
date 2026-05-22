@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import BrandMark from './BrandMark'
 import { api, authStorage } from '../services/api'
 import type { User, UserRole } from '../types/user'
 
@@ -69,8 +70,8 @@ export default function Sidebar({
   return (
     <aside className="sticky top-5 h-fit rounded-lg border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60">
       <Link to={`/${role}`} className="flex items-center gap-3 rounded-md px-2 py-2.5">
-        <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-slate-950 text-white">
-          <img src="/my-course-logo.png" alt="My Course" className="h-full w-full object-cover" />
+        <span className="inline-flex h-10 w-10 items-center justify-center text-slate-950">
+          <BrandMark className="h-10 w-10" />
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-slate-950">MyCourse</p>

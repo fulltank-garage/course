@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Clock3, Mail, MessageCircle, Send, ShieldCheck } from 'lucide-react'
+import BrandMark from '../components/BrandMark'
 
 const contactCards = [
   {
@@ -37,11 +38,7 @@ export default function Contact() {
   return (
     <>
       <section className="relative overflow-hidden bg-slate-950 text-white">
-        <img
-          src="/my-course-logo.png"
-          alt="My Course support logo"
-          className="absolute inset-0 h-full w-full bg-white object-contain opacity-20"
-        />
+        <BrandMark className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 text-white opacity-10" />
         <div className="absolute inset-0 bg-slate-950/75" />
         <div className="container-page relative grid min-h-[440px] gap-8 py-16 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-center">
           <div className="max-w-3xl">
