@@ -24,6 +24,26 @@ import type { Course } from '../types/course'
 const allOption = 'ทั้งหมด'
 const categoryOptions = [allOption, 'Technology', 'Business', 'Design', 'Marketing', 'Data']
 const levelOptions = [allOption, 'Beginner', 'Intermediate', 'Advanced']
+const categoryLabels: Record<string, string> = {
+  Technology: 'เทคโนโลยี',
+  Business: 'ธุรกิจ',
+  Design: 'ออกแบบ',
+  Marketing: 'การตลาด',
+  Data: 'ข้อมูล',
+}
+const levelLabels: Record<string, string> = {
+  Beginner: 'เริ่มต้น',
+  Intermediate: 'ระดับกลาง',
+  Advanced: 'ระดับสูง',
+}
+const getCategoryLabel = (category: string) => categoryLabels[category] ?? category
+const getLevelLabel = (level: string) => levelLabels[level] ?? level
+const sortOptionLabels: Record<SortOption, string> = {
+  popular: 'ยอดนิยม',
+  rating: 'คะแนนสูง',
+  'price-low': 'ราคาต่ำสุด',
+  'price-high': 'ราคาสูงสุด',
+}
 
 type SortOption = 'popular' | 'rating' | 'price-low' | 'price-high'
 type CheckoutModalState =
@@ -158,7 +178,7 @@ function CourseGridCard({
           <span>{reviewCount.toLocaleString('th-TH')} รีวิว</span>
           <span>({Math.max(course.lessons.length, course.lessonCount ?? 0)})</span>
           <span>•</span>
-          <span>{course.level}</span>
+          <span>{getLevelLabel(course.level)}</span>
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
@@ -446,7 +466,7 @@ export default function StudentCourseStore() {
                 >
                   {sortOptions.map((option) => (
                     <option key={option.value} value={option.value}>
-                      เรียงตาม: {option.label}
+                      เรียงตาม: {sortOptionLabels[option.value]}
                     </option>
                   ))}
                 </select>
@@ -485,7 +505,7 @@ export default function StudentCourseStore() {
                   {categoryOptions.slice(1).map((category) => (
                     <FilterCheckbox
                       key={category}
-                      label={category}
+                      label={getCategoryLabel(category)}
                       count={categoryCounts.get(category) ?? 0}
                       checked={selectedCategory === category}
                       onClick={() => setSelectedCategory(selectedCategory === category ? allOption : category)}
@@ -500,7 +520,7 @@ export default function StudentCourseStore() {
                   {levelOptions.slice(1).map((level) => (
                     <FilterCheckbox
                       key={level}
-                      label={level}
+                      label={getLevelLabel(level)}
                       count={levelCounts.get(level) ?? 0}
                       checked={selectedLevel === level}
                       onClick={() => setSelectedLevel(selectedLevel === level ? allOption : level)}
@@ -700,7 +720,7 @@ export default function StudentCourseStore() {
                               <Star size={14} className="fill-amber-400 text-amber-400" />
                               {getCourseReviewAverage(course).toFixed(1)}
                             </span>
-                            <span>{course.level}</span>
+                            <span>{getLevelLabel(course.level)}</span>
                           </div>
                         </div>
                         <div className="flex items-center justify-between gap-4 sm:block sm:text-right">

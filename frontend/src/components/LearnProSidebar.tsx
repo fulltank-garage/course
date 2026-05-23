@@ -1,6 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  Home,
   GraduationCap,
   LibraryBig,
   LogIn,
@@ -47,7 +46,7 @@ export default function LearnProSidebar({
   const session = authStorage.getSession()
   const role = session?.user.role
   const dashboardPath =
-    role === 'student' ? '/student' : role === 'teacher' ? '/teacher' : role === 'admin' ? '/admin' : '/'
+    role === 'student' ? '/student/store' : role === 'teacher' ? '/teacher' : role === 'admin' ? '/admin' : '/'
   const settingsPath =
     role === 'student' ? '/student?section=settings' : role === 'teacher' ? '/teacher?section=profile' : '/login'
   const studentPath = role === 'student' ? '/student/messages' : '/login'
@@ -58,9 +57,8 @@ export default function LearnProSidebar({
   const avatarUrl = profileAvatarUrl ?? session?.user.avatarUrl
 
   const navItems = [
-    { key: 'home', to: dashboardPath, label: 'หน้าหลัก', icon: Home },
-    { key: 'my-courses', to: myCoursesPath, label: 'คอร์สของฉัน', icon: Video },
     { key: 'all-courses', to: coursesPath, label: 'ค้นหาคอร์ส', icon: LibraryBig },
+    { key: 'my-courses', to: myCoursesPath, label: 'คอร์สของฉัน', icon: Video },
     { key: 'certificates', to: certificatesPath, label: 'ใบประกาศนียบัตร', icon: Trophy },
     { key: 'messages', to: studentPath, label: 'ข้อความ', icon: Mail },
     { key: 'settings', to: settingsPath, label: 'การตั้งค่า', icon: Settings },

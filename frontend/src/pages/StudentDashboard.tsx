@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import {
   Bell,
   BookOpenCheck,
@@ -206,6 +206,10 @@ export default function StudentDashboard() {
 
   if (error && !data) {
     return <div className="min-h-screen bg-white p-6 text-sm text-rose-600">{error}</div>
+  }
+
+  if (activeSection === 'home') {
+    return <Navigate to="/student/store" replace />
   }
 
   if (!data || !currentProfile) return null

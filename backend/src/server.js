@@ -734,8 +734,19 @@ const parseJsonResponse = (text) => {
     return JSON.parse(text)
   } catch {
     const match = text.match(/\{[\s\S]*\}/)
-    if (!match) throw new Error('AI did not return valid JSON')
-    return JSON.parse(match[0])
+    if (!match) {
+      const error = new Error('AI did not return valid JSON for quiz generation')
+      error.statusCode = 502
+      throw error
+    }
+
+    try {
+      return JSON.parse(match[0])
+    } catch {
+      const error = new Error('AI returned malformed JSON for quiz generation')
+      error.statusCode = 502
+      throw error
+    }
   }
 }
 
@@ -3068,13 +3079,28 @@ ${quizContext}
   const parsed = parseJsonResponse(raw)
   const questions = Array.isArray(parsed.questions) ? parsed.questions.slice(0, 10) : []
 
-  if (questions.length < 10) throw new Error('AI did not create enough quiz questions')
+  if (questions.length < 10) {
+    return {
+      statusCode: 502,
+      payload: { message: 'AI สร้างข้อสอบได้ไม่ครบ 10 ข้อ กรุณาลองใหม่อีกครั้ง' },
+    }
+  }
 
   await query('DELETE FROM quiz_questions WHERE lesson_id = $1', [lessonId])
 
   const savedQuestions = []
 
   for (const [questionIndex, question] of questions.entries()) {
+    const options = Array.isArray(question.options) ? question.options.slice(0, 4) : []
+    const correctOptions = options.filter((option) => Boolean(option?.isCorrect))
+
+    if (!String(question.question ?? '').trim() || options.length !== 4 || correctOptions.length !== 1) {
+      return {
+        statusCode: 502,
+        payload: { message: 'AI สร้างรูปแบบข้อสอบไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง' },
+      }
+    }
+
     const questionId = `q-ai-${crypto.randomUUID()}`
     const savedQuestion = {
       id: questionId,
@@ -3097,7 +3123,7 @@ ${quizContext}
       ],
     )
 
-    for (const [optionIndex, option] of (question.options ?? []).entries()) {
+    for (const [optionIndex, option] of options.entries()) {
       const optionId = `qo-ai-${crypto.randomUUID()}`
       const savedOption = {
         id: optionId,

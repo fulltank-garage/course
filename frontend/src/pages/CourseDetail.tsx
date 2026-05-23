@@ -1,15 +1,18 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
-  BookOpen,
   CheckCircle2,
   Clock3,
+  ClipboardList,
   Lock,
+  Pencil,
   PlayCircle,
   ShoppingCart,
-  Star,
+  Sparkles,
+  Target,
   UserRound,
   X,
 } from 'lucide-react'
@@ -64,7 +67,7 @@ function PreviewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-5xl overflow-hidden rounded-lg border border-zinc-200 bg-[#ffffff] shadow-2xl">
+      <div className="w-full max-w-5xl overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-zinc-200 px-5 py-4">
           <div className="min-w-0">
             <p className="text-xs font-semibold text-zinc-500">พรีวิวคอร์ส</p>
@@ -72,7 +75,7 @@ function PreviewModal({
           </div>
           <button
             type="button"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-[#ffffff] text-zinc-600 transition hover:border-black hover:text-black"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:border-black hover:text-black"
             onClick={onClose}
             aria-label="ปิดวิดีโอตัวอย่าง"
           >
@@ -130,7 +133,7 @@ function PreviewModal({
             <p className="mt-1 text-xs text-zinc-500">
               {isEnrolled
                 ? 'คุณซื้อคอร์สนี้แล้ว พรีวิวนี้เป็นส่วนหนึ่งของคอร์สในหน้าห้องเรียนของคุณ'
-                : 'ดูตัวอย่างได้ก่อนตัดสินใจซื้อ สิทธิ์เรียนเต็มจะขึ้นตามบัญชีนักเรียนของคุณ'}
+                : 'ดูตัวอย่างได้ก่อนตัดสินใจ สิทธิ์เรียนเต็มจะขึ้นตามบัญชีนักเรียนของคุณ'}
             </p>
           </div>
           {!isEnrolled ? (
@@ -149,54 +152,25 @@ function PreviewModal({
   )
 }
 
-function AuthPromptModal({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
+function CourseInfoBlock({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: typeof ClipboardList
+  title: string
+  children: ReactNode
+}) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4">
-      <div className="relative w-full max-w-[560px] rounded-lg border border-zinc-200 bg-white px-6 py-6 text-center shadow-2xl sm:px-8">
-        <button
-          type="button"
-          className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 transition hover:border-black hover:text-black"
-          onClick={onClose}
-          aria-label="ปิดหน้าต่างแจ้งเตือน"
-        >
-          <X size={18} strokeWidth={2} />
-        </button>
-
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-black">
-          <Lock size={24} strokeWidth={1.8} />
-        </div>
-        <h2 className="mt-6 text-xl font-semibold text-black">
-          กรุณาเข้าสู่ระบบหรือสมัครสมาชิกเพื่อดำเนินการต่อ
-        </h2>
-        <p className="mt-4 text-base leading-7 text-zinc-600">
-          หากคุณยังไม่มีบัญชีผู้ใช้ กรุณาสมัครสมาชิกและเข้าสู่ระบบ
-        </p>
-
-        <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          <Link
-            to="/register"
-            className="inline-flex h-12 items-center justify-center rounded-md border border-zinc-200 bg-white px-5 text-sm font-semibold text-black transition hover:border-black"
-          >
-            สมัครสมาชิก
-          </Link>
-          <Link
-            to="/login"
-            className="inline-flex h-12 items-center justify-center rounded-md bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
-          >
-            เข้าสู่ระบบ
-          </Link>
-        </div>
+    <article className="grid grid-cols-[56px_minmax(0,1fr)] gap-4">
+      <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#173f86] text-white shadow-[0_12px_30px_rgba(23,63,134,0.18)]">
+        <Icon size={22} strokeWidth={2.2} />
+      </span>
+      <div className="min-w-0">
+        <h2 className="text-3xl font-semibold tracking-tight text-zinc-950">{title}</h2>
+        <div className="mt-4 text-base leading-8 text-zinc-600">{children}</div>
       </div>
-    </div>
+    </article>
   )
 }
 
@@ -204,7 +178,6 @@ export default function CourseDetail() {
   const { slug = '' } = useParams()
   const navigate = useNavigate()
   const [course, setCourse] = useState<Course | null>(null)
-  const [suggestedCourses, setSuggestedCourses] = useState<Course[]>([])
   const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -212,7 +185,6 @@ export default function CourseDetail() {
   const purchasing = false
   const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
   const [cartMessage, setCartMessage] = useState<string | null>(null)
-  const [authPromptOpen, setAuthPromptOpen] = useState(false)
 
   useEffect(() => cartStorage.subscribe(() => setCartItems(cartStorage.getItems())), [])
 
@@ -234,33 +206,10 @@ export default function CourseDetail() {
         if (active) setLoading(false)
       })
 
-    api
-      .getCourses()
-      .then((result) => {
-        if (active) setSuggestedCourses(result)
-      })
-      .catch(() => {
-        if (active) setSuggestedCourses([])
-      })
-
     return () => {
       active = false
     }
   }, [slug])
-
-  const recommendedCourses = useMemo(() => {
-    if (!course) return []
-
-    return suggestedCourses
-      .filter((item) => item.slug !== course.slug && (item.status ?? 'published') === 'published')
-      .sort((left, right) => {
-        const leftCategoryMatch = left.category === course.category ? 1 : 0
-        const rightCategoryMatch = right.category === course.category ? 1 : 0
-        if (leftCategoryMatch !== rightCategoryMatch) return rightCategoryMatch - leftCategoryMatch
-        return right.rating - left.rating
-      })
-      .slice(0, 3)
-  }, [course, suggestedCourses])
 
   if (loading) {
     return (
@@ -314,11 +263,11 @@ export default function CourseDetail() {
     ? 'บัญชีครูหรือผู้ดูแลไม่สามารถซื้อคอร์สได้ ให้ใช้บัญชีนักเรียนสำหรับการซื้อ'
     : 'คุณเข้าสู่ระบบเป็นนักเรียนแล้ว สามารถเพิ่มคอร์สนี้ลงตะกร้าเพื่อไปชำระเงินต่อได้'
   const returnPath = isStudent ? (isEnrolled ? '/student?section=my-courses' : '/student/store') : '/'
-  const returnLabel = isStudent
-    ? isEnrolled
-      ? 'กลับไปคอร์สของฉัน'
-      : 'กลับไปคอร์สทั้งหมดของนักเรียน'
-    : 'กลับไปคอร์สทั้งหมด'
+  const returnLabel = isStudent ? (isEnrolled ? 'กลับไปคอร์สของฉัน' : 'กลับไปคอร์สทั้งหมดของนักเรียน') : 'กลับไปคอร์สทั้งหมด'
+  const courseCode = course.id.slice(0, 6).toUpperCase()
+  const coursePrice = formatPrice(course.price)
+  const lessonTitles = course.lessons.map((lesson) => lesson.title)
+  const learningObjectives = course.outcomes.length ? course.outcomes : [course.description]
 
   const handlePurchase = async () => {
     if (isEnrolled) {
@@ -327,7 +276,7 @@ export default function CourseDetail() {
     }
 
     if (!session) {
-      setAuthPromptOpen(true)
+      navigate('/login')
       return
     }
 
@@ -344,250 +293,217 @@ export default function CourseDetail() {
   }
 
   return (
-    <section className="bg-[#ffffff] text-black">
-      <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-        <Link to={returnPath} className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-500 transition hover:text-black">
-          <ArrowLeft size={16} />
-          {returnLabel}
-        </Link>
+    <section className="bg-white text-black">
+      <main>
+        <section className="relative overflow-hidden border-b border-[#e4d9cb] bg-[#f3eee7] text-zinc-950">
+          <div
+            className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.88),transparent_34%),radial-gradient(circle_at_82%_14%,rgba(226,209,186,0.52),transparent_36%),linear-gradient(135deg,rgba(250,247,242,0.9),rgba(234,225,214,0.82))]"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-0 scale-110 bg-cover bg-center opacity-[0.18] blur-3xl saturate-75"
+            style={{ backgroundImage: `url(${course.coverImage})` }}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-0 bg-[#f8f3ec]/58 backdrop-blur-[2px]" aria-hidden="true" />
 
-        <section className="mt-8 grid gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="min-w-0">
-            <div className="overflow-hidden rounded-lg border border-zinc-200 bg-[#ffffff]">
-              <img src={course.coverImage} alt={course.title} className="aspect-[16/8] w-full object-cover" />
-            </div>
-
-            <div className="mt-8">
-              <div className="flex flex-wrap gap-2 text-xs font-semibold text-zinc-600">
-                <span className="rounded-full bg-zinc-100 px-3 py-1">{course.category}</span>
-                <span className="rounded-full border border-zinc-200 px-3 py-1">{course.level}</span>
-                {isEnrolled ? (
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
-                    คุณได้ซื้อคอร์สแล้ว
-                  </span>
-                ) : null}
+          <div className="relative mx-auto grid min-h-[520px] w-full max-w-[1600px] items-center gap-10 px-6 py-16 sm:px-10 lg:grid-cols-[minmax(0,1fr)_520px] lg:px-20">
+            <div>
+              <Link to={returnPath} className="mb-12 inline-flex items-center gap-2 text-sm font-semibold text-zinc-500 transition hover:text-zinc-950">
+                <ArrowLeft size={16} />
+                {returnLabel}
+              </Link>
+              <h1 className="max-w-3xl text-5xl font-medium tracking-tight text-zinc-950 sm:text-6xl">
+                {course.title}
+              </h1>
+              <div className="mt-8 flex flex-wrap items-center gap-4 text-zinc-950">
+                <p className="text-2xl font-semibold">{courseCode}</p>
+                <span className="h-6 w-px bg-zinc-300" />
+                <p className="rounded-full border border-zinc-200 bg-white/70 px-4 py-2 text-xl font-semibold shadow-sm backdrop-blur">{coursePrice}</p>
               </div>
-
-              <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-black sm:text-5xl">{course.title}</h1>
-              <p className="mt-5 max-w-3xl text-base leading-8 text-zinc-600">{course.description}</p>
-
-              <div className="mt-6 flex flex-wrap items-center gap-5 text-sm text-zinc-600">
-                <span className="inline-flex items-center gap-1">
-                  <Star size={17} className="fill-amber-400 text-amber-400" />
-                  <span className="font-semibold text-black">{course.rating.toFixed(1)}</span>
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <BookOpen size={17} />
-                  {getLessonCount(course)} บทเรียน
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <Clock3 size={17} />
-                  {course.duration}
-                </span>
-              </div>
-
-              <div className="mt-7 flex items-center gap-3">
-                {course.instructor.avatarUrl ? (
-                  <img src={course.instructor.avatarUrl} alt={course.instructor.name} className="h-12 w-12 rounded-full object-cover" />
-                ) : (
-                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-black">
-                    <UserRound size={18} />
-                  </span>
-                )}
-                <div>
-                  <p className="text-sm text-zinc-500">
-                    สอนโดย <span className="font-semibold text-black">{course.instructor.name}</span>
-                  </p>
-                  <p className="mt-1 text-sm text-zinc-600">{course.instructor.title}</p>
-                </div>
+              <div className="mt-12 flex items-center gap-4 text-lg font-semibold text-zinc-850">
+                <span className="h-2.5 w-2.5 rounded-full bg-orange-400" />
+                <span>{course.category}</span>
               </div>
             </div>
 
-            <section className="mt-10 border-t border-zinc-200 pt-8">
-              <h2 className="text-2xl font-semibold text-black">สิ่งที่จะได้เรียน</h2>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {(course.outcomes.length ? course.outcomes : ['เข้าใจพื้นฐานของคอร์สนี้', 'ฝึกจากบทเรียนที่จัดเป็นลำดับ']).map((item) => (
-                  <div key={item} className="flex gap-3 text-sm leading-7 text-zinc-700">
-                    <CheckCircle2 size={17} className="mt-1 shrink-0 text-black" />
-                    <span>{item}</span>
-                  </div>
+            <div className="justify-self-center lg:justify-self-end">
+              <img
+                src={course.coverImage}
+                alt={course.title}
+                className="aspect-[1.15] w-full max-w-[470px] rounded-[18px] object-cover shadow-[0_30px_90px_rgba(101,78,52,0.18)] ring-8 ring-white/80"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto grid w-full max-w-[1600px] gap-12 px-6 py-14 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.55fr)] lg:px-16">
+          <div className="space-y-11">
+            <CourseInfoBlock icon={ClipboardList} title="เป้าหมายการเรียนรู้">
+              <p>{course.description}</p>
+              {learningObjectives.length > 0 ? (
+                <ul className="mt-4 list-disc space-y-1 pl-5">
+                  {learningObjectives.slice(0, 4).map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </CourseInfoBlock>
+
+            <CourseInfoBlock icon={UserRound} title="วิทยากร">
+              <p className="font-medium text-zinc-700">{course.instructor.name}</p>
+              <p className="mt-1 text-sm text-zinc-500">{course.instructor.title}</p>
+            </CourseInfoBlock>
+
+            <CourseInfoBlock icon={Pencil} title="ประเด็นการเรียนรู้">
+              <ol className="list-decimal space-y-1 pl-6">
+                {lessonTitles.slice(0, 9).map((title, index) => (
+                  <li key={`${title}-${index}`}>
+                    บทที่ {index + 1} {title}
+                  </li>
                 ))}
-              </div>
-            </section>
+              </ol>
+            </CourseInfoBlock>
+          </div>
 
-            <section className="mt-10 border-t border-zinc-200 pt-8">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold text-black">บทเรียนในคอร์ส</h2>
-                  <p className="mt-2 text-sm text-zinc-500">ดูรายชื่อบทเรียนและรายละเอียดของคอร์สได้ก่อนดำเนินการต่อ</p>
-                </div>
+          <div className="space-y-11">
+            <CourseInfoBlock icon={Target} title="กลุ่มเป้าหมาย">
+              <ol className="list-decimal space-y-1 pl-6">
+                <li>ผู้เรียนระดับ {course.level}</li>
+                <li>ผู้ที่สนใจหมวด {course.category}</li>
+              </ol>
+            </CourseInfoBlock>
+
+            <CourseInfoBlock icon={Sparkles} title="มี AI ช่วย">
+              <p>ช่วยสรุปบทเรียน ถามตอบเนื้อหา และทบทวนความเข้าใจระหว่างเรียน</p>
+            </CourseInfoBlock>
+
+            <CourseInfoBlock icon={Clock3} title="จำนวนชั่วโมงการเรียนรู้">
+              <p>{course.duration}</p>
+            </CourseInfoBlock>
+          </div>
+        </section>
+
+        <section className="border-y border-zinc-100 bg-zinc-50">
+          <div className="mx-auto w-full max-w-[1600px] px-6 py-12 sm:px-10 lg:px-16">
+            <div className="max-w-3xl">
+              <p className="text-xl font-semibold text-cyan-600">
+                {course.students.toLocaleString('th-TH')} คน ลงทะเบียนเรียนรอบนี้แล้ว
+              </p>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <p className="inline-flex rounded-full border border-zinc-200 bg-white px-4 py-2 text-base font-semibold text-zinc-950 shadow-sm">
+                  ค่าคอร์ส {coursePrice}
+                </p>
+                {viewerStateLabel ? <p className="text-base font-semibold text-zinc-950">{viewerStateLabel}</p> : null}
+              </div>
+              <p className="mt-4 text-base leading-7 text-zinc-600">
+                {session ? viewerStateDescription : 'โปรดเข้าสู่ระบบเพื่อลงทะเบียนรายวิชา'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
                 {primaryPreviewLesson && session ? (
                   <button
                     type="button"
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:border-zinc-950"
                     onClick={() => setPreviewLesson(primaryPreviewLesson)}
                   >
-                    <PlayCircle size={16} />
+                    <PlayCircle size={17} />
                     ดูตัวอย่าง
                   </button>
                 ) : null}
+                {isEnrolled && isStudent ? (
+                  <button
+                    type="button"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#173f86] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#12336c]"
+                    onClick={() => navigate(learningPath)}
+                  >
+                    เข้าเรียน
+                    <ArrowRight size={17} />
+                  </button>
+                ) : !isEnrolled && isStudent ? (
+                  <button
+                    type="button"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#173f86] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#12336c] disabled:cursor-not-allowed disabled:bg-zinc-300"
+                    onClick={handlePurchase}
+                    disabled={purchasing}
+                  >
+                    <ShoppingCart size={17} />
+                    {purchaseLabel}
+                  </button>
+                ) : isStaffAccount ? (
+                  <button
+                    type="button"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#173f86] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#12336c]"
+                    onClick={handlePurchase}
+                  >
+                    {purchaseLabel}
+                    <ArrowRight size={17} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="inline-flex h-11 items-center justify-center rounded-md bg-[#173f86] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#12336c]"
+                    onClick={handlePurchase}
+                  >
+                    เข้าสู่ระบบเพื่อซื้อคอร์ส
+                  </button>
+                )}
               </div>
+              {cartMessage ? <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{cartMessage}</p> : null}
+              {purchaseError ? <p className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{purchaseError}</p> : null}
+            </div>
+          </div>
+        </section>
 
-              <div className="mt-5 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-[#ffffff]">
-                {course.lessons.map((lesson, index) => {
-                  const canPreview = Boolean(session || isEnrolled) && lesson.id === primaryPreviewLesson?.id
-
-                  return (
-                    <div key={lesson.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-sm font-semibold text-black">
-                          {index + 1}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="line-clamp-1 text-sm font-semibold text-black">{lesson.title}</p>
-                          <p className="mt-1 text-xs text-zinc-500">{lesson.duration || 'ไม่ระบุเวลา'}</p>
-                        </div>
-                      </div>
-
-                      {canPreview ? (
-                        <button
-                          type="button"
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-[#ffffff] px-3 text-sm font-semibold text-black transition hover:border-black"
-                          onClick={() => setPreviewLesson(lesson)}
-                        >
-                          <PlayCircle size={15} />
-                          ดูตัวอย่าง
-                        </button>
-                      ) : isEnrolled ? (
-                        <span className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-50 px-3 text-sm font-semibold text-emerald-700">
-                          <CheckCircle2 size={14} />
-                          เรียนได้ในห้องเรียน
-                        </span>
-                      ) : (session || isEnrolled) && lesson.preview ? (
-                        <span className="inline-flex h-9 items-center justify-center rounded-lg bg-zinc-100 px-3 text-sm font-semibold text-zinc-500">
-                          Preview
-                        </span>
-                      ) : (
-                        <span className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-zinc-100 px-3 text-sm font-semibold text-zinc-500">
-                          <Lock size={14} />
-                          ปลดล็อกหลังสมัคร
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-
-            {recommendedCourses.length > 0 ? (
-              <section className="mt-10 border-t border-zinc-200 pt-8">
-                <h2 className="text-2xl font-semibold text-black">คอร์สที่เกี่ยวข้อง</h2>
-                <div className="mt-5 grid gap-4 md:grid-cols-3">
-                  {recommendedCourses.map((item) => (
-                    <Link key={item.id} to={`/courses/${item.slug}`} className="group rounded-lg border border-zinc-200 bg-[#ffffff] p-3 transition hover:border-black">
-                      <img src={item.coverImage} alt={item.title} className="aspect-video w-full rounded-md object-cover" />
-                      <p className="mt-3 line-clamp-2 text-sm font-semibold text-black group-hover:underline">{item.title}</p>
-                      <p className="mt-2 text-sm font-semibold text-black">{formatPrice(item.price)}</p>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            ) : null}
+        <section className="mx-auto w-full max-w-[1600px] px-6 py-14 sm:px-10 lg:px-16">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-4xl font-semibold tracking-tight text-zinc-950">ประมวลผลรายวิชา</h2>
+              <p className="mt-3 text-base text-zinc-500">บทเรียนทั้งหมดในคอร์สนี้</p>
+            </div>
+            <p className="text-sm font-semibold text-zinc-500">{getLessonCount(course)} บทเรียน</p>
           </div>
 
-          <aside className="h-fit rounded-lg border border-zinc-200 bg-[#ffffff] p-5 lg:sticky lg:top-24">
-            {isEnrolled && isStudent ? (
-              <>
-                <p className="text-sm font-semibold text-zinc-500">สถานะคอร์ส</p>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-black">ซื้อแล้ว</p>
-                <p className="mt-2 text-sm leading-6 text-zinc-500">คอร์สนี้อยู่ในหน้าคอร์สของฉันแล้ว หน้านี้ใช้ดูรายละเอียดและพรีวิวแบบย่อ</p>
-              </>
-            ) : (
-              <>
-                <p className="text-3xl font-semibold tracking-tight text-black">{formatPrice(course.price)}</p>
-                <p className="mt-2 text-sm text-zinc-500">
-                  {session
-                    ? 'รายละเอียดคอร์สและสิทธิ์ซื้อจะผูกกับบัญชีที่ใช้อยู่'
-                    : 'ดูรายละเอียดคอร์สก่อนเริ่มเรียนได้ หลังเข้าสู่ระบบด้วยบัญชีนักเรียนจึงดำเนินการต่อได้'}
-                </p>
-              </>
-            )}
+          <div className="mt-8 divide-y divide-zinc-200 rounded-[18px] border border-zinc-200 bg-white">
+            {course.lessons.map((lesson, index) => {
+              const canPreview = Boolean(session || isEnrolled) && lesson.id === primaryPreviewLesson?.id
 
-            {isEnrolled || session ? (
-              <div className={['mt-5 rounded-lg border p-4 text-sm leading-6', isEnrolled ? 'border-zinc-200 bg-zinc-50 text-zinc-700' : 'border-zinc-200 bg-zinc-50 text-zinc-700'].join(' ')}>
-                <p className="font-semibold text-black">{viewerStateLabel}</p>
-                <p className="mt-1">{viewerStateDescription}</p>
-              </div>
-            ) : null}
+              return (
+                <div key={lesson.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-sm font-semibold text-zinc-950">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="line-clamp-2 text-base font-semibold text-zinc-950">{lesson.title}</h3>
+                      <p className="mt-1 text-sm text-zinc-500">{lesson.duration || 'ไม่ระบุเวลา'}</p>
+                      {lesson.summary ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-zinc-500">{lesson.summary}</p> : null}
+                    </div>
+                  </div>
 
-            <div className="mt-6 grid gap-3">
-              {primaryPreviewLesson && session ? (
-                <button
-                  type="button"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-zinc-200 bg-[#ffffff] text-sm font-semibold text-black transition hover:border-black"
-                  onClick={() => setPreviewLesson(primaryPreviewLesson)}
-                >
-                  <PlayCircle size={17} />
-                  ดูตัวอย่าง
-                </button>
-              ) : null}
-
-              {!isEnrolled && !session ? (
-                <button
-                  type="button"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-black text-sm font-semibold text-white transition hover:bg-zinc-800"
-                  onClick={handlePurchase}
-                >
-                  เริ่มเรียน
-                  <ArrowRight size={17} />
-                </button>
-              ) : null}
-
-              {!isEnrolled && isStudent ? (
-                <button
-                  type="button"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-black text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
-                  onClick={handlePurchase}
-                  disabled={purchasing}
-                >
-                  <ShoppingCart size={17} />
-                  {purchaseLabel}
-                </button>
-              ) : isStaffAccount ? (
-                <button
-                  type="button"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-black text-sm font-semibold text-white transition hover:bg-zinc-800"
-                  onClick={handlePurchase}
-                >
-                  {purchaseLabel}
-                  <ArrowRight size={17} />
-                </button>
-              ) : null}
-
-            </div>
-
-            {cartMessage ? <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{cartMessage}</p> : null}
-            {purchaseError ? <p className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{purchaseError}</p> : null}
-
-            <div className="mt-6 space-y-4 border-t border-zinc-200 pt-6 text-sm text-zinc-700">
-              <div className="flex items-center justify-between gap-4">
-                <span>หมวดหมู่</span>
-                <span className="font-semibold text-black">{course.category}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span>ระดับ</span>
-                <span className="font-semibold text-black">{course.level}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span>จำนวนบทเรียน</span>
-                <span className="font-semibold text-black">{getLessonCount(course)} บทเรียน</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span>ระยะเวลา</span>
-                <span className="font-semibold text-black">{course.duration}</span>
-              </div>
-            </div>
-          </aside>
+                  {canPreview ? (
+                    <button
+                      type="button"
+                      className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-950 transition hover:border-zinc-950"
+                      onClick={() => setPreviewLesson(lesson)}
+                    >
+                      <PlayCircle size={16} />
+                      ดูตัวอย่าง
+                    </button>
+                  ) : isEnrolled ? (
+                    <span className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-50 px-4 text-sm font-semibold text-emerald-700">
+                      <CheckCircle2 size={15} />
+                      เรียนได้
+                    </span>
+                  ) : (
+                    <span className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-zinc-100 px-4 text-sm font-semibold text-zinc-500">
+                      <Lock size={15} />
+                      หลังลงทะเบียน
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </section>
       </main>
 
@@ -602,7 +518,6 @@ export default function CourseDetail() {
           isEnrolled={isEnrolled}
         />
       ) : null}
-      {authPromptOpen ? <AuthPromptModal onClose={() => setAuthPromptOpen(false)} /> : null}
     </section>
   )
 }
