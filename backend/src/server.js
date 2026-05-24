@@ -378,6 +378,24 @@ const ensureAiSchema = async () => {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `)
+  await query(`
+    CREATE TABLE IF NOT EXISTS lesson_quiz_attempts (
+      id TEXT PRIMARY KEY,
+      lesson_id TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      score INTEGER NOT NULL CHECK (score >= 0),
+      total_questions INTEGER NOT NULL CHECK (total_questions > 0),
+      percentage INTEGER NOT NULL CHECK (percentage >= 0 AND percentage <= 100),
+      attempt_no INTEGER NOT NULL DEFAULT 1,
+      answers JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_lesson_quiz_attempts_student_lesson
+    ON lesson_quiz_attempts (student_id, lesson_id, created_at DESC)
+  `)
 }
 
 const ensureCourseSchema = async () => {
@@ -856,15 +874,16 @@ const summarizeLongTranscriptForAi = async (lesson, transcript) => {
 
 กติกา:
 - ยึดจากเนื้อหาที่ให้มาเท่านั้น
-- ถ้ามีเวลา/timestamp ให้คงเวลาไว้
-- สรุปประเด็นสำคัญ 4-8 ข้อ
-- ถ้ามีโจทย์ สูตร ขั้นตอน หรือคำศัพท์สำคัญ ให้เก็บไว้
+- ถ้ามีเวลา/timestamp ให้คงเวลาไว้ตามเดิม ห้ามเดาเวลาใหม่
+- เก็บเฉพาะประเด็นสำคัญ โจทย์ สูตร ขั้นตอน หรือคำศัพท์ที่จำเป็น
 - ตอบกระชับเพื่อใช้รวมเป็นสรุปบทเรียนยาว
+- ห้ามใช้ emoji หรือสัญลักษณ์ตกแต่ง
+- ห้ามใช้คำว่า "สคริปต์" หรือ "transcript" ในคำตอบ
 
 ชื่อบทเรียน: ${lesson.title}
 หมายเหตุ: ${
       allChunks.length > chunks.length
-        ? `บทเรียนยาวมาก ระบบสุ่มช่วงแบบกระจายจากทั้งหมด ${allChunks.length} ช่วงมา ${chunks.length} ช่วง`
+        ? `บทเรียนยาวมาก ระบบเลือกช่วงแบบกระจายจากทั้งหมด ${allChunks.length} ช่วงมา ${chunks.length} ช่วง`
         : `บทเรียนแบ่งเป็น ${chunks.length} ช่วง`
     }
 เนื้อหาช่วงนี้:
@@ -2881,31 +2900,49 @@ const summarizeLesson = async (request, lessonId) => {
   const summaryContext = await summarizeLongTranscriptForAi(lesson, transcript)
   const hasTimestamp = /\[(?:\d{1,2}:)?\d{1,2}:\d{2}\]/.test(summaryContext)
   const timestampRule = hasTimestamp
-    ? '- ใช้ timestamp จาก transcript เท่านั้น ห้ามเดาเวลาใหม่'
-    : '- ถ้า transcript นี้ยังไม่มี timestamp ให้ใช้ "ช่วงที่ 1", "ช่วงที่ 2", "ช่วงที่ 3" ตามลำดับเนื้อหาแทน'
+    ? '- ใช้ timestamp จากเนื้อหาที่มีเท่านั้น ห้ามเดาเวลาใหม่'
+    : '- ถ้าเนื้อหายังไม่มี timestamp ให้ใช้ "ช่วงที่ 1", "ช่วงที่ 2", "ช่วงที่ 3" ตามลำดับเนื้อหา'
 
   const prompt = `
-คุณคือผู้ช่วย AI ภาษาไทย
-สรุปบทเรียนนี้แบบเร็ว อ่านง่าย และจับประเด็นสำคัญจาก transcript/summary ที่ให้มา
+คุณคือ AI Tutor ภาษาไทยที่ช่วยผู้เรียนทบทวนบทเรียน
+สรุปบทเรียนนี้ให้สั้น อ่านง่าย และรู้ว่าควรจำอะไรต่อ
 
-รูปแบบคำตอบที่ต้องการ:
-1. ภาพรวมบทเรียน 1 ย่อหน้า
-2. สรุปเป็นช่วงสั้น ๆ 4-8 ช่วงตามลำดับเนื้อหา
-   - ถ้ามี timestamp ให้ใช้เฉพาะ timestamp ที่มีอยู่จริง
-   - แต่ละช่วงให้สรุปสั้น กระชับ ไม่เกิน 2 ประโยค
-   - ถ้าบทเรียนยาวมาก ให้รวมช่วงที่คล้ายกันเข้าด้วยกันเพื่อให้ตอบเร็ว
-3. ประเด็นที่ควรจำ 3-5 ข้อ
+รูปแบบคำตอบ:
+1. สรุปสั้น ๆ
+   - 1 ย่อหน้าสั้น อ่านจบเร็ว
+   - บอกแก่นของบทเรียนแบบเข้าใจง่าย
+
+2. เข้าใจง่าย ๆ คือ
+   - อธิบายใจความหลักด้วยภาษาง่าย 2-3 ประโยค
+   - ไม่ต้องลงรายละเอียดเกินจำเป็น
+
+3. ลำดับเนื้อหา
+   - สรุปเป็นช่วง 3-6 ช่วงตามลำดับเนื้อหา
+   - ถ้ามี timestamp ให้ใช้เฉพาะเวลาที่มีอยู่จริง ห้ามเดาเวลาใหม่
+   - ถ้าไม่มี timestamp ให้ใช้ "ช่วงที่ 1", "ช่วงที่ 2", "ช่วงที่ 3" ตามลำดับ
+   - แต่ละช่วงไม่เกิน 2 ประโยค
+
+4. จุดที่ควรจำ
+   - 3-5 ข้อ
+   - เลือกเฉพาะสิ่งที่ผู้เรียนควรรู้จริง ๆ
+
+5. ลองเช็กตัวเอง
+   - ตั้งคำถามสั้น ๆ 1 ข้อจากบทเรียนนี้
+   - ไม่ต้องเฉลยในทันที
 
 กติกา:
 ${timestampRule}
-- ถ้าข้อมูลเป็นเพียง summary สั้น ๆ และไม่มี transcript ให้สรุปเฉพาะภาพรวมและประเด็นที่ควรจำ
-- ส่วน "ภาพรวม", "สรุปเป็นช่วง", และ "ประเด็นที่ควรจำ" ต้องยึดจาก transcript/summary เป็นหลัก
+- ยึดจากเนื้อหาบทเรียนที่ให้มาเป็นหลัก
+- ถ้าข้อมูลมีน้อย ให้สรุปเฉพาะสิ่งที่มี ห้ามแต่งเพิ่ม
+- ห้ามใช้คำว่า "สคริปต์", "transcript" หรือ "summary" ในคำตอบที่ผู้เรียนเห็น
+- ห้ามใช้ emoji หรือสัญลักษณ์ตกแต่ง
 - ห้ามใช้คำว่า "ครู" แทนตัว AI หรือทำให้เข้าใจว่าเป็นคำพูดของผู้สอน ถ้าเป็นคำแนะนำของ AI ให้ใช้ "ผมแนะนำว่า..."
-- ตอบเป็นภาษาไทย อ่านง่าย เน้นกระชับและเร็ว ไม่ต้องใส่รายละเอียดต่อยอดเกินจำเป็น
+- ตอบเป็นภาษาไทย อ่านง่าย กระชับ เหมือนติวเตอร์ช่วยทบทวน ไม่ใช่เอกสารยาว
+- ความยาวรวมประมาณ 350-500 คำ หรือน้อยกว่านั้นถ้าบทเรียนสั้น
 
 ชื่อบทเรียน: ${lesson.title}
 ความยาวบทเรียน: ${lesson.duration ?? '-'}
-เนื้อหา:
+เนื้อหาบทเรียน:
 ${summaryContext}
 `
   const summary = await callAiProvider(prompt)
@@ -2981,7 +3018,7 @@ STYLE:
 - ตอบสั้นก่อนเสมอ ถ้าผู้เรียนอยากรู้เพิ่มค่อยขยาย
 - ใช้ภาษาง่าย อ่านลื่น ไม่เป็นเอกสาร
 - หลีกเลี่ยง pattern ซ้ำ ๆ เช่น "ในบทเรียนนี้..."
-- ใช้ emoji ได้เล็กน้อย ไม่เกิน 1 emoji ต่อคำตอบ
+- ห้ามใช้ emoji หรือสัญลักษณ์ตกแต่งในคำตอบ
 - ลงท้ายสุภาพด้วย "ครับ" เมื่อเหมาะสม แต่ไม่ต้องใส่ทุกประโยคจนแข็ง
 
 BEHAVIOR:
@@ -3008,10 +3045,10 @@ HINT MODE:
 
 GOOD RESPONSE STYLE:
 ผู้เรียน: งง
-AI: เดี๋ยวผมอธิบายแบบง่ายขึ้นให้นะ 😊
+AI: เดี๋ยวผมอธิบายแบบง่ายขึ้นให้นะ
 
 ผู้เรียน: ข้อนี้ตอบอะไร
-AI: ลองดูคำกริยาในประโยคก่อนครับ ประโยคนี้กำลังพูดถึง "ปัจจุบัน" หรือ "อดีต" 👀
+AI: ลองดูคำกริยาในประโยคก่อนครับ ประโยคนี้กำลังพูดถึง "ปัจจุบัน" หรือ "อดีต"
 
 ชื่อบทเรียน: ${lesson.title}
 เนื้อหาบทเรียนสำหรับอ้างอิง:
@@ -3029,6 +3066,21 @@ ${lessonContext}
 const generateLessonQuiz = async (request, lessonId) => {
   const { lesson, error } = await ensureLessonTranscriptForAi(request, lessonId)
   if (error) return error
+  const body = await readBody(request)
+  const excludedQuestions = Array.isArray(body.excludedQuestions)
+    ? body.excludedQuestions
+        .map((question) => String(question ?? '').trim())
+        .filter(Boolean)
+        .slice(0, 50)
+    : []
+  const excludedQuestionsBlock = excludedQuestions.length
+    ? `
+
+Avoid repeating or closely paraphrasing these previous questions:
+${excludedQuestions.map((question, index) => `${index + 1}. ${question}`).join('\n')}
+Create a fresh quiz set with different angles, choices, and correct answers where possible.
+`
+    : ''
 
   const transcript = compactTextForAi(String(lesson.transcript ?? '').trim())
   const quizContext =
@@ -3064,16 +3116,31 @@ const generateLessonQuiz = async (request, lessonId) => {
 
 ชื่อบทเรียน: ${lesson.title}
 เนื้อหา:
+${excludedQuestionsBlock}
 ${quizContext}
 `
   const raw = await callAiProvider(prompt, { json: true })
   const parsed = parseJsonResponse(raw)
   const questions = Array.isArray(parsed.questions) ? parsed.questions.slice(0, 10) : []
+  const normalizeQuestion = (value) =>
+    String(value ?? '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim()
+  const excludedQuestionSet = new Set(excludedQuestions.map(normalizeQuestion))
+  const hasExactDuplicate = questions.some((question) => excludedQuestionSet.has(normalizeQuestion(question?.question)))
 
   if (questions.length < 10) {
     return {
       statusCode: 502,
       payload: { message: 'AI สร้างข้อสอบได้ไม่ครบ 10 ข้อ กรุณาลองใหม่อีกครั้ง' },
+    }
+  }
+
+  if (hasExactDuplicate) {
+    return {
+      statusCode: 502,
+      payload: { message: 'AI สร้างคำถามซ้ำกับชุดเดิม กรุณาลองสร้างชุดใหม่อีกครั้ง' },
     }
   }
 
@@ -3144,6 +3211,98 @@ ${quizContext}
   await saveAiOutput({ lessonId, outputType: 'quiz', prompt, result: { questions: savedQuestions } })
 
   return { statusCode: 200, payload: { data: { questions: savedQuestions } } }
+}
+
+const saveLessonQuizAttempt = async (request, lessonId) => {
+  const authUser = await getAuthUser(request)
+
+  if (!authUser || authUser.role !== 'student') {
+    return { statusCode: 401, payload: { message: 'กรุณาเข้าสู่ระบบด้วยบัญชีนักเรียน' } }
+  }
+
+  const lessonResult = await query(
+    `
+      SELECT l.id, l.course_id
+      FROM lessons l
+      JOIN enrollments e ON e.course_id = l.course_id AND e.student_id = $2
+      WHERE l.id = $1
+      LIMIT 1
+    `,
+    [lessonId, authUser.id],
+  )
+  const lesson = lessonResult.rows[0]
+
+  if (!lesson) {
+    return { statusCode: 403, payload: { message: 'ต้องลงทะเบียนคอร์สนี้ก่อนบันทึกคะแนน' } }
+  }
+
+  const body = await readBody(request)
+  const score = Number(body.score)
+  const totalQuestions = Number(body.totalQuestions)
+  const answers = Array.isArray(body.answers) ? body.answers : []
+
+  if (
+    !Number.isInteger(score) ||
+    !Number.isInteger(totalQuestions) ||
+    totalQuestions <= 0 ||
+    score < 0 ||
+    score > totalQuestions
+  ) {
+    return { statusCode: 400, payload: { message: 'ข้อมูลคะแนนไม่ถูกต้อง' } }
+  }
+
+  const percentage = Math.round((score / totalQuestions) * 100)
+  const latestAttemptResult = await query(
+    `
+      SELECT COALESCE(MAX(attempt_no), 0)::int AS latest_attempt
+      FROM lesson_quiz_attempts
+      WHERE lesson_id = $1 AND student_id = $2
+    `,
+    [lessonId, authUser.id],
+  )
+  const attemptNo = Number(latestAttemptResult.rows[0]?.latest_attempt ?? 0) + 1
+  const attemptId = `quiz-attempt-${crypto.randomUUID()}`
+
+  const result = await query(
+    `
+      INSERT INTO lesson_quiz_attempts (
+        id, lesson_id, course_id, student_id, score, total_questions, percentage, attempt_no, answers, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW())
+      RETURNING id, lesson_id, course_id, student_id, score, total_questions, percentage, attempt_no, answers, created_at
+    `,
+    [
+      attemptId,
+      lessonId,
+      lesson.course_id,
+      authUser.id,
+      score,
+      totalQuestions,
+      percentage,
+      attemptNo,
+      JSON.stringify(answers),
+    ],
+  )
+
+  const attempt = result.rows[0]
+
+  return {
+    statusCode: 201,
+    payload: {
+      data: {
+        id: attempt.id,
+        lessonId: attempt.lesson_id,
+        courseId: attempt.course_id,
+        studentId: attempt.student_id,
+        score: Number(attempt.score),
+        totalQuestions: Number(attempt.total_questions),
+        percentage: Number(attempt.percentage),
+        attemptNo: Number(attempt.attempt_no),
+        answers: attempt.answers,
+        createdAt: attempt.created_at,
+      },
+    },
+  }
 }
 
 const getBearerToken = (request) => {
@@ -4927,6 +5086,12 @@ const routeRequest = async (request, response) => {
 
     if (resource === 'reviews' && request.method === 'POST') {
       const result = await saveLessonReview(request, lessonId)
+      sendJson(response, result.statusCode, result.payload)
+      return
+    }
+
+    if (resource === 'quiz-attempts' && request.method === 'POST') {
+      const result = await saveLessonQuizAttempt(request, lessonId)
       sendJson(response, result.statusCode, result.payload)
       return
     }

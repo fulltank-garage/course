@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowRight, BookOpen, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useApi } from '../hooks/useApi'
 import { api } from '../services/api'
 import type { Course } from '../types/course'
@@ -43,12 +43,17 @@ type CategoryOption = {
 
 function HeroBanner() {
   return (
-    <section className="w-full border-b border-zinc-100 bg-white">
-      <img
-        src="/home-hero-course-banner.png"
-        alt="ระบบคอร์สออนไลน์ เรียนรู้ได้ทุกที่ ทุกเวลา"
-        className="h-[54vh] min-h-[360px] w-full object-cover object-center sm:h-[68vh] lg:h-[calc(100vh-88px)]"
-      />
+    <section className="relative isolate overflow-hidden bg-white">
+      <div className="mx-auto w-full max-w-[1800px] px-0 sm:px-4 lg:px-6">
+        <div className="relative min-h-[420px] overflow-hidden bg-[#eef4ff] sm:rounded-[32px] lg:min-h-[620px]">
+          <img
+            src="/home-hero-course-banner.png"
+            alt="ระบบคอร์สออนไลน์ เรียนรู้ได้ทุกที่ ทุกเวลา"
+            className="absolute inset-0 h-full w-full object-cover object-[62%_center] sm:object-center"
+          />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/65 to-transparent sm:hidden" />
+        </div>
+      </div>
     </section>
   )
 }
@@ -60,9 +65,9 @@ function CourseRailCard({ course }: { course: Course }) {
     <Link
       to={`/courses/${course.slug}`}
       data-course-rail-card
-      className="group flex w-[82vw] shrink-0 snap-start flex-col rounded-[10px] bg-white p-3 shadow-[0_18px_48px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 hover:shadow-[0_26px_64px_rgba(15,23,42,0.12)] sm:w-[360px] lg:w-[calc((100%_-_72px)/4)]"
+      className="group flex w-[82vw] shrink-0 snap-start flex-col overflow-hidden rounded-[18px] border border-zinc-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(15,23,42,0.14)] sm:w-[340px] md:w-[360px] lg:w-[calc((100%_-_72px)/4)]"
     >
-      <div className="aspect-[1.14] overflow-hidden rounded-[6px] bg-zinc-100 ring-1 ring-zinc-200/80">
+      <div className="aspect-[1.18] overflow-hidden bg-zinc-100">
         <img
           src={course.coverImage}
           alt={course.title}
@@ -70,15 +75,23 @@ function CourseRailCard({ course }: { course: Course }) {
           loading="lazy"
         />
       </div>
-      <div className="flex flex-1 flex-col px-1 py-5">
-        <h3 className="line-clamp-2 text-2xl font-semibold leading-8 tracking-tight text-zinc-900">{course.title}</h3>
-        <p className="mt-2 text-base font-medium text-zinc-800">{formatPrice(course.price)}</p>
-        <p className="mt-4 line-clamp-3 text-sm leading-7 text-zinc-500">
+      <div className="flex flex-1 flex-col p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-500">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getCategoryDotColor(course.category)}`} />
+            <span className="truncate">{course.category}</span>
+          </span>
+          <span className="shrink-0">{course.level}</span>
+        </div>
+        <h3 className="mt-4 line-clamp-2 text-xl font-semibold leading-7 tracking-tight text-zinc-950">{course.title}</h3>
+        <p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-500">
           {course.description || firstLesson || 'คอร์สสำหรับพัฒนาทักษะและต่อยอดการเรียนรู้'}
         </p>
-        <div className="mt-auto flex items-center gap-2 pt-6 text-sm font-semibold text-zinc-800">
-          <span className={`h-2.5 w-2.5 rounded-full ${getCategoryDotColor(course.category)}`} />
-          <span className="truncate">{course.category}</span>
+        <div className="mt-auto flex items-center justify-between gap-4 pt-6">
+          <p className="text-base font-semibold text-zinc-950">{formatPrice(course.price)}</p>
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-950 text-white transition group-hover:translate-x-0.5">
+            <ArrowRight size={16} />
+          </span>
         </div>
       </div>
     </Link>
@@ -93,36 +106,58 @@ function CourseRail({ courses }: { courses: Course[] }) {
     if (!container) return
 
     const firstCard = container.querySelector<HTMLElement>('[data-course-rail-card]')
-    const distance = firstCard ? firstCard.offsetWidth + 24 : container.clientWidth * 0.8
+    const distance = firstCard ? firstCard.offsetWidth + 24 : container.clientWidth * 0.85
     container.scrollBy({ left: direction === 'previous' ? -distance : distance, behavior: 'smooth' })
   }
 
   return (
     <div className="relative">
-      <button
-        type="button"
-        className="absolute left-0 top-[30%] z-10 hidden h-16 w-16 -translate-x-[72%] items-center justify-center text-zinc-300 transition hover:text-zinc-600 lg:inline-flex"
-        onClick={() => scrollCourses('previous')}
-        aria-label="เลื่อนคอร์สไปทางซ้าย"
-      >
-        <ChevronLeft size={42} strokeWidth={1.8} />
-      </button>
       <div
         ref={scrollRef}
-        className="-mx-4 flex snap-x snap-mandatory gap-6 overflow-x-auto px-4 pb-4 scroll-smooth sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-4 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-6 scroll-smooth sm:-mx-6 sm:gap-6 sm:px-6 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {courses.map((course) => (
           <CourseRailCard key={course.id} course={course} />
         ))}
       </div>
-      <button
-        type="button"
-        className="absolute right-0 top-[30%] z-10 hidden h-16 w-16 translate-x-[72%] items-center justify-center text-zinc-300 transition hover:text-zinc-600 lg:inline-flex"
-        onClick={() => scrollCourses('next')}
-        aria-label="เลื่อนคอร์สถัดไป"
-      >
-        <ChevronRight size={42} strokeWidth={1.8} />
-      </button>
+
+      <div className="pointer-events-none absolute inset-y-0 left-0 right-0 hidden items-center justify-between lg:flex">
+        <button
+          type="button"
+          className="pointer-events-auto inline-flex h-12 w-12 -translate-x-6 items-center justify-center rounded-full border border-zinc-200 bg-white/95 text-zinc-700 shadow-[0_16px_40px_rgba(15,23,42,0.12)] backdrop-blur transition hover:border-zinc-300 hover:bg-white"
+          onClick={() => scrollCourses('previous')}
+          aria-label="เลื่อนคอร์สไปทางซ้าย"
+        >
+          <ChevronLeft size={22} />
+        </button>
+        <button
+          type="button"
+          className="pointer-events-auto inline-flex h-12 w-12 translate-x-6 items-center justify-center rounded-full border border-zinc-200 bg-white/95 text-zinc-700 shadow-[0_16px_40px_rgba(15,23,42,0.12)] backdrop-blur transition hover:border-zinc-300 hover:bg-white"
+          onClick={() => scrollCourses('next')}
+          aria-label="เลื่อนคอร์สถัดไป"
+        >
+          <ChevronRight size={22} />
+        </button>
+      </div>
+
+      <div className="mt-3 flex justify-end gap-2 sm:mt-4 lg:hidden">
+        <button
+          type="button"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
+          onClick={() => scrollCourses('previous')}
+          aria-label="เลื่อนคอร์สไปทางซ้าย"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <button
+          type="button"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
+          onClick={() => scrollCourses('next')}
+          aria-label="เลื่อนคอร์สถัดไป"
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -140,10 +175,10 @@ function CategoryDropdown({
   const selectedLabel = selectedCategory === 'all' ? 'ทั้งหมด' : selectedCategory
 
   return (
-    <div className="relative w-full sm:w-[360px]">
+    <div className="relative w-full sm:w-[340px]">
       <button
         type="button"
-        className="flex h-12 w-full items-center justify-between gap-3 rounded-[10px] border border-zinc-200 bg-white px-4 text-left text-base font-semibold text-zinc-900 shadow-[0_12px_34px_rgba(15,23,42,0.06)] transition hover:border-zinc-300"
+        className="flex h-12 w-full items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-4 text-left text-sm font-semibold text-zinc-950 shadow-sm transition hover:border-zinc-300"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
       >
@@ -163,10 +198,10 @@ function CategoryDropdown({
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full overflow-hidden rounded-[10px] bg-white shadow-[0_18px_50px_rgba(15,23,42,0.18)] ring-1 ring-zinc-200">
+        <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full overflow-hidden rounded-2xl bg-white shadow-[0_18px_50px_rgba(15,23,42,0.16)] ring-1 ring-zinc-200">
           <button
             type="button"
-            className="flex w-full items-center justify-between gap-4 bg-zinc-100 px-5 py-3 text-left text-lg font-semibold text-zinc-900 transition hover:bg-zinc-200"
+            className="flex w-full items-center justify-between gap-4 bg-zinc-100 px-5 py-3 text-left text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200"
             onClick={() => {
               onSelectCategory('all')
               setOpen(false)
@@ -180,7 +215,7 @@ function CategoryDropdown({
                 ))}
               </span>
             </span>
-            <span className="text-sm font-medium text-zinc-500">
+            <span className="text-xs font-medium text-zinc-500">
               {categories.reduce((total, category) => total + category.count, 0)}
             </span>
           </button>
@@ -190,7 +225,7 @@ function CategoryDropdown({
               <button
                 key={category.name}
                 type="button"
-                className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left text-base font-medium text-zinc-800 transition hover:bg-zinc-50"
+                className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left text-sm font-medium text-zinc-800 transition hover:bg-zinc-50"
                 onClick={() => {
                   onSelectCategory(category.name)
                   setOpen(false)
@@ -200,7 +235,7 @@ function CategoryDropdown({
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getCategoryDotColor(category.name)}`} />
                   <span className="truncate">{category.name}</span>
                 </span>
-                <span className="text-sm text-zinc-400">{category.count}</span>
+                <span className="text-xs text-zinc-400">{category.count}</span>
               </button>
             ))}
           </div>
@@ -212,11 +247,11 @@ function CategoryDropdown({
 
 function LoadingBlock() {
   return (
-    <div className="flex gap-6 overflow-hidden">
+    <div className="flex gap-5 overflow-hidden sm:gap-6">
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={index}
-          className="h-[430px] w-[82vw] shrink-0 animate-pulse rounded-[10px] bg-zinc-100 shadow-[0_18px_48px_rgba(15,23,42,0.08)] sm:w-[360px] lg:w-[calc((100%_-_72px)/4)]"
+          className="h-[420px] w-[82vw] shrink-0 animate-pulse rounded-[18px] bg-zinc-100 shadow-[0_18px_44px_rgba(15,23,42,0.08)] sm:w-[340px] md:w-[360px] lg:w-[calc((100%_-_72px)/4)]"
         />
       ))}
     </div>
@@ -236,13 +271,13 @@ function SponsorPill({ sponsor }: { sponsor: Sponsor }) {
             rel: 'noreferrer',
           }
         : {})}
-      className="flex h-16 min-w-[172px] items-center justify-center rounded-[22px] border border-zinc-200 bg-white px-6 text-center text-base font-semibold tracking-[0.01em] text-black shadow-[0_14px_38px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:border-zinc-300"
+      className="flex h-14 min-w-[150px] items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 text-center text-sm font-semibold tracking-[0.01em] text-black shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 sm:h-16 sm:min-w-[180px] sm:text-base"
     >
       {sponsor.logoUrl && !imageError ? (
         <img
           src={sponsor.logoUrl}
           alt={sponsor.name}
-          className="h-8 w-auto max-w-[132px] object-contain"
+          className="h-7 w-auto max-w-[126px] object-contain sm:h-8 sm:max-w-[136px]"
           loading="lazy"
           onError={() => setImageError(true)}
         />
@@ -307,43 +342,41 @@ export default function Home() {
   const sponsorRowB = sponsors.slice(Math.max(1, Math.ceil(sponsors.length / 2)))
 
   return (
-    <div className="bg-white text-black">
+    <div className="overflow-hidden bg-white text-black">
       <HeroBanner />
 
-      <section className="container-page py-14 sm:py-18 lg:py-20">
-        <div className="flex flex-col gap-4 border-t border-zinc-200 pt-10 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl">รายการคอร์ส</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-500 sm:text-base">
-              รวมคอร์สทั้งหมดที่เปิดให้เรียน เลื่อนดูรายการเพิ่มเติมและเลือกคอร์สที่เหมาะกับเป้าหมายของคุณ
+      <section className="container-page py-12 sm:py-16 lg:py-20">
+        <div className="flex flex-col gap-6 border-t border-zinc-200 pt-8 sm:pt-10 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="mb-5 inline-flex h-11 items-center gap-3 rounded-full border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 shadow-sm">
+              <BookOpen size={17} />
+              <span>{courseList.length.toLocaleString('th-TH')} คอร์สที่เผยแพร่</span>
+            </div>
+            <h2 className="text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl lg:text-6xl">รายการคอร์ส</h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-500 sm:text-base">
+              รวมคอร์สทั้งหมดที่เปิดให้เรียน เลือกหมวดหมู่ที่สนใจ แล้วเลื่อนดูคอร์สที่เหมาะกับเป้าหมายของคุณ
             </p>
           </div>
-          <Link
-            to="/login"
-            className="inline-flex h-11 items-center justify-center rounded-full border border-zinc-200 bg-white px-5 text-sm font-semibold text-zinc-950 transition hover:border-zinc-300 hover:bg-zinc-50"
-          >
-            เข้าสู่ระบบเพื่อเรียน
-          </Link>
+
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto">
+            {courseCategories.length > 0 ? (
+              <CategoryDropdown
+                categories={courseCategories}
+                selectedCategory={selectedCategory}
+                onSelectCategory={setSelectedCategory}
+              />
+            ) : null}
+          </div>
         </div>
 
-        {courseCategories.length > 0 ? (
-          <div className="mt-8">
-            <CategoryDropdown
-              categories={courseCategories}
-              selectedCategory={selectedCategory}
-              onSelectCategory={setSelectedCategory}
-            />
-          </div>
-        ) : null}
-
-        <div className="mt-7">
+        <div className="mt-8 sm:mt-10">
           {loading ? <LoadingBlock /> : null}
           {error ? (
-            <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{error}</div>
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{error}</div>
           ) : null}
           {!loading && !error && filteredCourseList.length > 0 ? <CourseRail courses={filteredCourseList} /> : null}
           {!loading && !error && filteredCourseList.length === 0 ? (
-            <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-6 text-sm leading-7 text-zinc-600">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 text-sm leading-7 text-zinc-600">
               ยังไม่มีคอร์สเผยแพร่สำหรับแสดงในหน้าแรก
             </div>
           ) : null}
@@ -351,19 +384,21 @@ export default function Home() {
       </section>
 
       {sponsors.length > 0 ? (
-        <section className="w-full pb-16 sm:pb-20">
-          <div className="overflow-hidden border-y border-zinc-200 bg-zinc-50 py-10 sm:py-12">
+        <section className="w-full pb-12 sm:pb-16 lg:pb-20">
+          <div className="overflow-hidden border-y border-zinc-200 bg-zinc-50 py-10 sm:py-12 lg:py-14">
             <div className="container-page">
               <div className="mx-auto max-w-3xl text-center">
-                <h2 className="text-3xl font-semibold tracking-tight text-black sm:text-5xl">ผู้สนับสนุนที่ร่วมผลักดันการเรียนรู้</h2>
+                <h2 className="text-3xl font-semibold tracking-tight text-black sm:text-4xl lg:text-5xl">
+                  ผู้สนับสนุนที่ร่วมผลักดันการเรียนรู้
+                </h2>
                 <p className="mt-4 text-sm leading-7 text-zinc-500 sm:text-base">
                   โลโก้องค์กรที่ร่วมสนับสนุนการเติบโตของแพลตฟอร์มและประสบการณ์การเรียนรู้ของผู้ใช้
                 </p>
               </div>
 
-              <div className="relative mt-9 space-y-4">
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-zinc-50 via-zinc-50/85 to-transparent" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-zinc-50 via-zinc-50/85 to-transparent" />
+              <div className="relative mt-8 space-y-4 sm:mt-10">
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-zinc-50 via-zinc-50/85 to-transparent sm:w-20" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-zinc-50 via-zinc-50/85 to-transparent sm:w-20" />
                 <SponsorMarqueeRow items={sponsorRowA} />
                 <SponsorMarqueeRow items={sponsorRowB.length > 0 ? sponsorRowB : sponsorRowA} reverse />
               </div>

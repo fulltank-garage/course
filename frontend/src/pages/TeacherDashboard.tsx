@@ -802,7 +802,7 @@ function LessonManagerModal({
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 p-0 backdrop-blur-sm sm:p-5">
       <div className="flex h-full w-full max-w-[1320px] flex-col overflow-hidden bg-white shadow-2xl sm:h-[calc(100vh-2.5rem)] sm:rounded-xl sm:border sm:border-zinc-200">
-        <div className="flex items-start justify-between gap-4 border-b border-zinc-200 px-5 py-4 sm:px-6">
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-200 bg-white px-5 py-4 sm:px-6">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight text-black">จัดการบทเรียน</h2>
             <p className="mt-1 truncate text-sm text-zinc-500">
@@ -812,7 +812,7 @@ function LessonManagerModal({
           <div className="flex items-center gap-2">
             <button type="button" className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800" onClick={onNew}>
               <Plus size={16} />
-              บทเรียนใหม่
+              เพิ่มบทเรียน
             </button>
             <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:border-black hover:text-black" onClick={onClose} aria-label="ปิด popup">
               <X size={18} />
@@ -820,8 +820,8 @@ function LessonManagerModal({
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="min-h-0 border-b border-zinc-200 bg-zinc-50 lg:border-b-0 lg:border-r">
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="min-h-0 border-b border-zinc-200 bg-[#faf9f7] lg:border-b-0 lg:border-r">
             <div className="flex items-center justify-between gap-3 px-5 py-4">
               <p className="text-sm font-semibold text-black">บทเรียน</p>
               <p className="text-xs text-zinc-500">{course.lessons.length.toLocaleString('th-TH')} รายการ</p>
@@ -836,9 +836,9 @@ function LessonManagerModal({
                       key={lesson.id}
                       type="button"
                       className={[
-                        'flex min-w-[220px] items-start gap-3 rounded-lg border px-3 py-3 text-left transition lg:min-w-0',
+                        'flex min-w-[220px] items-start gap-3 rounded-xl border px-3 py-3 text-left transition lg:min-w-0',
                         active
-                          ? 'border-black bg-white text-black shadow-sm'
+                          ? 'border-black bg-white text-black shadow-[0_12px_34px_rgba(0,0,0,0.08)]'
                           : 'border-transparent bg-transparent text-zinc-600 hover:border-zinc-200 hover:bg-white hover:text-black',
                       ].join(' ')}
                       onClick={() => onSelect(lesson)}
@@ -880,7 +880,11 @@ function LessonManagerModal({
               ) : null}
 
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-                <div className="space-y-5">
+                <div className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                  <div className="border-b border-zinc-100 pb-4">
+                    <p className="text-sm font-semibold text-black">ข้อมูลบทเรียน</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">ชื่อ สรุป และการเปิดตัวอย่างก่อนซื้อ</p>
+                  </div>
                   <label className="block">
                     <span className="text-sm font-medium text-zinc-700">ชื่อบทเรียน</span>
                     <input
@@ -918,7 +922,11 @@ function LessonManagerModal({
                   </label>
                 </div>
 
-                <aside className="space-y-5">
+                <aside className="space-y-5 rounded-2xl border border-zinc-200 bg-[#faf9f7] p-5 shadow-sm">
+                  <div className="border-b border-zinc-200 pb-4">
+                    <p className="text-sm font-semibold text-black">ไฟล์วิดีโอ</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">อัปโหลดวิดีโอหลักและตรวจความยาวก่อนบันทึก</p>
+                  </div>
                   <label className="block">
                     <span className="text-sm font-medium text-zinc-700">ความยาววิดีโอ</span>
                     <input
@@ -934,7 +942,7 @@ function LessonManagerModal({
                     <input
                       type="file"
                       accept="video/*"
-                      className="mt-2 w-full rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-3 py-4 text-sm text-zinc-600 outline-none transition file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-zinc-400 focus:border-black"
+                      className="mt-2 w-full rounded-xl border border-dashed border-zinc-300 bg-white px-3 py-4 text-sm text-zinc-600 outline-none transition file:mr-3 file:rounded-lg file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-zinc-400 focus:border-black"
                       onChange={onVideoChange}
                       disabled={uploading}
                     />
@@ -962,7 +970,7 @@ function LessonManagerModal({
               </div>
 
               {videoPreviewUrl || draft.videoUrl ? (
-                <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-black">
+                <div className="mt-6 overflow-hidden rounded-2xl border border-zinc-200 bg-black shadow-sm">
                   {muxEmbedUrl ? (
                     <iframe
                       className="aspect-video max-h-[52vh] w-full bg-black"
@@ -996,7 +1004,7 @@ function LessonManagerModal({
                 </div>
               ) : null}
 
-              <div className="mt-7 flex flex-col gap-3 border-t border-zinc-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="sticky bottom-0 -mx-5 mt-7 flex flex-col gap-3 border-t border-zinc-200 bg-white/95 px-5 py-4 backdrop-blur sm:-mx-7 sm:flex-row sm:items-center sm:justify-between sm:px-7">
                 <div>
                   {editingLessonId ? (
                     <button
@@ -1663,6 +1671,40 @@ export default function TeacherDashboard() {
   if (!data || !currentTeacherProfile) return null
 
   const recentActivityCourses = courses.slice(0, 4)
+  const draftCourses = courses.filter((course) => (course.status ?? 'published') === 'draft')
+  const coursesMissingLessons = courses.filter((course) => (course.lessonCount ?? course.lessons.length) === 0)
+  const coursesMissingVideo = courses.filter((course) => course.lessons.some((lesson) => !lesson.videoUrl))
+  const latestStudent = allCourseStudents[0] ?? null
+  const teacherActions = [
+    {
+      label: 'คอร์สรอแอดมินตรวจ',
+      value: draftCourses.length,
+      description: draftCourses[0]?.title ?? 'ไม่มีคอร์สร่างค้างอยู่',
+      icon: Clock3,
+      to: '/teacher?section=my-courses',
+    },
+    {
+      label: 'คอร์สที่ยังไม่มีบทเรียน',
+      value: coursesMissingLessons.length,
+      description: coursesMissingLessons[0]?.title ?? 'ทุกคอร์สมีบทเรียนแล้ว',
+      icon: AlertTriangle,
+      to: '/teacher?section=my-courses',
+    },
+    {
+      label: 'บทเรียนที่ยังไม่มีวิดีโอ',
+      value: coursesMissingVideo.length,
+      description: coursesMissingVideo[0]?.title ?? 'วิดีโอพร้อมใช้งาน',
+      icon: Video,
+      to: '/teacher?section=my-courses',
+    },
+    {
+      label: 'นักเรียนล่าสุด',
+      value: latestStudent ? 1 : 0,
+      description: latestStudent ? `${latestStudent.name} · ${latestStudent.courseTitle}` : 'ยังไม่มีนักเรียนใหม่',
+      icon: UserRound,
+      to: '/teacher?section=students',
+    },
+  ]
 
   if (activeSection === 'profile') {
     return (
@@ -1977,16 +2019,23 @@ export default function TeacherDashboard() {
                   note: 'จากเดือนที่แล้ว',
                   trend: true,
                 },
-              ]).map((item) => {
+              ]).map((item, index) => {
             const Icon = item.icon
+            const iconTone =
+              [
+                'bg-sky-50 text-sky-700 ring-sky-100',
+                'bg-emerald-50 text-emerald-700 ring-emerald-100',
+                'bg-violet-50 text-violet-700 ring-violet-100',
+                'bg-amber-50 text-amber-700 ring-amber-100',
+              ][index % 4]
 
             return (
             <div
               key={item.label}
-              className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm"
+              className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-zinc-300 hover:shadow-md"
             >
               <span
-                className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-black"
+                className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ring-1 ${iconTone}`}
               >
                 <Icon size={22} />
               </span>
@@ -2476,97 +2525,93 @@ export default function TeacherDashboard() {
               </div>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] border-collapse">
-              <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-500">
-                <tr>
-                  <th className="table-cell">คอร์ส</th>
-                  <th className="table-cell">บทเรียน</th>
-                  <th className="table-cell">ผู้เรียน</th>
-                  <th className="table-cell">รายได้</th>
-                  <th className="table-cell">จัดการ</th>
-                  <th className="table-cell"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200">
-                {filteredCourses.map((course) => (
-                  <tr key={course.id} className="transition hover:bg-zinc-50/70">
-                    <td className="px-5 py-3 text-left text-sm">
-                      <div className="flex items-center gap-4">
-                        <img src={course.coverImage} alt={course.title} className="h-12 w-20 rounded-md bg-black object-cover" />
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="line-clamp-1 font-semibold text-black">{course.title}</p>
-                            <span
-                              className={`rounded-full border px-2 py-0.5 text-xs font-medium ${getCourseStatusMeta(course.status).badgeClass}`}
-                            >
-                              {getCourseStatusMeta(course.status).label}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs text-zinc-500">
-                            อัปเดตล่าสุด {course.updatedAt ? new Date(course.updatedAt).toLocaleDateString('th-TH') : '-'} · {course.category}
-                          </p>
-                        </div>
+          <div className="space-y-3 bg-[#faf9f7] p-4">
+            {filteredCourses.map((course) => {
+              const statusMeta = getCourseStatusMeta(course.status)
+              const lessonCount = course.lessonCount ?? course.lessons.length
+              const studentCount = getCourseStudentCount(course)
+              const revenue = getCourseRevenue(course)
+
+              return (
+                <article key={course.id} className="grid gap-5 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:border-zinc-300 hover:shadow-md xl:grid-cols-[minmax(0,1fr)_520px] xl:items-center">
+                  <div className="flex min-w-0 gap-4">
+                    <img src={course.coverImage} alt={course.title} className="h-24 w-36 shrink-0 rounded-xl bg-black object-cover" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="line-clamp-1 text-base font-semibold text-black">{course.title}</h3>
+                        <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusMeta.badgeClass}`}>
+                          {statusMeta.label}
+                        </span>
                       </div>
-                    </td>
-                    <td className="px-5 py-3 text-sm">
-                      <p className="font-semibold text-black">{(course.lessonCount ?? course.lessons.length).toLocaleString('th-TH')}</p>
-                      <p className="mt-1 text-xs text-zinc-500">บทเรียน</p>
-                    </td>
-                    <td className="px-5 py-3 text-sm">
-                      <p className="font-semibold text-black">{getCourseStudentCount(course).toLocaleString('th-TH')}</p>
-                      <p className="mt-1 text-xs text-zinc-500">ผู้เรียน</p>
-                    </td>
-                    <td className="px-5 py-3 text-sm">
-                      <p className="font-semibold text-black">{getCourseRevenue(course).toLocaleString('th-TH')} บาท</p>
-                      <p className="mt-1 text-xs text-zinc-500">{course.price.toLocaleString('th-TH')} บาท/คอร์ส</p>
-                    </td>
-                    <td className="px-5 py-3 text-sm">
-                      <div className="flex flex-wrap gap-2">
-                        <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-black" onClick={() => openLessonManager(course)}>
-                          <Video size={15} />
-                          บทเรียน
-                        </button>
-                        <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-black" onClick={() => openEditModal(course)}>
-                          <Edit3 size={15} />
-                          แก้ไข
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-50"
-                          onClick={() => toggleCourseStatus(course)}
-                          disabled={updatingStatusSlug === course.slug || (course.status ?? 'published') === 'draft'}
-                        >
-                          {updatingStatusSlug === course.slug ? (
-                            <LoaderCircle size={15} className="animate-spin" />
-                          ) : (course.status ?? 'published') === 'draft' ? (
-                            <Clock3 size={15} />
-                          ) : (course.status ?? 'published') === 'published' ? (
-                            <EyeOff size={15} />
-                          ) : (
-                            <Eye size={15} />
-                          )}
-                          {getCourseStatusMeta(course.status).actionLabel}
-                        </button>
+                      <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{course.description}</p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-500">
+                        <span className="rounded-full bg-zinc-100 px-3 py-1">{course.category}</span>
+                        <span className="rounded-full bg-zinc-100 px-3 py-1">{course.level}</span>
+                        <span className="rounded-full bg-zinc-100 px-3 py-1">
+                          อัปเดต {course.updatedAt ? new Date(course.updatedAt).toLocaleDateString('th-TH') : '-'}
+                        </span>
                       </div>
-                    </td>
-                    <td className="px-5 py-3 text-right">
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <div className="grid grid-cols-3 gap-2 rounded-2xl bg-zinc-50 p-2 text-center">
+                      <div className="min-w-0 rounded-xl bg-white px-3 py-2">
+                        <p className="truncate text-sm font-semibold text-black">{lessonCount.toLocaleString('th-TH')}</p>
+                        <p className="mt-1 text-[11px] text-zinc-500">บทเรียน</p>
+                      </div>
+                      <div className="min-w-0 rounded-xl bg-white px-3 py-2">
+                        <p className="truncate text-sm font-semibold text-black">{studentCount.toLocaleString('th-TH')}</p>
+                        <p className="mt-1 text-[11px] text-zinc-500">ผู้เรียน</p>
+                      </div>
+                      <div className="min-w-0 rounded-xl bg-white px-3 py-2">
+                        <p className="truncate text-sm font-semibold text-black">{revenue.toLocaleString('th-TH')}</p>
+                        <p className="mt-1 text-[11px] text-zinc-500">บาท</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-100 pt-3">
+                      <button type="button" className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800" onClick={() => openLessonManager(course)}>
+                        <Video size={15} />
+                        จัดการบทเรียน
+                      </button>
+                      <button type="button" className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-black" onClick={() => openEditModal(course)}>
+                        <Edit3 size={15} />
+                        แก้ไข
+                      </button>
                       <button
                         type="button"
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-rose-50 hover:text-rose-700"
+                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => toggleCourseStatus(course)}
+                        disabled={updatingStatusSlug === course.slug || (course.status ?? 'published') === 'draft'}
+                      >
+                        {updatingStatusSlug === course.slug ? (
+                          <LoaderCircle size={15} className="animate-spin" />
+                        ) : (course.status ?? 'published') === 'draft' ? (
+                          <Clock3 size={15} />
+                        ) : (course.status ?? 'published') === 'published' ? (
+                          <EyeOff size={15} />
+                        ) : (
+                          <Eye size={15} />
+                        )}
+                        {statusMeta.actionLabel}
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-transparent text-zinc-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
                         onClick={() => setDeleteTarget(course)}
                         aria-label="ลบคอร์ส"
                         title="ลบคอร์ส"
                       >
                         <Trash2 size={17} />
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
             {filteredCourses.length === 0 ? (
-              <div className="p-8 text-center">
+              <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center">
                 <h3 className="text-lg font-semibold text-slate-950">ไม่พบคอร์สที่ตรงกับตัวกรอง</h3>
                 <p className="mt-2 text-sm text-slate-500">ลองเปลี่ยนคำค้นหาหรือสถานะคอร์ส</p>
               </div>
@@ -2580,45 +2625,44 @@ export default function TeacherDashboard() {
           <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold tracking-tight text-black">รายได้</h2>
-                <p className="mt-5 text-3xl font-semibold tracking-tight text-black">
-                  {teacherStats.totalRevenue.toLocaleString('th-TH')} บาท
-                </p>
-                <p className="mt-2 text-sm text-zinc-500">รายได้รวมจากคอร์สทั้งหมด</p>
+                <h2 className="text-lg font-semibold tracking-tight text-black">งานที่ควรดูต่อ</h2>
+                <p className="mt-1 text-sm text-zinc-500">สรุปจากคอร์สและบทเรียนที่มีอยู่ตอนนี้</p>
               </div>
-              <button
-                type="button"
-                className="h-10 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black"
-              >
-                เดือนนี้
-              </button>
+              <Link to="/teacher?section=my-courses" className="h-10 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:border-black">
+                จัดการคอร์ส
+              </Link>
             </div>
 
-            <div className="mt-8 h-44">
-              <svg className="h-full w-full" viewBox="0 0 720 180" role="img" aria-label="กราฟรายได้">
-                {[35, 70, 105, 140].map((y) => (
-                  <line key={y} x1="0" y1={y} x2="720" y2={y} stroke="#e4e4e7" strokeWidth="1" />
-                ))}
-                <polyline
-                  points="0,120 80,118 160,72 240,95 320,123 400,83 480,65 560,91 640,69 720,61"
-                  fill="none"
-                  stroke="#09090b"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                {[0, 80, 160, 240, 320, 400, 480, 560, 640, 720].map((x, index) => {
-                  const y = [120, 118, 72, 95, 123, 83, 65, 91, 69, 61][index]
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {teacherActions.map((action) => {
+                const Icon = action.icon
 
-                  return <circle key={x} cx={x} cy={y} r="5" fill="#fff" stroke="#09090b" strokeWidth="2" />
-                })}
-              </svg>
+                return (
+                  <Link
+                    key={action.label}
+                    to={action.to}
+                    className="group rounded-2xl border border-zinc-200 bg-[#faf9f7] p-4 transition hover:border-black hover:bg-white"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black ring-1 ring-zinc-200">
+                        <Icon size={18} />
+                      </span>
+                      <span className="text-2xl font-semibold text-black">{action.value}</span>
+                    </div>
+                    <p className="mt-4 text-sm font-semibold text-black">{action.label}</p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">{action.description}</p>
+                  </Link>
+                )
+              })}
             </div>
 
-            <Link to="/teacher" className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-black">
-              ดูรายงานทั้งหมด
-              <span aria-hidden="true">→</span>
-            </Link>
+            <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4">
+              <p className="text-sm font-semibold text-black">รายได้รวม</p>
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-black">
+                {teacherStats.totalRevenue.toLocaleString('th-TH')} บาท
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">คำนวณจากราคาคอร์สและจำนวนผู้เรียนในระบบ</p>
+            </div>
           </div>
 
           <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">

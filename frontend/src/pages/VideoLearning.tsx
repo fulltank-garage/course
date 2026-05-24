@@ -26,9 +26,9 @@ import { useApi } from '../hooks/useApi'
 import { api, authStorage } from '../services/api'
 import type { LessonReview, StudentEnrollment } from '../types/course'
 import type { QuizQuestion } from '../types/quiz'
-import { formatPlaybackPercent } from '../utils/playback'
 
 type AITab = 'summary' | 'assistant' | 'quiz'
+const maxQuizGenerations = 5
 
 const tabs: Array<{ id: AITab; label: string; icon: typeof FileText }> = [
   { id: 'summary', label: 'สรุป', icon: FileText },
@@ -45,13 +45,44 @@ const lessonAiCacheKey = (lessonId: string, type: 'summary' | 'quiz') => {
     : `mycourse:lesson-ai:${type}:v2:${ownerId}:${lessonId}`
 }
 
-const getCachedQuiz = (lessonId: string): QuizQuestion[] | null => {
+interface QuizCachePayload {
+  questions: QuizQuestion[] | null
+  history: string[]
+  generations: number
+}
+
+const emptyQuizCache: QuizCachePayload = {
+  questions: null,
+  history: [],
+  generations: 0,
+}
+
+const getCachedQuizPayload = (lessonId: string): QuizCachePayload => {
   try {
     const raw = window.localStorage.getItem(lessonAiCacheKey(lessonId, 'quiz'))
     const parsed = raw ? JSON.parse(raw) : null
-    return Array.isArray(parsed) ? parsed : null
+
+    if (Array.isArray(parsed)) {
+      return {
+        questions: parsed,
+        history: parsed.map((question) => String(question.question ?? '')).filter(Boolean),
+        generations: parsed.length > 0 ? 1 : 0,
+      }
+    }
+
+    if (parsed && typeof parsed === 'object') {
+      const questions: QuizQuestion[] | null = Array.isArray(parsed.questions) ? parsed.questions : null
+      const history = Array.isArray(parsed.history)
+        ? parsed.history.map((question: unknown) => String(question ?? '')).filter(Boolean)
+        : questions?.map((question) => String(question.question ?? '')).filter(Boolean) ?? []
+      const generations = Math.min(maxQuizGenerations, Math.max(0, Number(parsed.generations ?? 0) || 0))
+
+      return { questions, history, generations }
+    }
+
+    return emptyQuizCache
   } catch {
-    return null
+    return emptyQuizCache
   }
 }
 
@@ -122,9 +153,9 @@ export default function VideoLearning() {
   const [activeTab, setActiveTab] = useState<AITab>('summary')
   const [aiSummary, setAiSummary] = useState<string | null>(null)
   const [aiQuiz, setAiQuiz] = useState<QuizQuestion[] | null>(null)
+  const [quizGenerationCount, setQuizGenerationCount] = useState(0)
   const [aiLoading, setAiLoading] = useState<'transcript' | 'summary' | 'quiz' | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
-  const [videoProgress, setVideoProgress] = useState({ currentTime: 0, duration: 0, percent: 0 })
   const [enrollment, setEnrollment] = useState<StudentEnrollment | null>(null)
   const [progressLoading, setProgressLoading] = useState(false)
   const [progressMessage, setProgressMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
@@ -156,12 +187,6 @@ export default function VideoLearning() {
     if (!course || !lesson) return -1
     return course.lessons.findIndex((item) => item.id === lesson.id)
   }, [course, lesson])
-
-  const progressPercent = useMemo(() => {
-    if (enrollment) return enrollment.progress
-    if (!course || lessonIndex < 0) return 0
-    return Math.round(((lessonIndex + 1) / Math.max(course.lessons.length, 1)) * 100)
-  }, [course, enrollment, lessonIndex])
 
   const lessonCompleted = enrollment ? enrollment.completedLessons > lessonIndex : false
 
@@ -233,15 +258,17 @@ export default function VideoLearning() {
     if (!lesson) return
 
     const cachedSummary = window.localStorage.getItem(lessonAiCacheKey(lesson.id, 'summary'))
+    const cachedQuiz = getCachedQuizPayload(lesson.id)
     setAiError(null)
-    setVideoProgress({ currentTime: 0, duration: 0, percent: 0 })
     setAiSummary(cachedSummary ?? lesson.aiSummary ?? null)
-    setAiQuiz(getCachedQuiz(lesson.id))
+    setAiQuiz(cachedQuiz.questions)
+    setQuizGenerationCount(cachedQuiz.generations)
   }, [lesson?.id])
 
   const openLesson = (nextLessonId: string) => {
     setAiSummary(null)
     setAiQuiz(null)
+    setQuizGenerationCount(0)
     setAiError(null)
     setProgressMessage(null)
     setSearchParams({ lesson: nextLessonId })
@@ -266,17 +293,41 @@ export default function VideoLearning() {
   const generateQuiz = async () => {
     if (!lesson) return
     setAiError(null)
+
+    const cachedQuiz = getCachedQuizPayload(lesson.id)
+    if (cachedQuiz.generations >= maxQuizGenerations) {
+      setQuizGenerationCount(maxQuizGenerations)
+      setAiError('เปลี่ยนแบบทดสอบได้สูงสุด 5 ครั้งต่อบทเรียนครับ')
+      return
+    }
+
     setAiLoading('quiz')
 
     try {
-      const result = await api.generateLessonQuiz(lesson.id)
+      const result = await api.generateLessonQuiz(lesson.id, cachedQuiz.history)
+      const nextPayload = {
+        questions: result.questions,
+        history: [
+          ...cachedQuiz.history,
+          ...result.questions.map((question) => String(question.question ?? '')).filter(Boolean),
+        ].slice(-(maxQuizGenerations * 10)),
+        generations: cachedQuiz.generations + 1,
+      }
+
       setAiQuiz(result.questions)
-      window.localStorage.setItem(lessonAiCacheKey(lesson.id, 'quiz'), JSON.stringify(result.questions))
+      setQuizGenerationCount(nextPayload.generations)
+      window.localStorage.setItem(lessonAiCacheKey(lesson.id, 'quiz'), JSON.stringify(nextPayload))
     } catch (currentError) {
       setAiError(currentError instanceof Error ? currentError.message : 'สร้างแบบทดสอบไม่สำเร็จ')
     } finally {
       setAiLoading(null)
     }
+  }
+
+  const saveQuizScore = async (payload: Parameters<typeof api.saveLessonQuizAttempt>[1]) => {
+    if (!lesson) return
+
+    await api.saveLessonQuizAttempt(lesson.id, payload)
   }
 
   const completeLesson = async () => {
@@ -355,6 +406,7 @@ export default function VideoLearning() {
   }
 
   const learnerAvatar = sessionUser?.avatarUrl
+  const quizGenerationsRemaining = Math.max(0, maxQuizGenerations - quizGenerationCount)
 
   return (
     <section className="min-h-screen bg-white text-black lg:pl-[280px]">
@@ -390,113 +442,79 @@ export default function VideoLearning() {
           </div>
         </div>
 
-        <div className="mx-auto grid max-w-[1780px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_480px] lg:px-8 2xl:grid-cols-[minmax(0,1fr)_560px]">
+        <div className="mx-auto grid max-w-[1780px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:px-8 2xl:grid-cols-[minmax(0,1fr)_520px]">
           <div className="min-w-0">
-            <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-zinc-600">บทเรียนที่ {lessonIndex + 1}</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black">{lesson.title}</h1>
-                <p className="mt-2 max-w-3xl text-base leading-7 text-zinc-600">{lesson.summary}</p>
-              </div>
+            <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-zinc-500">บทเรียนที่ {lessonIndex + 1}</p>
+                  <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black sm:text-3xl">{lesson.title}</h1>
+                  <p className="mt-2 line-clamp-2 max-w-4xl text-sm leading-6 text-zinc-600 sm:text-base">{lesson.summary}</p>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                {course.viewerState?.role === 'student' && course.viewerState.isEnrolled ? (
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {course.viewerState?.role === 'student' && course.viewerState.isEnrolled ? (
+                    <button
+                      type="button"
+                      className={[
+                        'inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition',
+                        lessonCompleted
+                          ? 'border border-zinc-200 bg-zinc-50 text-zinc-500'
+                          : 'bg-black text-white shadow-sm hover:bg-zinc-800',
+                      ].join(' ')}
+                      onClick={completeLesson}
+                      disabled={progressLoading || lessonCompleted}
+                    >
+                      <CheckCircle2 size={17} />
+                      {progressLoading ? 'กำลังบันทึก...' : lessonCompleted ? 'เรียนจบแล้ว' : 'บันทึกว่าเรียนจบ'}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    className={[
-                      'inline-flex h-11 items-center gap-2 rounded-lg border px-4 text-sm font-semibold transition',
-                      lessonCompleted
-                        ? 'border-zinc-200 bg-zinc-50 text-zinc-500'
-                        : 'border-zinc-200 bg-white text-black hover:border-black',
-                    ].join(' ')}
-                    onClick={completeLesson}
-                    disabled={progressLoading || lessonCompleted}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200 bg-white text-black transition hover:border-black"
+                    aria-label="ขยายวิดีโอ"
                   >
-                    <CheckCircle2 size={17} />
-                    {progressLoading ? 'กำลังบันทึก...' : lessonCompleted ? 'เรียนจบแล้ว' : 'บันทึกว่าเรียนจบ'}
+                    <Maximize2 size={17} />
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-black transition hover:border-black"
-                  aria-label="ขยายวิดีโอ"
-                >
-                  <Maximize2 size={17} />
-                </button>
+                </div>
               </div>
             </div>
 
-            <VideoPlayer
-              lesson={lesson}
-              courseTitle={course.title}
-              compact
-              onPlaybackProgress={setVideoProgress}
-            />
+            <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-black shadow-sm">
+              <VideoPlayer
+                lesson={lesson}
+                courseTitle={course.title}
+                compact
+              />
+            </div>
 
-            <section className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-                <div className="flex min-w-0 items-center gap-4">
-                    {course.instructor.avatarUrl ? (
-                      <img src={course.instructor.avatarUrl} alt={course.instructor.name} className="h-12 w-12 rounded-full object-cover" />
-                    ) : (
-                      <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black text-white">
-                        <GraduationCap size={20} />
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <h2 className="truncate text-base font-semibold text-black">{course.instructor.name}</h2>
-                      <p className="mt-0.5 truncate text-sm text-zinc-500">{course.instructor.title || 'ผู้สอนประจำคอร์ส'}</p>
-                    </div>
+            <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-center gap-3 rounded-xl bg-[#faf9f7] p-3">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                    <CheckCircle2 size={17} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs text-zinc-500">สถานะการเรียน</p>
+                    <p className="truncate text-sm font-semibold text-black">{lessonStatus}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-xl bg-[#faf9f7] p-3">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+                    <ClipboardList size={17} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs text-zinc-500">บทเรียนที่กำลังเรียน</p>
+                    <p className="truncate text-sm font-semibold text-black">
+                      บทที่ {lessonIndex + 1} จาก {course.lessons.length}
+                    </p>
+                  </div>
                 </div>
               </div>
-
-              <aside className="rounded-xl bg-zinc-50 p-5">
-                <div className="grid gap-5 text-sm">
-                  <div className="flex gap-3">
-                    <GraduationCap size={18} className="mt-1 text-black" />
-                    <div>
-                      <p className="text-zinc-500">ระดับ</p>
-                      <p className="font-semibold text-black">{course.level}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <FileText size={18} className="mt-1 text-black" />
-                    <div>
-                      <p className="text-zinc-500">บทเรียน</p>
-                      <p className="font-semibold text-black">{course.lessons.length} บท</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <CheckCircle2 size={18} className="mt-1 text-black" />
-                    <div>
-                      <p className="text-zinc-500">สถานะ</p>
-                      <p className="font-semibold text-black">{lessonStatus}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <ClipboardList size={18} className="mt-1 text-black" />
-                    <div>
-                      <p className="text-zinc-500">ความคืบหน้าคอร์ส</p>
-                      <p className="font-semibold text-black">{progressPercent}%</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <PlayCircle size={18} className="mt-1 text-black" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-zinc-500">ดูวิดีโอนี้</p>
-                        <p className="font-semibold text-black">{formatPlaybackPercent(videoProgress.percent)}</p>
-                      </div>
-                      <div className="mt-2 h-1.5 rounded-full bg-zinc-200">
-                        <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.min(videoProgress.percent, 100)}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </aside>
             </section>
 
-            <div className="grid gap-4 border-t border-zinc-200 pt-6 lg:grid-cols-2">
+            <div className="mt-6 grid gap-4 border-t border-zinc-200 pt-6 lg:grid-cols-2">
               <button
                 type="button"
                 className="flex min-h-20 items-center justify-between rounded-xl border border-zinc-200 bg-white px-5 text-left transition hover:border-black disabled:cursor-not-allowed disabled:opacity-50"
@@ -644,28 +662,15 @@ export default function VideoLearning() {
           </div>
 
           <aside className="space-y-6">
-            <section className="flex min-h-[540px] flex-col rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-[760px]">
-              <div className="flex shrink-0 items-center gap-3 rounded-xl border border-zinc-100 bg-zinc-50/80 px-3 py-3">
+            <section className="flex min-h-[520px] flex-col rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-[740px]">
+              <div className="flex shrink-0 items-center gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black ring-1 ring-zinc-200/80">
                   <Sparkles size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 className="min-w-0 text-lg font-semibold text-black">{'AI \u0e1c\u0e39\u0e49\u0e0a\u0e48\u0e27\u0e22'}</h2>
-                  <p className="mt-0.5 text-xs text-zinc-500">
-                    {'\u0e2a\u0e23\u0e38\u0e1b\u0e1a\u0e17\u0e40\u0e23\u0e35\u0e22\u0e19 \u0e16\u0e32\u0e21\u0e15\u0e2d\u0e1a \u0e41\u0e25\u0e30\u0e41\u0e1a\u0e1a\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u0e43\u0e19\u0e01\u0e23\u0e2d\u0e1a\u0e40\u0e14\u0e35\u0e22\u0e27'}
-                  </p>
+                  <h2 className="min-w-0 text-lg font-semibold text-black">AI Tutor</h2>
+                  <p className="mt-0.5 text-xs text-zinc-500">สรุป ถามตอบ และทบทวนบทนี้</p>
                 </div>
-                {activeTab === 'summary' ? (
-                  <button
-                    type="button"
-                    className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-semibold text-black transition hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={generateSummary}
-                    disabled={aiLoading === 'summary'}
-                  >
-                    <FileText size={15} />
-                    {aiLoading === 'summary' ? 'กำลังสรุป...' : 'สรุป AI'}
-                  </button>
-                ) : null}
               </div>
 
               <div className="mt-3 grid shrink-0 grid-cols-3 rounded-xl border border-zinc-200 bg-zinc-50 p-1 text-sm">
@@ -687,8 +692,17 @@ export default function VideoLearning() {
               <div className="mt-4 min-h-0 flex-1 overflow-hidden">
                 {activeTab === 'summary' ? (
                   <div className="flex h-full min-h-0 flex-col gap-4">
+                    <button
+                      type="button"
+                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={generateSummary}
+                      disabled={aiLoading === 'summary'}
+                    >
+                      <FileText size={15} />
+                      {aiLoading === 'summary' ? 'กำลังสรุป...' : 'สร้างสรุปบทเรียน'}
+                    </button>
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
-                    <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                    <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-[#faf9f7] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                       <AiResponsePanel text={aiSummary ?? lesson.summary} />
                     </div>
                   </div>
@@ -709,27 +723,31 @@ export default function VideoLearning() {
                       type="button"
                       className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                       onClick={generateQuiz}
-                      disabled={aiLoading === 'quiz'}
+                      disabled={aiLoading === 'quiz' || quizGenerationsRemaining <= 0}
                     >
                       <HelpCircle size={16} />
-                      {aiLoading === 'quiz' ? 'AI กำลังออกข้อสอบ...' : 'ให้ AI ออกข้อสอบ 10 ข้อ'}
+                      {aiLoading === 'quiz'
+                        ? 'กำลังสร้างแบบทดสอบ...'
+                        : quizGenerationCount > 0
+                          ? `สร้างชุดใหม่ ${quizGenerationCount}/${maxQuizGenerations}`
+                          : 'สร้างแบบทดสอบ'}
                     </button>
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
                     <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                      <QuizCard questions={aiQuiz ?? lesson.quizQuestions} />
+                      <QuizCard questions={aiQuiz ?? lesson.quizQuestions} onSubmitScore={saveQuizScore} />
                     </div>
                   </div>
                 ) : null}
               </div>
             </section>
 
-            <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between gap-4">
                 <h2 className="text-lg font-semibold text-black">เนื้อหาคอร์ส</h2>
                 <p className="text-sm text-zinc-500">{course.lessons.length} บทเรียน</p>
               </div>
 
-              <div className="mt-5 space-y-1">
+              <div className="mt-5 space-y-2">
                 {course.lessons.map((item, index) => {
                   const active = item.id === lesson.id
                   const completed = enrollment ? enrollment.completedLessons > index : false
@@ -740,16 +758,22 @@ export default function VideoLearning() {
                       key={item.id}
                       type="button"
                       className={[
-                        'grid w-full grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-3 text-left text-sm transition',
-                        active ? 'bg-zinc-100 text-black' : 'bg-white text-zinc-700 hover:bg-zinc-50',
+                        'grid w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition',
+                        active ? 'border-black bg-[#faf9f7] text-black shadow-sm' : 'border-transparent bg-white text-zinc-700 hover:border-zinc-200 hover:bg-zinc-50',
                       ].join(' ')}
                       onClick={() => openLesson(item.id)}
                     >
-                      <span className="text-xs text-zinc-500">{index + 1}.</span>
+                      <span className={active ? 'text-xs font-semibold text-black' : 'text-xs text-zinc-500'}>{String(index + 1).padStart(2, '0')}</span>
                       <span className="min-w-0 truncate font-medium">{item.title}</span>
                       <span className="flex items-center gap-3 text-xs text-zinc-500">
                         <span>{item.duration}</span>
-                        {active ? <PlayCircle size={16} className="text-black" /> : completed ? <CheckCircle2 size={16} /> : locked ? <Lock size={15} /> : null}
+                        {active ? (
+                          <PlayCircle size={16} className="text-black" />
+                        ) : completed ? (
+                          <CheckCircle2 size={16} className="text-emerald-600" />
+                        ) : locked ? (
+                          <Lock size={15} className="text-zinc-400" />
+                        ) : null}
                       </span>
                     </button>
                   )

@@ -239,6 +239,28 @@ export interface AiQuizResponse {
   questions: QuizQuestion[]
 }
 
+export interface SaveQuizAttemptPayload {
+  score: number
+  totalQuestions: number
+  answers: Array<{
+    questionId: string
+    selectedOptionId: string
+    isCorrect: boolean
+  }>
+}
+
+export interface QuizAttemptResponse {
+  id: string
+  lessonId: string
+  courseId: string
+  studentId: string
+  score: number
+  totalQuestions: number
+  percentage: number
+  attemptNo: number
+  createdAt: string
+}
+
 const authStorageKey = 'mycourse_auth'
 const authChangeEvent = 'mycourse-auth-change'
 const cartStorageKey = 'mycourse_cart'
@@ -780,10 +802,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ question }),
     }),
-  generateLessonQuiz: (lessonId: string) =>
+  generateLessonQuiz: (lessonId: string, excludedQuestions: string[] = []) =>
     request<AiQuizResponse>(`/api/ai/lessons/${lessonId}/quiz`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify({ excludedQuestions }),
+    }),
+  saveLessonQuizAttempt: (lessonId: string, payload: SaveQuizAttemptPayload) =>
+    request<QuizAttemptResponse>(`/api/lessons/${lessonId}/quiz-attempts`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
   uploadAsset: (payload: UploadAssetPayload) => {
     const formData = new FormData()
