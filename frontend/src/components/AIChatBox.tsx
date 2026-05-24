@@ -325,7 +325,7 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
         </button>
       </div>
 
-      <div ref={scrollPanelRef} className="ai-scroll-panel flex-1 space-y-4 overflow-y-auto bg-zinc-50/70 px-3 py-3">
+      <div ref={scrollPanelRef} className="ai-scroll-panel flex-1 space-y-4 overflow-y-auto bg-[#faf9f7] px-3 py-4">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -333,16 +333,16 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
             className={`flex items-end gap-2 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {message.sender === 'ai' ? (
-              <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black text-white sm:inline-flex">
+              <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white shadow-sm sm:inline-flex">
                 <Bot size={15} />
               </span>
             ) : null}
 
             <div
-              className={`min-h-0 max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-7 shadow-sm sm:max-w-[82%] ${
+              className={`min-h-0 max-w-[90%] whitespace-pre-wrap break-words rounded-[22px] px-4 py-3 text-[14.5px] leading-7 shadow-sm sm:max-w-[78%] ${
                 message.sender === 'user'
-                  ? 'rounded-br-md bg-black text-white'
-                  : 'rounded-bl-xl border border-zinc-200 bg-white text-zinc-800'
+                  ? 'rounded-br-md bg-black text-white shadow-[0_10px_30px_rgba(0,0,0,0.12)]'
+                  : 'rounded-bl-md border border-[#eee7dd] bg-white text-zinc-800 shadow-[0_10px_30px_rgba(79,64,45,0.06)]'
               }`}
             >
               {message.text}
@@ -356,7 +356,7 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
             </div>
 
             {message.sender === 'user' ? (
-              <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-zinc-700 ring-1 ring-zinc-200 sm:inline-flex">
+              <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-zinc-700 ring-1 ring-zinc-200 sm:inline-flex">
                 <UserRound size={15} />
               </span>
             ) : null}
@@ -364,17 +364,17 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
         ))}
 
         {loading ? (
-          <div className="flex items-center gap-2 text-sm text-zinc-500">
-            <span className="h-2 w-2 rounded-full bg-zinc-400" />
+          <div className="flex w-fit items-center gap-2 rounded-full border border-[#eee7dd] bg-white px-3 py-2 text-sm text-zinc-500 shadow-sm">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-zinc-400" />
             กำลังตอบคำถาม...
           </div>
         ) : null}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="shrink-0 border-t border-zinc-100 bg-zinc-50/70 px-3 pb-3 pt-3">
+      <div className="shrink-0 border-t border-zinc-100 bg-[#faf9f7] px-3 pb-3 pt-3">
         <form
-          className="flex items-end gap-2 rounded-2xl border border-zinc-200 bg-white p-2 shadow-sm focus-within:border-black focus-within:shadow-[0_0_0_3px_rgba(0,0,0,0.03)]"
+          className="flex items-end gap-2 rounded-[22px] border border-[#e8e0d7] bg-white p-2 shadow-sm focus-within:border-black focus-within:shadow-[0_0_0_3px_rgba(0,0,0,0.03)]"
           onSubmit={(event) => {
             event.preventDefault()
             askQuestion(question)
