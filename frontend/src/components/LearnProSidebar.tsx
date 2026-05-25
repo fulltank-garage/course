@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   GraduationCap,
@@ -55,6 +56,21 @@ export default function LearnProSidebar({
   const certificatesPath = role === 'student' ? '/student/certificates' : studentPath
   const displayName = profileName ?? session?.user.name ?? 'ผู้เยี่ยมชม'
   const avatarUrl = profileAvatarUrl ?? session?.user.avatarUrl
+
+  useEffect(() => {
+    if (!mobileOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const previousTouchAction = document.body.style.touchAction
+
+    document.body.style.overflow = 'hidden'
+    document.body.style.touchAction = 'none'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.body.style.touchAction = previousTouchAction
+    }
+  }, [mobileOpen])
 
   const navItems = [
     { key: 'all-courses', to: coursesPath, label: 'ค้นหาคอร์ส', icon: LibraryBig },

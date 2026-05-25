@@ -280,9 +280,17 @@ export default function VideoLearning() {
   }
 
   const openMobileAi = () => {
+    setActiveTab('assistant')
     setMobileAiOpen(true)
     requestAnimationFrame(() => {
-      mobileAiPanelRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      const panel = mobileAiPanelRef.current
+      if (!panel) return
+
+      const panelRect = panel.getBoundingClientRect()
+      const bottomOverflow = panelRect.bottom - window.innerHeight + 12
+      if (bottomOverflow > 0) {
+        window.scrollBy({ top: bottomOverflow, behavior: 'smooth' })
+      }
     })
   }
 
@@ -415,7 +423,7 @@ export default function VideoLearning() {
             </div>
           </div>
 
-          <div className="mx-auto grid max-w-[1780px] gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:px-8 2xl:grid-cols-[minmax(0,1fr)_520px]">
+          <div className="mx-auto grid max-w-[1780px] gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:px-8 xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_520px]">
             <div className="min-w-0">
               <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -448,7 +456,7 @@ export default function VideoLearning() {
               </section>
             </div>
 
-            <aside className="hidden space-y-6 lg:block">
+            <aside className="hidden space-y-6 xl:block">
               <section className="min-h-[520px] rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
                 <div className="flex items-center gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
                   <div className="skeleton h-10 w-10 rounded-xl bg-white" />
@@ -496,17 +504,7 @@ export default function VideoLearning() {
   const quizGenerationsRemaining = Math.max(0, maxQuizGenerations - quizGenerationCount)
   const aiTutorContent = (
     <>
-      <div className="flex shrink-0 items-center gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black ring-1 ring-zinc-200/80">
-          <Sparkles size={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="min-w-0 text-lg font-semibold text-black">AI Tutor</h2>
-          <p className="mt-0.5 text-xs text-zinc-500">สรุป ถามตอบ และทบทวนบทนี้</p>
-        </div>
-      </div>
-
-      <div className="mt-3 grid shrink-0 grid-cols-3 rounded-xl border border-zinc-200 bg-zinc-50 p-1 text-sm">
+      <div className="grid shrink-0 grid-cols-3 rounded-xl border border-zinc-200 bg-zinc-50 p-1 text-sm">
         {tabs.map((tab) => {
           const TabIcon = tab.icon
 
@@ -528,9 +526,9 @@ export default function VideoLearning() {
         })}
       </div>
 
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 lg:overflow-hidden lg:pr-0">
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 xl:overflow-hidden xl:pr-0">
         {activeTab === 'summary' ? (
-          <div className="flex min-h-full flex-col gap-4 lg:h-full lg:min-h-0">
+          <div className="flex min-h-full flex-col gap-4 xl:h-full xl:min-h-0">
             <button
               type="button"
               className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -541,7 +539,7 @@ export default function VideoLearning() {
               {aiLoading === 'summary' ? 'กำลังสรุป...' : 'สร้างสรุปบทเรียน'}
             </button>
             {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
-            <div className="ai-scroll-panel min-h-[280px] flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-[#faf9f7] p-5 pb-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] lg:min-h-0 lg:pb-5">
+            <div className="ai-scroll-panel min-h-[180px] flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-[#faf9f7] p-4 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:min-h-[240px] sm:p-5 xl:min-h-0 xl:pb-5">
               <AiResponsePanel text={aiSummary ?? lesson.summary} />
             </div>
           </div>
@@ -557,7 +555,7 @@ export default function VideoLearning() {
         ) : null}
 
         {activeTab === 'quiz' ? (
-          <div className="flex min-h-full flex-col gap-4 lg:h-full lg:min-h-0">
+          <div className="flex min-h-full flex-col gap-4 xl:h-full xl:min-h-0">
             <button
               type="button"
               className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -572,7 +570,7 @@ export default function VideoLearning() {
                   : 'สร้างแบบทดสอบ'}
             </button>
             {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
-            <div className="ai-scroll-panel min-h-[280px] flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 pb-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] lg:min-h-0 lg:pb-4">
+            <div className="ai-scroll-panel min-h-[180px] flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:min-h-[240px] xl:min-h-0 xl:pb-4">
               <QuizCard questions={aiQuiz ?? lesson.quizQuestions} onSubmitScore={saveQuizScore} />
             </div>
           </div>
@@ -664,7 +662,7 @@ export default function VideoLearning() {
           </div>
         </div>
 
-        <div className="mx-auto grid max-w-[1780px] gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:px-8 2xl:grid-cols-[minmax(0,1fr)_520px]">
+        <div className="mx-auto grid max-w-[1780px] gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:px-8 xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_520px]">
           <div className="min-w-0">
             <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -713,22 +711,24 @@ export default function VideoLearning() {
             {mobileAiOpen ? (
               <section
                 ref={mobileAiPanelRef}
-                className="mobile-ai-inline-panel mt-4 flex flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-[0_18px_44px_rgba(15,23,42,0.10)] lg:hidden"
+                className="mobile-ai-inline-panel mt-3 flex flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-[0_18px_44px_rgba(15,23,42,0.10)] xl:hidden"
                 aria-label="AI Tutor"
               >
                 <div className="mb-3 flex shrink-0 items-center justify-between gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Mobile AI</p>
-                    <h2 className="text-base font-semibold text-black">ผู้ช่วย AI ใต้บทเรียน</h2>
+                    <h2 className="text-base font-semibold text-black">ผู้ช่วย AI ใต้คลิปวิดีโอ</h2>
                   </div>
-                  <button
-                    type="button"
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-black transition hover:border-black"
-                    onClick={() => setMobileAiOpen(false)}
-                    aria-label="ปิด AI Tutor"
-                  >
-                    <X size={18} />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-black transition hover:border-black"
+                      onClick={() => setMobileAiOpen(false)}
+                      aria-label="ปิด AI Tutor"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
                 </div>
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <div className="flex h-full min-h-0 flex-col">{aiTutorContent}</div>
@@ -792,7 +792,7 @@ export default function VideoLearning() {
               </button>
             </div>
 
-            <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm lg:hidden">
+            <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm xl:hidden">
               {lessonListContent}
             </section>
 
@@ -914,7 +914,7 @@ export default function VideoLearning() {
           </div>
 
           <aside className="space-y-6">
-            <section className="hidden min-h-[520px] flex-col rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-2rem)] lg:max-h-[740px]">
+            <section className="hidden min-h-[520px] flex-col rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:max-h-[740px]">
               <div className="flex shrink-0 items-center gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black ring-1 ring-zinc-200/80">
                   <Sparkles size={18} />
@@ -993,7 +993,7 @@ export default function VideoLearning() {
               </div>
             </section>
 
-            <section className="hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:block">
+            <section className="hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm xl:block">
               <div className="flex items-center justify-between gap-4">
                 <h2 className="text-lg font-semibold text-black">เนื้อหาคอร์ส</h2>
                 <p className="text-sm text-zinc-500">{course.lessons.length} บทเรียน</p>
@@ -1034,47 +1034,18 @@ export default function VideoLearning() {
             </section>
           </aside>
         </div>
-
-        <button
-          type="button"
-          className="fixed bottom-5 right-5 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-[0_18px_42px_rgba(0,0,0,0.28)] transition hover:bg-zinc-800 lg:hidden"
-          onClick={openMobileAi}
-          aria-label="เปิด AI Tutor"
-        >
-          <Sparkles size={22} />
-        </button>
-
-        {false ? (
-          <div className="fixed inset-0 z-[70] lg:hidden">
-            <button
-              type="button"
-              className="absolute inset-0 bg-black/45"
-              onClick={() => setMobileAiOpen(false)}
-              aria-label="ปิด AI Tutor"
-            />
-            <section className="absolute inset-x-0 bottom-0 flex h-[48vh] min-h-[360px] max-h-[68vh] flex-col rounded-t-[28px] bg-white p-4 shadow-[0_-24px_60px_rgba(0,0,0,0.24)]">
-              <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-zinc-300" aria-hidden="true" />
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Mobile AI</p>
-                  <h2 className="text-lg font-semibold text-black">ผู้ช่วย AI</h2>
-                </div>
-                <button
-                  type="button"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-black"
-                  onClick={() => setMobileAiOpen(false)}
-                  aria-label="ปิด AI Tutor"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <div className="flex h-full min-h-0 flex-col">{aiTutorContent}</div>
-              </div>
-            </section>
-          </div>
-        ) : null}
       </main>
+      <button
+        type="button"
+        className={[
+          'fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-40 h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-[0_18px_42px_rgba(0,0,0,0.28)] transition hover:bg-zinc-800 xl:hidden',
+          mobileAiOpen ? 'hidden' : 'inline-flex',
+        ].join(' ')}
+        onClick={openMobileAi}
+        aria-label="เปิด AI Tutor"
+      >
+        <Sparkles size={22} />
+      </button>
     </section>
   )
 }
