@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import {
   Bell,
@@ -174,7 +174,6 @@ export default function StudentDashboard() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [courseFilter, setCourseFilter] = useState<CourseFilter>('all')
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const myCoursesSectionRef = useRef<HTMLElement | null>(null)
 
   const currentProfile = data ? (profile ?? data.profile) : null
 
@@ -195,9 +194,7 @@ export default function StudentDashboard() {
   ])
 
   useEffect(() => {
-    if (activeSection === 'my-courses') {
-      myCoursesSectionRef.current?.scrollIntoView({ block: 'start' })
-    }
+    window.scrollTo({ top: 0, behavior: 'auto' })
   }, [activeSection])
 
   if (loading && !data) {
@@ -506,7 +503,7 @@ export default function StudentDashboard() {
                   </section>
                 ) : null}
 
-                <section ref={myCoursesSectionRef} className="scroll-mt-6">
+                <section className="scroll-mt-6">
                   <div className="mb-4 flex items-end justify-between">
                     <div>
                       <h2 className="text-xl font-semibold tracking-tight text-black">คอร์สของฉัน</h2>
