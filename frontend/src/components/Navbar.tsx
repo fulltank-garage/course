@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogIn, LogOut, Menu, Moon, ShoppingCart, Sun, UserRound, X } from 'lucide-react'
+import { LogIn, LogOut, Menu, ShoppingCart, UserRound, X } from 'lucide-react'
 import BrandMark from './BrandMark'
 import { api, authStorage, cartStorage, type AuthSession } from '../services/api'
 
@@ -20,17 +20,7 @@ const navItemClass = (isActive: boolean) =>
 const logoutButtonClass =
   'inline-flex items-center justify-center gap-2 rounded-md bg-rose-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-rose-800 focus:outline-none focus:ring-2 focus:ring-rose-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60'
 
-type ThemeMode = 'light' | 'dark'
 const themeStorageKey = 'mycourse_theme'
-
-const getInitialTheme = (): ThemeMode => {
-  const savedTheme = localStorage.getItem(themeStorageKey)
-
-  if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme
-  if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark'
-
-  return 'light'
-}
 
 function UserAvatar({ session, className = 'h-8 w-8' }: { session: AuthSession; className?: string }) {
   if (session.user.avatarUrl) {
@@ -56,7 +46,6 @@ export default function Navbar() {
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState<AuthSession | null>(() => authStorage.getSession())
   const [loggingOut, setLoggingOut] = useState(false)
-  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme())
   const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
   const [cartPulse, setCartPulse] = useState(false)
   const currentPath = `${location.pathname}${location.search}`
@@ -84,9 +73,9 @@ export default function Navbar() {
   }, [location.pathname])
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-    localStorage.setItem(themeStorageKey, theme)
-  }, [theme])
+    document.documentElement.classList.remove('dark')
+    localStorage.removeItem(themeStorageKey)
+  }, [])
 
   const dashboardPath = useMemo(() => {
     if (!session) return '/login'
@@ -133,11 +122,6 @@ export default function Navbar() {
     }
   }
 
-  const toggleTheme = () => {
-    setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
-  }
-
-  const ThemeIcon = theme === 'dark' ? Sun : Moon
   const isStudentSession = session?.user.role === 'student'
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register'
 
@@ -196,17 +180,6 @@ export default function Navbar() {
 
         <div className="hidden items-center gap-2 md:flex">
           {session ? (
-            <button
-              type="button"
-              className="group inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-800 shadow-sm shadow-slate-200/60 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-950 dark:border-white/15 dark:bg-slate-900 dark:text-slate-100 dark:shadow-black/30 dark:hover:bg-white dark:hover:text-slate-950"
-              onClick={toggleTheme}
-              aria-label={theme === 'dark' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
-              title={theme === 'dark' ? 'โหมดสว่าง' : 'โหมดมืด'}
-            >
-              <ThemeIcon size={17} className="transition group-hover:scale-110" />
-            </button>
-          ) : null}
-          {session ? (
             <>
               <Link
                 to={dashboardPath}
@@ -245,14 +218,6 @@ export default function Navbar() {
       {open ? (
         <div className="border-t border-slate-200 bg-white md:hidden">
           <div className="container-page space-y-2 py-4">
-            <button
-              type="button"
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm font-medium text-slate-800 transition hover:bg-slate-100 dark:border-white/15 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-white dark:hover:text-slate-950"
-              onClick={toggleTheme}
-            >
-              <ThemeIcon size={17} />
-              {theme === 'dark' ? 'โหมดสว่าง' : 'โหมดมืด'}
-            </button>
             {navItems.map((item) => (
               <Link key={item.to} to={item.to} className={navItemClass(isNavItemActive(item.to))}>
                 {item.label}

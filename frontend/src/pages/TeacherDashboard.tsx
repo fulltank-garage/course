@@ -42,6 +42,8 @@ const createEmptyDraft = () => ({
   category: 'Technology',
   level: 'Beginner',
   duration: '',
+  targetAudience: '',
+  aiSupport: '',
   outcomes: '',
   coverImageUrl: '',
 })
@@ -264,6 +266,8 @@ const draftFromCourse = (course: Course): CourseDraft => {
     category: course.category,
     level: course.level,
     duration: course.duration,
+    targetAudience: (course.targetAudience ?? []).join('\n'),
+    aiSupport: course.aiSupport ?? '',
     outcomes: course.outcomes.join('\n'),
     coverImageUrl: course.coverImage.startsWith('/uploads/') ? '' : course.coverImage,
   }
@@ -587,6 +591,26 @@ function CourseFormModal({
                   placeholder="ใส่ 1 หัวข้อต่อ 1 บรรทัด"
                   value={draft.outcomes}
                   onChange={(event) => onDraftChange('outcomes', event.target.value)}
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="field-label">กลุ่มเป้าหมาย</span>
+                <textarea
+                  className="field-input min-h-24 resize-y"
+                  placeholder="ใส่ 1 กลุ่มต่อ 1 บรรทัด เช่น ผู้เรียนระดับ Beginner"
+                  value={draft.targetAudience}
+                  onChange={(event) => onDraftChange('targetAudience', event.target.value)}
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="field-label">รายละเอียด AI ช่วย</span>
+                <textarea
+                  className="field-input min-h-24 resize-y"
+                  placeholder="เช่น ช่วยสรุปบทเรียน ถามตอบเนื้อหา และทบทวนความเข้าใจระหว่างเรียน"
+                  value={draft.aiSupport}
+                  onChange={(event) => onDraftChange('aiSupport', event.target.value)}
                 />
               </label>
             </div>
@@ -1577,6 +1601,11 @@ export default function TeacherDashboard() {
         category: draft.category,
         level: draft.level,
         duration: draft.duration || '0 ชม.',
+        targetAudience: draft.targetAudience
+          .split('\n')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        aiSupport: draft.aiSupport.trim(),
         outcomes: draft.outcomes
           .split('\n')
           .map((item) => item.trim())

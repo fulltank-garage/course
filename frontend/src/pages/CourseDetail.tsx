@@ -4,16 +4,17 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
+  BadgeCheck,
   CheckCircle2,
   Clock3,
   ClipboardList,
+  Gem,
+  GraduationCap,
   Lock,
   Pencil,
   PlayCircle,
   ShoppingCart,
-  Sparkles,
   Target,
-  UserRound,
   X,
 } from 'lucide-react'
 import { api, authStorage, cartStorage } from '../services/api'
@@ -36,6 +37,23 @@ const getLearningPath = (course: Course) =>
   course.viewerState?.enrollment?.lastLessonId
     ? `/learn/${course.slug}?lesson=${course.viewerState.enrollment.lastLessonId}`
     : `/learn/${course.slug}`
+
+const infoToneClasses = {
+  sapphire:
+    'from-[#edf5ff] via-white to-[#dbeafe] text-[#1550a8] ring-[#bfdbfe] shadow-[0_18px_40px_rgba(37,99,235,0.18),inset_0_1px_0_rgba(255,255,255,0.96)]',
+  emerald:
+    'from-[#ecfdf5] via-white to-[#ccfbf1] text-[#047857] ring-[#99f6e4] shadow-[0_18px_40px_rgba(5,150,105,0.16),inset_0_1px_0_rgba(255,255,255,0.96)]',
+  amber:
+    'from-[#fffbeb] via-white to-[#fde68a] text-[#b45309] ring-[#fde68a] shadow-[0_18px_40px_rgba(217,119,6,0.18),inset_0_1px_0_rgba(255,255,255,0.96)]',
+  rose:
+    'from-[#fff1f2] via-white to-[#fecdd3] text-[#be123c] ring-[#fecdd3] shadow-[0_18px_40px_rgba(225,29,72,0.16),inset_0_1px_0_rgba(255,255,255,0.96)]',
+  violet:
+    'from-[#f5f3ff] via-white to-[#ddd6fe] text-[#6d28d9] ring-[#ddd6fe] shadow-[0_18px_40px_rgba(124,58,237,0.17),inset_0_1px_0_rgba(255,255,255,0.96)]',
+  cyan:
+    'from-[#ecfeff] via-white to-[#bae6fd] text-[#0369a1] ring-[#bae6fd] shadow-[0_18px_40px_rgba(14,165,233,0.17),inset_0_1px_0_rgba(255,255,255,0.96)]',
+} satisfies Record<string, string>
+
+type InfoTone = keyof typeof infoToneClasses
 
 function PreviewModal({
   course,
@@ -155,16 +173,21 @@ function PreviewModal({
 function CourseInfoBlock({
   icon: Icon,
   title,
+  tone,
   children,
 }: {
   icon: typeof ClipboardList
   title: string
+  tone: InfoTone
   children: ReactNode
 }) {
   return (
-    <article className="grid grid-cols-[56px_minmax(0,1fr)] gap-4">
-      <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#173f86] text-white shadow-[0_12px_30px_rgba(23,63,134,0.18)]">
-        <Icon size={22} strokeWidth={2.2} />
+    <article className="grid grid-cols-[58px_minmax(0,1fr)] gap-5">
+      <span
+        className={`relative inline-flex h-14 w-14 items-center justify-center overflow-hidden rounded-[18px] border border-white/90 bg-gradient-to-br ring-1 ${infoToneClasses[tone]}`}
+      >
+        <span className="absolute inset-x-2 top-1 h-5 rounded-full bg-white/65 blur-md" aria-hidden="true" />
+        <Icon size={23} strokeWidth={1.85} />
       </span>
       <div className="min-w-0">
         <h2 className="text-3xl font-semibold tracking-tight text-zinc-950">{title}</h2>
@@ -268,6 +291,13 @@ export default function CourseDetail() {
   const coursePrice = formatPrice(course.price)
   const lessonTitles = course.lessons.map((lesson) => lesson.title)
   const learningObjectives = course.outcomes.length ? course.outcomes : [course.description]
+  const courseTargetAudience = course.targetAudience ?? []
+  const targetAudience = courseTargetAudience.length
+    ? courseTargetAudience
+    : [`ผู้เรียนระดับ ${course.level}`, `ผู้ที่สนใจหมวด ${course.category}`]
+  const aiSupport =
+    course.aiSupport?.trim() ||
+    'ช่วยสรุปบทเรียน ถามตอบเนื้อหา และทบทวนความเข้าใจระหว่างเรียน'
 
   const handlePurchase = async () => {
     if (isEnrolled) {
@@ -293,7 +323,7 @@ export default function CourseDetail() {
   }
 
   return (
-    <section className="bg-white text-black">
+    <section className="bg-[#ffffff] text-black">
       <main>
         <section className="relative overflow-hidden border-b border-[#e4d9cb] bg-[#f3eee7] text-zinc-950">
           <div
@@ -309,8 +339,13 @@ export default function CourseDetail() {
 
           <div className="relative mx-auto grid min-h-[520px] w-full max-w-[1600px] items-center gap-10 px-6 py-16 sm:px-10 lg:grid-cols-[minmax(0,1fr)_520px] lg:px-20">
             <div>
-              <Link to={returnPath} className="mb-12 inline-flex items-center gap-2 text-sm font-semibold text-zinc-500 transition hover:text-zinc-950">
-                <ArrowLeft size={16} />
+              <Link
+                to={returnPath}
+                className="mb-12 inline-flex h-11 items-center gap-2 rounded-full border border-white/80 bg-white/75 px-4 text-sm font-semibold text-zinc-800 shadow-[0_16px_40px_rgba(88,69,47,0.12),inset_0_1px_0_rgba(255,255,255,0.92)] backdrop-blur transition hover:-translate-y-0.5 hover:border-white hover:bg-white hover:text-zinc-950 hover:shadow-[0_20px_50px_rgba(88,69,47,0.18)]"
+              >
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-zinc-950 text-white shadow-sm">
+                  <ArrowLeft size={15} />
+                </span>
                 {returnLabel}
               </Link>
               <h1 className="max-w-3xl text-5xl font-medium tracking-tight text-zinc-950 sm:text-6xl">
@@ -337,9 +372,9 @@ export default function CourseDetail() {
           </div>
         </section>
 
-        <section className="mx-auto grid w-full max-w-[1600px] gap-12 px-6 py-14 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.55fr)] lg:px-16">
+        <section className="mx-auto grid w-full max-w-[1600px] gap-12 bg-[#ffffff] px-6 py-14 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.55fr)] lg:px-16">
           <div className="space-y-11">
-            <CourseInfoBlock icon={ClipboardList} title="เป้าหมายการเรียนรู้">
+            <CourseInfoBlock icon={BadgeCheck} tone="sapphire" title="เป้าหมายการเรียนรู้">
               <p>{course.description}</p>
               {learningObjectives.length > 0 ? (
                 <ul className="mt-4 list-disc space-y-1 pl-5">
@@ -350,12 +385,12 @@ export default function CourseDetail() {
               ) : null}
             </CourseInfoBlock>
 
-            <CourseInfoBlock icon={UserRound} title="วิทยากร">
+            <CourseInfoBlock icon={GraduationCap} tone="emerald" title="วิทยากร">
               <p className="font-medium text-zinc-700">{course.instructor.name}</p>
               <p className="mt-1 text-sm text-zinc-500">{course.instructor.title}</p>
             </CourseInfoBlock>
 
-            <CourseInfoBlock icon={Pencil} title="ประเด็นการเรียนรู้">
+            <CourseInfoBlock icon={Pencil} tone="amber" title="ประเด็นการเรียนรู้">
               <ol className="list-decimal space-y-1 pl-6">
                 {lessonTitles.slice(0, 9).map((title, index) => (
                   <li key={`${title}-${index}`}>
@@ -367,18 +402,19 @@ export default function CourseDetail() {
           </div>
 
           <div className="space-y-11">
-            <CourseInfoBlock icon={Target} title="กลุ่มเป้าหมาย">
+            <CourseInfoBlock icon={Target} tone="rose" title="กลุ่มเป้าหมาย">
               <ol className="list-decimal space-y-1 pl-6">
-                <li>ผู้เรียนระดับ {course.level}</li>
-                <li>ผู้ที่สนใจหมวด {course.category}</li>
+                {targetAudience.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
               </ol>
             </CourseInfoBlock>
 
-            <CourseInfoBlock icon={Sparkles} title="มี AI ช่วย">
-              <p>ช่วยสรุปบทเรียน ถามตอบเนื้อหา และทบทวนความเข้าใจระหว่างเรียน</p>
+            <CourseInfoBlock icon={Gem} tone="violet" title="มี AI ช่วย">
+              <p>{aiSupport}</p>
             </CourseInfoBlock>
 
-            <CourseInfoBlock icon={Clock3} title="จำนวนชั่วโมงการเรียนรู้">
+            <CourseInfoBlock icon={Clock3} tone="cyan" title="จำนวนชั่วโมงการเรียนรู้">
               <p>{course.duration}</p>
             </CourseInfoBlock>
           </div>
@@ -521,3 +557,4 @@ export default function CourseDetail() {
     </section>
   )
 }
+

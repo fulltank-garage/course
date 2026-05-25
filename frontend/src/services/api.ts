@@ -80,6 +80,8 @@ export interface CreateCoursePayload {
   category: string
   level: string
   duration: string
+  targetAudience: string[]
+  aiSupport: string
   outcomes: string[]
   lessonTitle?: string
   lessonSummary?: string

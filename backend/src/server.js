@@ -197,6 +197,8 @@ const ensureBaseSchema = async () => {
       category TEXT NOT NULL,
       level TEXT NOT NULL,
       duration TEXT NOT NULL,
+      target_audience JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ai_support TEXT NOT NULL DEFAULT '',
       rating NUMERIC(3, 2) NOT NULL DEFAULT 0,
       students INTEGER NOT NULL DEFAULT 0,
       outcomes JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -402,6 +404,16 @@ const ensureCourseSchema = async () => {
   await query(`
     ALTER TABLE courses
     ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published'
+  `)
+
+  await query(`
+    ALTER TABLE courses
+    ADD COLUMN IF NOT EXISTS target_audience JSONB NOT NULL DEFAULT '[]'::jsonb
+  `)
+
+  await query(`
+    ALTER TABLE courses
+    ADD COLUMN IF NOT EXISTS ai_support TEXT NOT NULL DEFAULT ''
   `)
 
   await query(`
@@ -3504,6 +3516,8 @@ const toCourseSummary = (row) => ({
   category: row.category,
   level: row.level,
   duration: row.duration,
+  targetAudience: row.target_audience ?? [],
+  aiSupport: row.ai_support ?? '',
   rating: Number(row.rating),
   students: Number(row.students),
   instructor: toInstructor(row),
@@ -4529,9 +4543,9 @@ const createCourse = async (request) => {
     `
       INSERT INTO courses (
         id, slug, teacher_id, title, description, cover_image, price, category,
-        level, duration, rating, students, outcomes, is_popular, status, updated_at
+        level, duration, target_audience, ai_support, rating, students, outcomes, is_popular, status, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, 0, $11, false, 'draft', CURRENT_DATE)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, 0, $13, false, 'draft', CURRENT_DATE)
       RETURNING slug
     `,
     [
@@ -4545,6 +4559,8 @@ const createCourse = async (request) => {
       body.category,
       body.level ?? 'Beginner',
       body.duration ?? '0 ชม.',
+      JSON.stringify(body.targetAudience ?? []),
+      String(body.aiSupport ?? ''),
       JSON.stringify(body.outcomes ?? []),
     ],
   )
@@ -4607,9 +4623,11 @@ const updateCourse = async (request, slug) => {
         category = $6,
         level = $7,
         duration = $8,
-        outcomes = $9,
+        target_audience = $9,
+        ai_support = $10,
+        outcomes = $11,
         updated_at = CURRENT_DATE
-      WHERE id = $10
+      WHERE id = $12
     `,
     [
       nextSlug,
@@ -4620,6 +4638,8 @@ const updateCourse = async (request, slug) => {
       String(body.category ?? 'Technology'),
       String(body.level ?? 'Beginner'),
       String(body.duration ?? '0 ชม.'),
+      JSON.stringify(body.targetAudience ?? []),
+      String(body.aiSupport ?? ''),
       JSON.stringify(body.outcomes ?? []),
       permission.course.id,
     ],

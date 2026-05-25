@@ -61,6 +61,8 @@ export interface Course {
   category: CourseCategory
   level: 'Beginner' | 'Intermediate' | 'Advanced'
   duration: string
+  targetAudience: string[]
+  aiSupport: string
   rating: number
   students: number
   instructor: Instructor

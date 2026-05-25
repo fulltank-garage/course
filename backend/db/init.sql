@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS courses (
   category TEXT NOT NULL,
   level TEXT NOT NULL,
   duration TEXT NOT NULL,
+  target_audience JSONB NOT NULL DEFAULT '[]'::jsonb,
+  ai_support TEXT NOT NULL DEFAULT '',
   rating NUMERIC(3, 2) NOT NULL DEFAULT 0,
   students INTEGER NOT NULL DEFAULT 0,
   outcomes JSONB NOT NULL DEFAULT '[]'::jsonb,
