@@ -108,7 +108,101 @@ export default function StudentMessages() {
     filteredCourses.find((item) => item.course.id === selectedCourseId) ?? filteredCourses[0] ?? null
 
   if (loading && !data) {
-    return <div className="min-h-screen bg-white p-6 text-sm text-zinc-500">กำลังโหลดข้อความ...</div>
+    return (
+      <div className="student-page-shell">
+        <LearnProSidebar active="messages" mobileOpen={false} onMobileClose={() => undefined} />
+        <main className="student-page-main min-w-0">
+          <div className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8">
+            <header className="mb-6 flex items-center gap-4">
+              <div className="skeleton h-11 w-11 rounded-lg lg:hidden" />
+              <div className="hidden flex-1 md:block xl:max-w-[520px]">
+                <div className="skeleton h-12 rounded-xl" />
+              </div>
+              <div className="ml-auto skeleton h-11 w-40 rounded-full" />
+            </header>
+
+            <section className="relative mb-7 overflow-hidden rounded-xl border border-zinc-200 bg-white p-7 shadow-sm">
+              <div className="max-w-2xl">
+                <div className="skeleton-line h-4 w-36" />
+                <div className="mt-3 skeleton-line h-10 w-10/12" />
+                <div className="mt-3 skeleton-line h-10 w-7/12" />
+                <div className="mt-4 space-y-2">
+                  <div className="skeleton-line h-5 w-full" />
+                  <div className="skeleton-line h-5 w-9/12" />
+                </div>
+              </div>
+              <div className="pointer-events-none absolute right-10 top-1/2 hidden -translate-y-1/2 lg:block">
+                <div className="skeleton h-20 w-20 rounded-2xl" />
+              </div>
+            </section>
+
+            <div className="grid min-h-[620px] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm xl:grid-cols-[420px_minmax(0,1fr)]">
+              <section className="border-b border-zinc-200 xl:border-b-0 xl:border-r">
+                <div className="border-b border-zinc-200 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="skeleton-line h-6 w-36" />
+                      <div className="skeleton-line h-4 w-52" />
+                    </div>
+                    <div className="skeleton h-11 w-11 rounded-full" />
+                  </div>
+                </div>
+                <div>
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <div key={index} className="flex gap-3 border-b border-zinc-200 p-4">
+                      <div className="skeleton h-11 w-11 rounded-full" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="skeleton-line h-4 w-32" />
+                            <div className="skeleton-line h-3 w-44" />
+                          </div>
+                          <div className="skeleton-line h-3 w-16" />
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          <div className="skeleton-line h-4 w-11/12" />
+                          <div className="skeleton-line h-4 w-8/12" />
+                        </div>
+                        <div className="mt-3 skeleton h-1.5 rounded-full" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="flex min-h-[520px] flex-col">
+                <div className="flex items-center justify-between gap-4 border-b border-zinc-200 p-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="skeleton h-11 w-11 rounded-full" />
+                    <div className="min-w-0 space-y-2">
+                      <div className="skeleton-line h-5 w-40" />
+                      <div className="skeleton-line h-4 w-64" />
+                    </div>
+                  </div>
+                  <div className="hidden sm:block">
+                    <div className="skeleton h-10 w-28 rounded-md" />
+                  </div>
+                </div>
+                <div className="flex flex-1 flex-col justify-center bg-zinc-50 p-6">
+                  <div className="mx-auto max-w-lg rounded-xl border border-zinc-200 bg-white p-7 text-center shadow-sm">
+                    <div className="skeleton mx-auto h-14 w-14 rounded-full" />
+                    <div className="mx-auto mt-5 skeleton-line h-6 w-56" />
+                    <div className="mx-auto mt-3 space-y-2">
+                      <div className="skeleton-line h-4 w-full" />
+                      <div className="skeleton-line h-4 w-10/12" />
+                    </div>
+                    <div className="skeleton mx-auto mt-6 h-11 w-32 rounded-md" />
+                  </div>
+                </div>
+                <div className="border-t border-zinc-200 bg-white p-4">
+                  <div className="skeleton h-[60px] rounded-xl" />
+                </div>
+              </section>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   if (error && !data) {

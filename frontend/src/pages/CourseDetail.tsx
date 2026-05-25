@@ -213,8 +213,52 @@ export default function CourseDetail() {
 
   if (loading) {
     return (
-      <section className="container-page py-12">
-        <div className="rounded-lg border border-zinc-200 bg-white p-8 text-sm text-zinc-500">กำลังโหลดรายละเอียดคอร์ส...</div>
+      <section className="bg-white text-black">
+        <section className="relative overflow-hidden border-b border-[#e4d9cb] bg-[#f3eee7]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.88),transparent_34%),linear-gradient(135deg,rgba(250,247,242,0.9),rgba(234,225,214,0.82))]" />
+          <div className="relative mx-auto grid min-h-[520px] w-full max-w-[1600px] items-center gap-10 px-6 py-16 sm:px-10 lg:grid-cols-[minmax(0,1fr)_520px] lg:px-20">
+            <div>
+              <div className="skeleton h-11 w-56 rounded-full bg-white/80" />
+              <div className="mt-12 space-y-4">
+                <div className="skeleton-line h-14 w-11/12 max-w-3xl bg-white/80 sm:h-20" />
+                <div className="skeleton-line h-14 w-8/12 max-w-2xl bg-white/80 sm:h-20" />
+              </div>
+              <div className="mt-8 flex items-center gap-4">
+                <div className="skeleton-line h-8 w-24 bg-white/80" />
+                <div className="h-6 w-px bg-zinc-300" />
+                <div className="skeleton h-11 w-32 rounded-full bg-white/80" />
+              </div>
+              <div className="mt-12 flex items-center gap-4">
+                <div className="skeleton h-3 w-3 rounded-full bg-orange-200" />
+                <div className="skeleton-line h-6 w-36 bg-white/80" />
+              </div>
+            </div>
+
+            <div className="justify-self-center lg:justify-self-end">
+              <div className="skeleton aspect-[1.15] w-full max-w-[470px] rounded-[18px] bg-white/80 shadow-[0_30px_90px_rgba(101,78,52,0.12)] ring-8 ring-white/70" />
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto grid w-full max-w-[1600px] gap-12 px-6 py-14 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.55fr)] lg:px-16">
+          {[0, 1].map((column) => (
+            <div key={column} className="space-y-11">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="grid grid-cols-[64px_minmax(0,1fr)] gap-6">
+                  <div className="skeleton h-12 w-12 rounded-full bg-[#173f86]/15" />
+                  <div>
+                    <div className="skeleton-line h-9 w-64 max-w-full" />
+                    <div className="mt-5 space-y-3">
+                      <div className="skeleton-line h-5 w-full" />
+                      <div className="skeleton-line h-5 w-10/12" />
+                      <div className="skeleton-line h-5 w-7/12" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </section>
       </section>
     )
   }

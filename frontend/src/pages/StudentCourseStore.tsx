@@ -12,6 +12,7 @@ import {
   Search,
   ShoppingBag,
   ShoppingCart,
+  SlidersHorizontal,
   Star,
   Trash2,
   UsersRound,
@@ -234,6 +235,37 @@ function CourseGridCard({
   )
 }
 
+function CourseGridCardSkeleton() {
+  return (
+    <article className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+      <div className="relative aspect-[1.33] overflow-hidden bg-zinc-100">
+        <div className="skeleton h-full w-full" />
+        <div className="absolute right-3 top-3 skeleton h-8 w-8 rounded-full bg-white/40" />
+      </div>
+      <div className="p-4">
+        <div className="space-y-2">
+          <div className="skeleton-line h-5 w-11/12" />
+          <div className="skeleton-line h-5 w-7/12" />
+        </div>
+        <div className="mt-3 skeleton-line h-4 w-32" />
+        <div className="mt-2 flex gap-2">
+          <div className="skeleton-line h-4 w-14" />
+          <div className="skeleton-line h-4 w-20" />
+          <div className="skeleton-line h-4 w-16" />
+        </div>
+        <div className="mt-4 flex items-center justify-between">
+          <div className="skeleton-line h-5 w-20" />
+          <div className="skeleton h-5 w-5 rounded-md" />
+        </div>
+        <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+          <div className="skeleton h-10 rounded-md" />
+          <div className="skeleton h-10 w-10 rounded-md" />
+        </div>
+      </div>
+    </article>
+  )
+}
+
 export default function StudentCourseStore() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -243,6 +275,7 @@ export default function StudentCourseStore() {
   const [selectedLevel, setSelectedLevel] = useState(allOption)
   const [sortBy, setSortBy] = useState<SortOption>('popular')
   const [showPurchasedOnly, setShowPurchasedOnly] = useState(false)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
   const [cartOpen, setCartOpen] = useState(() => searchParams.get('cart') === '1')
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -302,10 +335,14 @@ export default function StudentCourseStore() {
   }
 
   const handleAddToCart = (slug: string) => {
-    setCartItems(cartStorage.addItem(slug))
-    setCartOpen(true)
+    const nextItems = cartStorage.addItem(slug)
+    setCartItems(nextItems)
     setCartError(null)
-    setCartMessage(null)
+    setCartMessage('เพิ่มคอร์สลงตะกร้าแล้ว')
+
+    window.setTimeout(() => {
+      setCartMessage(null)
+    }, 1600)
   }
 
   const closeCart = () => {
@@ -320,22 +357,24 @@ export default function StudentCourseStore() {
   }
 
   const openCheckoutModal = (nextCheckoutModal: CheckoutModalState) => {
+    setCheckoutStep('payment')
     setCheckoutModal(nextCheckoutModal)
   }
 
-  const closeCheckoutModal = () => setCheckoutModal(null)
+  const closeCheckoutModal = () => {
+    setCheckoutModal(null)
+    setCheckoutStep('cart')
+  }
 
   const removeCourse = (slug: string) => {
     setCartError(null)
     setCartMessage(null)
-    setCheckoutStep('cart')
     setCartItems(cartStorage.removeItem(slug))
   }
 
   const clearCart = () => {
     setCartError(null)
     setCartMessage(null)
-    setCheckoutStep('cart')
     setCartItems(cartStorage.clearItems())
   }
 
@@ -359,6 +398,7 @@ export default function StudentCourseStore() {
     setCheckoutSlug(course.slug)
     setCartError(null)
     setCartMessage(null)
+    setCheckoutStep('confirm')
 
     try {
       const result = await api.enrollCourse(course.slug)
@@ -377,6 +417,7 @@ export default function StudentCourseStore() {
       }, 650)
     } catch (currentError) {
       setCartError(currentError instanceof Error ? currentError.message : 'ไม่สามารถซื้อคอร์สได้')
+      setCheckoutStep('payment')
     } finally {
       setCheckoutSlug(null)
     }
@@ -414,6 +455,7 @@ export default function StudentCourseStore() {
       }, 650)
     } catch (currentError) {
       setCartError(currentError instanceof Error ? currentError.message : 'ไม่สามารถซื้อคอร์สทั้งหมดได้')
+      setCheckoutStep('payment')
     } finally {
       setCheckoutAll(false)
     }
@@ -422,6 +464,12 @@ export default function StudentCourseStore() {
   const totalCourses = courses?.length ?? 0
   const purchasedCourses = (courses ?? []).filter((course) => course.viewerState?.isEnrolled).length
   const cartCourses = (courses ?? []).filter((course) => cartItems.includes(course.slug))
+  const activeFilterCount = [selectedCategory !== allOption, selectedLevel !== allOption, showPurchasedOnly].filter(Boolean).length
+  const activeFilterLabels = [
+    selectedCategory !== allOption ? getCategoryLabel(selectedCategory) : null,
+    selectedLevel !== allOption ? getLevelLabel(selectedLevel) : null,
+    showPurchasedOnly ? 'ซื้อแล้ว' : null,
+  ].filter(Boolean)
   const totalCartPrice = cartCourses.reduce((sum, course) => sum + course.price, 0)
   const freeCartCourses = cartCourses.filter((course) => course.price === 0).length
   const paidCartCourses = cartCourses.length - freeCartCourses
@@ -431,9 +479,13 @@ export default function StudentCourseStore() {
     checkoutModal?.mode === 'single'
       ? checkoutSlug === checkoutModal.course.slug
       : checkoutAll
-  const cartStepItems = ['ตะกร้าสินค้า', 'ชำระเงิน', 'ยืนยันการชำระเงิน']
+  const checkoutSteps: Array<{ id: CheckoutStep; label: string; helper: string }> = [
+    { id: 'cart', label: 'ตะกร้าสินค้า', helper: 'ตรวจรายการ' },
+    { id: 'payment', label: 'ชำระเงิน', helper: 'ยืนยันข้อมูล' },
+    { id: 'confirm', label: 'ยืนยันสำเร็จ', helper: 'เปิดสิทธิ์เรียน' },
+  ]
+  const activeCheckoutStepIndex = checkoutSteps.findIndex((step) => step.id === checkoutStep)
   const cartTotalLabel = formatPrice(totalCartPrice)
-  const activeCheckoutStepIndex = checkoutStep === 'cart' ? 0 : checkoutStep === 'payment' ? 1 : 2
 
   return (
     <section className="student-page-shell">
@@ -502,8 +554,50 @@ export default function StudentCourseStore() {
             </div>
           </header>
 
+          <div className="mt-5 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm lg:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white"
+                onClick={() => setMobileFiltersOpen((current) => !current)}
+                aria-expanded={mobileFiltersOpen}
+              >
+                <SlidersHorizontal size={17} />
+                ตัวกรอง
+                {activeFilterCount > 0 ? (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[11px] font-semibold text-black">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black"
+                onClick={resetFilters}
+              >
+                ล้าง
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+              {activeFilterLabels.length > 0 ? (
+                activeFilterLabels.map((label) => (
+                  <span key={label} className="rounded-full bg-zinc-100 px-3 py-1 font-semibold text-black">
+                    {label}
+                  </span>
+                ))
+              ) : (
+                <span>แสดงทุกหมวดหมู่และทุกระดับ</span>
+              )}
+            </div>
+          </div>
+
           <div className="grid gap-8 pt-8 lg:grid-cols-[300px_minmax(0,1fr)]">
-            <aside className="h-fit rounded-xl border border-zinc-200 bg-white p-6 shadow-sm lg:sticky lg:top-6">
+            <aside
+              className={[
+                'responsive-filter-panel h-fit rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6 lg:sticky lg:top-6 lg:block lg:max-h-none lg:overflow-visible',
+                mobileFiltersOpen ? 'block' : 'hidden',
+              ].join(' ')}
+            >
               <div className="flex items-center justify-between gap-4">
                 <h2 className="text-lg font-semibold text-black">ตัวกรอง</h2>
                 <button type="button" className="text-sm text-zinc-500 transition hover:text-black" onClick={resetFilters}>
@@ -601,7 +695,7 @@ export default function StudentCourseStore() {
               {loading ? (
                 <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {Array.from({ length: 8 }).map((_, index) => (
-                    <div key={index} className="h-80 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100" />
+                    <CourseGridCardSkeleton key={index} />
                   ))}
                 </div>
               ) : null}
@@ -640,75 +734,118 @@ export default function StudentCourseStore() {
 
       <div
         className={[
-          'fixed inset-0 z-[95] overflow-y-auto bg-white transition-opacity duration-200',
+          'fixed inset-0 z-[95] overflow-y-auto bg-[#f6f3ee] text-black transition-opacity duration-200',
           cartOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         ].join(' ')}
         aria-hidden={!cartOpen}
       >
-        <div className="mx-auto min-h-screen w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-10">
-          <div className="mx-auto flex max-w-2xl items-center justify-start gap-3 overflow-x-auto text-xs font-semibold text-zinc-500 sm:justify-center">
-            {cartStepItems.map((item, index) => (
-              <div key={item} className="flex min-w-0 items-center gap-3">
-                <span
-                  className={[
-                    'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs',
-                    index <= activeCheckoutStepIndex ? 'border-black bg-black text-white' : 'border-zinc-300 bg-white text-black',
-                  ].join(' ')}
-                >
-                  {index + 1}
-                </span>
-                <span className={index <= activeCheckoutStepIndex ? 'truncate text-black' : 'truncate'}>{item}</span>
-                {index < cartStepItems.length - 1 ? <span className="hidden h-px w-20 bg-zinc-300 sm:block" /> : null}
+        <div className="mx-auto flex min-h-[100svh] w-full max-w-[1440px] flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-10">
+          <div className="sticky top-0 z-10 -mx-4 border-b border-zinc-200/80 bg-[#f6f3ee]/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Checkout</p>
+                <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-black sm:text-2xl">ตะกร้าสินค้า</h2>
               </div>
-            ))}
-          </div>
-
-          <div className="mt-8 flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight text-black sm:text-2xl">รถเข็น / รายการสั่งซื้อ</h2>
-              <p className="mt-1 text-sm text-zinc-500">{cartCourses.length} รายการในตะกร้า</p>
+              <button
+                type="button"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-black shadow-sm transition hover:border-black"
+                onClick={closeCart}
+                aria-label="ปิดตะกร้า"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <button
-              type="button"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-black transition hover:border-black"
-              onClick={closeCart}
-              aria-label="ปิดตะกร้า"
-            >
-              <X size={18} />
-            </button>
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-            <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mt-5 rounded-[24px] border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-center">
+              {checkoutSteps.map((step, index) => {
+                const isActive = index === activeCheckoutStepIndex
+                const isCompleted = index < activeCheckoutStepIndex
+
+                return (
+                  <div key={step.id} className="contents">
+                    <div
+                      className={[
+                        'flex items-center gap-3 rounded-2xl px-3 py-2 transition',
+                        isActive ? 'bg-zinc-100 text-black' : isCompleted ? 'text-black' : 'text-zinc-400',
+                      ].join(' ')}
+                    >
+                      <span
+                        className={[
+                          'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-base font-semibold transition',
+                          isActive || isCompleted ? 'border-black bg-black text-white' : 'border-zinc-300 bg-white text-zinc-500',
+                        ].join(' ')}
+                      >
+                        {isCompleted ? <Check size={18} /> : index + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-base font-semibold leading-5 sm:text-lg">{step.label}</span>
+                        <span className="mt-1 block text-sm leading-5 text-zinc-500">{step.helper}</span>
+                      </span>
+                    </div>
+                    {index < checkoutSteps.length - 1 ? (
+                      <div className="hidden h-px w-16 bg-zinc-300 md:block lg:w-24" />
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="mt-5 grid flex-1 gap-6 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_460px]">
+            <section className="rounded-[28px] border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="flex items-center justify-between border-b border-zinc-200 pb-4">
-                <h3 className="text-lg font-semibold text-black">คอร์สที่คุณเลือก</h3>
+                <div>
+                  <h3 className="text-lg font-semibold text-black">คอร์สที่คุณเลือก</h3>
+                  <p className="mt-1 text-sm text-zinc-500">จัดการรายการในตะกร้าได้จากหน้านี้</p>
+                </div>
                 {cartCourses.length > 0 ? (
                   <button
                     type="button"
-                    className="text-sm font-medium text-zinc-500 transition hover:text-black"
+                    className="inline-flex h-9 items-center justify-center rounded-full border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
                     onClick={clearCart}
                   >
-                    ล้างตะกร้า
+                    ล้างทั้งหมด
                   </button>
                 ) : null}
               </div>
 
               <div className="mt-5">
                 {loading ? (
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-500">กำลังโหลดตะกร้า...</div>
+                  <div className="divide-y divide-zinc-200">
+                    {Array.from({ length: 2 }).map((_, index) => (
+                      <article key={index} className="grid gap-4 py-5 sm:grid-cols-[136px_minmax(0,1fr)_auto]">
+                        <div className="skeleton h-24 w-full rounded-lg sm:w-[136px]" />
+                        <div className="min-w-0 space-y-3">
+                          <div className="skeleton-line h-5 w-10/12" />
+                          <div className="skeleton-line h-4 w-36" />
+                          <div className="flex gap-4">
+                            <div className="skeleton-line h-4 w-24" />
+                            <div className="skeleton-line h-4 w-20" />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 sm:flex-col sm:items-end">
+                          <div className="skeleton-line h-5 w-20" />
+                          <div className="skeleton h-9 w-24 rounded-md" />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
                 ) : courseError || cartError ? (
                   <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{cartError ?? courseError}</div>
                 ) : cartMessage ? (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm font-medium text-emerald-700">{cartMessage}</div>
                 ) : cartCourses.length === 0 ? (
-                  <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 text-center">
-                    <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-black shadow-sm">
-                      <ShoppingBag size={24} />
+                  <div className="flex min-h-[360px] flex-col items-center justify-center rounded-[24px] border border-dashed border-zinc-200 bg-zinc-50 px-5 text-center">
+                    <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-white text-black shadow-sm">
+                      <ShoppingBag size={26} />
                     </span>
-                    <h3 className="mt-4 text-lg font-semibold text-black">ตะกร้ายังว่าง</h3>
+                    <h3 className="mt-5 text-xl font-semibold text-black">ตะกร้ายังว่าง</h3>
+                    <p className="mt-2 max-w-sm text-sm leading-6 text-zinc-500">เลือกคอร์สที่สนใจแล้วกดเพิ่มลงตะกร้า เพื่อกลับมาตรวจสอบรายการและชำระเงินที่นี่</p>
                     <button
                       type="button"
-                      className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                      className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
                       onClick={closeCart}
                     >
                       เลือกคอร์สเพิ่ม
@@ -716,12 +853,16 @@ export default function StudentCourseStore() {
                     </button>
                   </div>
                 ) : (
-                  <div className="divide-y divide-zinc-200">
+                  <div className="space-y-4">
                     {cartCourses.map((course) => (
-                      <article key={course.id} className="grid gap-4 py-5 sm:grid-cols-[136px_minmax(0,1fr)_auto]">
-                        <img src={course.coverImage} alt={course.title} className="h-24 w-full rounded-lg bg-zinc-100 object-cover sm:w-[136px]" />
-                        <div className="min-w-0">
-                          <h3 className="line-clamp-2 text-base font-semibold text-black">{course.title}</h3>
+                      <article key={course.id} className="grid gap-4 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm transition hover:border-zinc-300 sm:grid-cols-[150px_minmax(0,1fr)] xl:grid-cols-[160px_minmax(0,1fr)_auto]">
+                        <img src={course.coverImage} alt={course.title} className="aspect-video h-auto w-full rounded-xl bg-zinc-100 object-cover sm:h-full sm:min-h-28" />
+                        <div className="min-w-0 py-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">{getCategoryLabel(course.category)}</span>
+                            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">{getLevelLabel(course.level)}</span>
+                          </div>
+                          <h3 className="mt-3 line-clamp-2 text-base font-semibold leading-6 text-black">{course.title}</h3>
                           <p className="mt-1 text-sm text-zinc-500">โดย {course.instructor.name}</p>
                           <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-zinc-500">
                             <span className="inline-flex items-center gap-1">
@@ -732,18 +873,22 @@ export default function StudentCourseStore() {
                               <Star size={14} className="fill-amber-400 text-amber-400" />
                               {getCourseReviewAverage(course).toFixed(1)}
                             </span>
-                            <span>{getLevelLabel(course.level)}</span>
+                            <span>{Math.max(course.lessons.length, course.lessonCount ?? 0)} บทเรียน</span>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between gap-4 sm:block sm:text-right">
-                          <p className="text-lg font-semibold text-black">{formatPrice(course.price)}</p>
+                        <div className="flex items-center justify-between gap-4 border-t border-zinc-100 pt-3 sm:col-span-2 xl:col-span-1 xl:block xl:border-t-0 xl:pt-0 xl:text-right">
+                          <div>
+                            <p className="text-xs text-zinc-500">ราคา</p>
+                            <p className="mt-1 text-lg font-semibold text-black">{formatPrice(course.price)}</p>
+                          </div>
                           <button
                             type="button"
-                            className="mt-0 inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-rose-700 sm:mt-4"
+                            className="mt-0 inline-flex h-10 items-center justify-center gap-2 rounded-full border border-zinc-200 px-3 text-sm font-semibold text-zinc-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 xl:mt-5"
                             onClick={() => removeCourse(course.slug)}
                             aria-label={`ลบ ${course.title}`}
                           >
                             <Trash2 size={16} />
+                            <span className="xl:hidden">ลบ</span>
                           </button>
                         </div>
                       </article>
@@ -753,8 +898,16 @@ export default function StudentCourseStore() {
               </div>
             </section>
 
-            <aside className="h-fit rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:sticky lg:top-6">
-              <h3 className="text-lg font-semibold text-black">สรุปการชำระเงิน</h3>
+            <aside className="h-fit rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm lg:sticky lg:top-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-black">สรุปการชำระเงิน</h3>
+                  <p className="mt-1 text-sm text-zinc-500">ตรวจยอดก่อนยืนยัน</p>
+                </div>
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black text-white">
+                  <CreditCard size={18} />
+                </span>
+              </div>
               <div className="mt-6 space-y-4 text-sm">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-zinc-500">ราคาคอร์ส</span>
@@ -780,53 +933,40 @@ export default function StudentCourseStore() {
                 </div>
               </div>
 
-              {checkoutStep === 'payment' ? (
-                <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                  <p className="text-sm font-semibold text-black">ช่องทางชำระเงิน</p>
-                  <div className="mt-4 grid gap-3">
-                    <label className="flex items-center gap-3 rounded-xl border border-black bg-white px-4 py-3 text-sm font-semibold text-black">
-                      <input type="radio" checked readOnly className="h-4 w-4 accent-black" />
-                      ชำระผ่านระบบของแพลตฟอร์ม
-                    </label>
-                    <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-500">
-                      ระบบจะยืนยันรายการและเพิ่มคอร์สเข้าบัญชีนักเรียนหลังชำระเงินสำเร็จ
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="mt-6 rounded-2xl bg-zinc-50 p-4">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-black shadow-sm">
+              <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black shadow-sm">
                     <CreditCard size={18} />
                   </span>
                   <div>
-                    <p className="text-sm font-semibold text-black">พร้อมดำเนินการชำระเงิน</p>
-                    <p className="mt-1 text-xs text-zinc-500">ระบบจะลงทะเบียนคอร์สให้หลังยืนยันสำเร็จ</p>
+                    <p className="text-sm font-semibold text-black">ช่องทางชำระเงิน</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">
+                      ระบบจะตรวจรายการก่อนส่งไปหน้าชำระเงิน และเปิดสิทธิ์เรียนหลังยืนยันสำเร็จ
+                    </p>
                   </div>
                 </div>
+                <label className="mt-4 flex items-center gap-3 rounded-xl border border-black bg-white px-4 py-3 text-sm font-semibold text-black">
+                  <input type="radio" checked readOnly className="h-4 w-4 accent-black" />
+                  ชำระผ่านระบบของแพลตฟอร์ม
+                </label>
               </div>
 
               <button
                 type="button"
                 className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
-                onClick={checkoutStep === 'cart' ? () => setCheckoutStep('payment') : checkoutAllCourses}
+                onClick={() => openCheckoutModal({ mode: 'all' })}
                 disabled={cartCourses.length === 0 || checkoutAll || Boolean(checkoutSlug)}
               >
                 {checkoutAll ? <LoaderCircle size={16} className="animate-spin" /> : <CreditCard size={16} />}
-                ดำเนินการชำระเงิน
+                ยืนยันและชำระเงิน
               </button>
-
-              {checkoutStep !== 'cart' ? (
-                <button
-                  type="button"
-                  className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-lg border border-zinc-200 bg-white text-sm font-semibold text-black transition hover:border-black"
-                  onClick={() => setCheckoutStep('cart')}
-                  disabled={checkoutAll}
-                >
-                  กลับไปตรวจรายการ
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-lg border border-zinc-200 bg-white text-sm font-semibold text-black transition hover:border-black"
+                onClick={closeCart}
+              >
+                เลือกคอร์สเพิ่ม
+              </button>
 
               <p className="mt-4 flex items-center justify-center gap-2 text-xs text-zinc-500">
                 <Check size={14} />
@@ -1030,6 +1170,32 @@ export default function StudentCourseStore() {
               >
                 <X size={18} />
               </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+              <div className="flex items-center gap-2 overflow-x-auto">
+                {checkoutSteps.map((step, index) => {
+                  const isActive = index === activeCheckoutStepIndex
+                  const isCompleted = index < activeCheckoutStepIndex
+
+                  return (
+                    <div key={step.id} className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={[
+                          'inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold',
+                          isActive || isCompleted ? 'border-black bg-black text-white' : 'border-zinc-300 bg-white text-zinc-400',
+                        ].join(' ')}
+                      >
+                        {isCompleted ? <Check size={15} /> : index + 1}
+                      </span>
+                      <span className={isActive ? 'text-sm font-semibold text-black' : 'text-sm font-medium text-zinc-500'}>
+                        {step.label}
+                      </span>
+                      {index < checkoutSteps.length - 1 ? <span className="h-px w-8 bg-zinc-300" /> : null}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="mt-5 rounded-3xl border border-zinc-200 bg-zinc-50 p-4">

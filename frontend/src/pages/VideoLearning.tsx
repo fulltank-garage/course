@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -169,6 +169,7 @@ export default function VideoLearning() {
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewMessage, setReviewMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const mobileAiPanelRef = useRef<HTMLElement | null>(null)
   const { data: course, error, loading } = useApi(() => api.getCourse(slug), [slug])
   const session = authStorage.getSession()
   const sessionUser = session?.user
@@ -279,8 +280,10 @@ export default function VideoLearning() {
   }
 
   const openMobileAi = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
     setMobileAiOpen(true)
+    requestAnimationFrame(() => {
+      mobileAiPanelRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    })
   }
 
   const generateSummary = async () => {
@@ -392,10 +395,85 @@ export default function VideoLearning() {
 
   if (loading) {
     return (
-      <section className="min-h-screen bg-white p-6 text-black">
-        <div className="rounded-xl border border-zinc-200 bg-white p-8 text-sm text-zinc-500 shadow-sm">
-          กำลังโหลดบทเรียน...
-        </div>
+      <section className="student-page-shell">
+        <LearnProSidebar active="my-courses" mobileOpen={false} onMobileClose={() => undefined} />
+        <main className="student-page-main min-w-0">
+          <div className="border-b border-zinc-200 bg-white px-4 py-4 sm:px-6 lg:px-8">
+            <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="skeleton h-11 w-11 rounded-lg" />
+                <div className="skeleton h-11 w-11 rounded-lg" />
+                <div className="min-w-0 space-y-2">
+                  <div className="skeleton-line h-5 w-48" />
+                  <div className="skeleton-line h-4 w-32" />
+                </div>
+              </div>
+              <div className="hidden items-center gap-3 sm:flex">
+                <div className="skeleton h-11 w-11 rounded-full" />
+                <div className="skeleton h-4 w-4 rounded-full" />
+              </div>
+            </div>
+          </div>
+
+          <div className="mx-auto grid max-w-[1780px] gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:px-8 2xl:grid-cols-[minmax(0,1fr)_520px]">
+            <div className="min-w-0">
+              <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="skeleton-line h-4 w-28" />
+                    <div className="mt-3 skeleton-line h-9 w-8/12" />
+                    <div className="mt-3 skeleton-line h-5 w-11/12" />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="skeleton h-11 w-36 rounded-xl" />
+                    <div className="skeleton h-11 w-11 rounded-xl" />
+                  </div>
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-black shadow-sm">
+                <div className="skeleton aspect-video max-h-[68vh] w-full bg-zinc-900" />
+              </div>
+              <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[0, 1].map((item) => (
+                    <div key={item} className="flex items-center gap-3 rounded-xl bg-[#faf9f7] p-3">
+                      <div className="skeleton h-9 w-9 rounded-full" />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="skeleton-line h-3 w-24" />
+                        <div className="skeleton-line h-4 w-36" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <aside className="hidden space-y-6 lg:block">
+              <section className="min-h-[520px] rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+                <div className="flex items-center gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
+                  <div className="skeleton h-10 w-10 rounded-xl bg-white" />
+                  <div className="flex-1 space-y-2">
+                    <div className="skeleton-line h-5 w-28" />
+                    <div className="skeleton-line h-3 w-48" />
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl border border-zinc-200 bg-zinc-50 p-1">
+                  {[0, 1, 2].map((item) => (
+                    <div key={item} className="skeleton h-10 rounded-lg bg-white" />
+                  ))}
+                </div>
+                <div className="mt-4 rounded-2xl border border-zinc-200/70 bg-[#faf9f7] p-5">
+                  <div className="skeleton h-11 rounded-xl bg-black/10" />
+                  <div className="mt-5 space-y-3">
+                    <div className="skeleton-line h-4 w-full" />
+                    <div className="skeleton-line h-4 w-10/12" />
+                    <div className="skeleton-line h-4 w-8/12" />
+                  </div>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </main>
       </section>
     )
   }
@@ -631,6 +709,32 @@ export default function VideoLearning() {
                 compact
               />
             </div>
+
+            {mobileAiOpen ? (
+              <section
+                ref={mobileAiPanelRef}
+                className="mobile-ai-inline-panel mt-4 flex flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-[0_18px_44px_rgba(15,23,42,0.10)] lg:hidden"
+                aria-label="AI Tutor"
+              >
+                <div className="mb-3 flex shrink-0 items-center justify-between gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Mobile AI</p>
+                    <h2 className="text-base font-semibold text-black">ผู้ช่วย AI ใต้บทเรียน</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-black transition hover:border-black"
+                    onClick={() => setMobileAiOpen(false)}
+                    aria-label="ปิด AI Tutor"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <div className="flex h-full min-h-0 flex-col">{aiTutorContent}</div>
+                </div>
+              </section>
+            ) : null}
 
             <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -940,7 +1044,7 @@ export default function VideoLearning() {
           <Sparkles size={22} />
         </button>
 
-        {mobileAiOpen ? (
+        {false ? (
           <div className="fixed inset-0 z-[70] lg:hidden">
             <button
               type="button"

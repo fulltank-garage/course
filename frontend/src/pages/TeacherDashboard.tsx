@@ -336,8 +336,8 @@ function TeacherShell({
   }
 
   return (
-    <div className="min-h-screen bg-white text-black lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="hidden min-h-screen bg-black text-white lg:flex lg:flex-col">
+    <div className="min-h-screen bg-white text-black lg:grid lg:grid-cols-[280px_minmax(0,1fr)]" style={{ minHeight: '100svh' }}>
+      <aside className="mobile-landscape-scroll hidden min-h-screen bg-black text-white lg:flex lg:flex-col">
         <div className="flex h-20 items-center px-8">
           <Link to="/teacher" className="flex items-center gap-3">
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black">
@@ -1690,7 +1690,60 @@ export default function TeacherDashboard() {
   }
 
   if (loading) {
-    return <div className="card p-6 text-sm text-slate-500">กำลังโหลดพื้นที่ทำงานของคุณครู...</div>
+    return (
+      <div className="space-y-6">
+        <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-7 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl flex-1">
+              <div className="skeleton-line h-5 w-32" />
+              <div className="mt-3 skeleton-line h-12 w-10/12" />
+              <div className="mt-4 space-y-2">
+                <div className="skeleton-line h-5 w-full" />
+                <div className="skeleton-line h-5 w-8/12" />
+              </div>
+            </div>
+            <div className="skeleton h-11 w-36 rounded-lg" />
+          </div>
+        </section>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <section key={index} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="skeleton-line h-4 w-28" />
+                  <div className="mt-4 skeleton-line h-9 w-16" />
+                  <div className="mt-3 skeleton-line h-4 w-10/12" />
+                </div>
+                <div className="skeleton h-11 w-11 rounded-lg" />
+              </div>
+            </section>
+          ))}
+        </div>
+
+        <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="skeleton-line h-6 w-44" />
+              <div className="mt-2 skeleton-line h-4 w-64" />
+            </div>
+            <div className="skeleton h-10 w-32 rounded-md" />
+          </div>
+          <div className="mt-5 divide-y divide-zinc-200">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="grid gap-4 py-4 md:grid-cols-[96px_minmax(0,1fr)_auto] md:items-center">
+                <div className="skeleton aspect-video w-full rounded-lg md:w-24" />
+                <div className="space-y-2">
+                  <div className="skeleton-line h-5 w-8/12" />
+                  <div className="skeleton-line h-4 w-6/12" />
+                </div>
+                <div className="skeleton h-10 w-28 rounded-md" />
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    )
   }
 
   if (error) {
@@ -2508,8 +2561,8 @@ export default function TeacherDashboard() {
               <h2 className="text-lg font-semibold tracking-tight text-black">คอร์สของฉัน</h2>
               <p className="mt-1 text-sm text-zinc-500">จัดการคอร์ส บทเรียน และสถานะเผยแพร่จากรายการเดียว</p>
             </div>
-            <div className="flex flex-col gap-3 lg:items-end">
-              <div className="flex flex-wrap gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1">
+            <div className="flex w-full flex-col gap-3 lg:w-auto lg:items-end">
+              <div className="-mx-1 flex max-w-[calc(100vw-2rem)] gap-1 overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-1 sm:mx-0 lg:max-w-none">
                 {[
                   { value: 'all', label: 'ทั้งหมด' },
                   { value: 'published', label: 'เผยแพร่แล้ว' },
@@ -2520,7 +2573,7 @@ export default function TeacherDashboard() {
                     key={item.value}
                     type="button"
                     className={[
-                      'h-8 rounded-md px-3 text-sm font-medium transition',
+                      'h-9 shrink-0 rounded-md px-3 text-sm font-medium transition sm:h-8',
                       statusFilter === item.value ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-black',
                     ].join(' ')}
                     onClick={() => setStatusFilter(item.value as 'all' | Course['status'])}
@@ -2529,8 +2582,8 @@ export default function TeacherDashboard() {
                   </button>
                 ))}
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <label className="relative block min-w-0 sm:w-72">
+              <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center lg:w-auto">
+                <label className="relative block min-w-0 lg:w-72">
                   <span className="sr-only">ค้นหาคอร์ส</span>
                   <Search
                     size={15}
@@ -2545,7 +2598,7 @@ export default function TeacherDashboard() {
                 </label>
                 <button
                   type="button"
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 sm:h-9"
                   onClick={openCreateModal}
                 >
                   <Plus size={16} />

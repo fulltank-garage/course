@@ -251,8 +251,41 @@ function LoadingBlock() {
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={index}
-          className="h-[420px] w-[82vw] shrink-0 animate-pulse rounded-[18px] bg-zinc-100 shadow-[0_18px_44px_rgba(15,23,42,0.08)] sm:w-[340px] md:w-[360px] lg:w-[calc((100%_-_72px)/4)]"
-        />
+          className="flex h-[420px] w-[82vw] shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm shadow-slate-200/70 sm:w-[340px] md:w-[360px] lg:w-[calc((100%_-_72px)/4)]"
+        >
+          <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-950/5">
+            <div className="skeleton h-full w-full" />
+            <div className="absolute left-3 top-3 flex gap-2">
+              <div className="skeleton h-7 w-20 rounded-md bg-white/80" />
+              <div className="skeleton h-7 w-24 rounded-md bg-white/70" />
+            </div>
+            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-3">
+              <div className="skeleton h-4 w-28 rounded-full bg-white/70" />
+              <div className="skeleton h-7 w-20 rounded-md bg-white/80" />
+            </div>
+          </div>
+          <div className="flex flex-1 flex-col p-5">
+            <div className="skeleton h-7 w-20 rounded-md" />
+            <div className="mt-4 space-y-2">
+              <div className="skeleton-line h-5 w-11/12" />
+              <div className="skeleton-line h-5 w-8/12" />
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="skeleton-line h-4 w-full" />
+              <div className="skeleton-line h-4 w-10/12" />
+              <div className="skeleton-line h-4 w-7/12" />
+            </div>
+            <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
+              <div className="skeleton mx-auto h-4 w-12 rounded-full" />
+              <div className="skeleton mx-auto h-4 w-10 rounded-full" />
+              <div className="skeleton mx-auto h-4 w-12 rounded-full" />
+            </div>
+            <div className="mt-auto flex items-center justify-between border-t border-slate-200 pt-4">
+              <div className="skeleton h-5 w-20 rounded-full" />
+              <div className="skeleton h-10 w-28 rounded-md" />
+            </div>
+          </div>
+        </div>
       ))}
     </div>
   )

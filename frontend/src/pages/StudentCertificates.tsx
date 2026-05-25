@@ -137,7 +137,80 @@ export default function StudentCertificates() {
   const profileName = data?.profile.name || data?.user.name || 'ผู้เรียน'
 
   if (loading && !data) {
-    return <div className="min-h-screen bg-white p-6 text-sm text-zinc-500">กำลังโหลดใบประกาศนียบัตร...</div>
+    return (
+      <div className="student-page-shell">
+        <LearnProSidebar active="certificates" mobileOpen={false} onMobileClose={() => undefined} />
+        <main className="student-page-main min-w-0">
+          <div className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8">
+            <header className="mb-6 flex items-center gap-4">
+              <div className="skeleton h-11 w-11 rounded-lg lg:hidden" />
+              <div className="hidden flex-1 md:block xl:max-w-[520px]">
+                <div className="skeleton h-12 rounded-xl" />
+              </div>
+              <div className="ml-auto skeleton h-11 w-40 rounded-full" />
+            </header>
+
+            <section className="relative mb-7 overflow-hidden rounded-xl border border-zinc-200 bg-white p-7 shadow-sm">
+              <div className="max-w-2xl">
+                <div className="skeleton-line h-4 w-44" />
+                <div className="mt-3 skeleton-line h-10 w-10/12" />
+                <div className="mt-3 skeleton-line h-10 w-7/12" />
+                <div className="mt-4 space-y-2">
+                  <div className="skeleton-line h-5 w-full" />
+                  <div className="skeleton-line h-5 w-8/12" />
+                </div>
+              </div>
+              <div className="pointer-events-none absolute right-10 top-1/2 hidden -translate-y-1/2 lg:block">
+                <div className="skeleton h-20 w-20 rounded-2xl" />
+              </div>
+            </section>
+
+            <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_520px]">
+              <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-zinc-200 p-5">
+                  <div className="space-y-2">
+                    <div className="skeleton-line h-6 w-44" />
+                    <div className="skeleton-line h-4 w-24" />
+                  </div>
+                  <div className="skeleton h-11 w-11 rounded-full" />
+                </div>
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="flex gap-4 border-b border-zinc-200 p-4 last:border-b-0">
+                    <div className="skeleton h-16 w-24 rounded-lg" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="skeleton-line h-5 w-8/12" />
+                      <div className="skeleton-line h-4 w-44" />
+                      <div className="skeleton-line h-4 w-32" />
+                    </div>
+                    <div className="hidden sm:block">
+                      <div className="skeleton h-10 w-24 rounded-md" />
+                    </div>
+                  </div>
+                ))}
+              </section>
+
+              <aside className="space-y-5">
+                <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white p-7 shadow-sm">
+                  <div className="skeleton-line mx-auto h-4 w-32" />
+                  <div className="mx-auto mt-7 skeleton h-16 w-16 rounded-full" />
+                  <div className="mx-auto mt-7 skeleton-line h-8 w-72 max-w-full" />
+                  <div className="mx-auto mt-4 skeleton-line h-5 w-80 max-w-full" />
+                  <div className="mx-auto mt-10 skeleton-line h-6 w-64 max-w-full" />
+                  <div className="mt-10 grid grid-cols-2 gap-4">
+                    <div className="skeleton h-16 rounded-xl" />
+                    <div className="skeleton h-16 rounded-xl" />
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="skeleton h-12 rounded-md bg-black/10" />
+                  <div className="skeleton h-12 rounded-md" />
+                </div>
+              </aside>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   if (error && !data) {

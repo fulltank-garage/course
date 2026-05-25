@@ -191,7 +191,54 @@ export default function AdminDashboard() {
   }, [applicationSearch, applicationStatusFilter, teacherApplications])
 
   if (loading) {
-    return <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-500">กำลังโหลดแดชบอร์ด...</div>
+    return (
+      <div className="space-y-6">
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="skeleton-line h-4 w-24" />
+          <div className="mt-3 skeleton-line h-9 w-72 max-w-full" />
+          <div className="mt-2 skeleton-line h-5 w-96 max-w-full" />
+        </section>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <section key={index} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="skeleton-line h-4 w-24" />
+                  <div className="mt-4 skeleton-line h-9 w-16" />
+                </div>
+                <div className="skeleton h-10 w-10 rounded-lg" />
+              </div>
+            </section>
+          ))}
+        </div>
+
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 p-5">
+            <div>
+              <div className="skeleton-line h-5 w-44" />
+              <div className="mt-2 skeleton-line h-4 w-64" />
+            </div>
+            <div className="skeleton h-10 w-44 rounded-md" />
+          </div>
+          <div className="divide-y divide-slate-100">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_140px_120px] md:items-center">
+                <div className="flex items-center gap-3">
+                  <div className="skeleton h-10 w-10 rounded-full" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="skeleton-line h-4 w-48" />
+                    <div className="skeleton-line h-3 w-64" />
+                  </div>
+                </div>
+                <div className="skeleton-line h-4 w-24" />
+                <div className="skeleton h-9 w-28 rounded-md" />
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    )
   }
 
   if (error) {
@@ -458,7 +505,7 @@ export default function AdminDashboard() {
 
         <Panel>
           <PanelToolbar title="รายการคำขอ" description={`${filteredTeacherApplications.length.toLocaleString('th-TH')} รายการ`}>
-            <div className="grid gap-2 sm:grid-cols-[minmax(0,240px)_150px]">
+            <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_150px] lg:w-[390px]">
               <SearchField value={applicationSearch} onChange={setApplicationSearch} placeholder="ค้นหาผู้สมัคร" />
               <select
                 className="minimal-input"
@@ -566,7 +613,7 @@ export default function AdminDashboard() {
 
           <Panel>
             <PanelToolbar title="รายชื่อผู้ใช้" description={`${filteredUsers.length.toLocaleString('th-TH')} รายการ`}>
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,220px)_130px]">
+              <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_130px] lg:w-[360px]">
                 <SearchField value={userSearch} onChange={setUserSearch} placeholder="ค้นหา" />
                 <select className="minimal-input" value={userRoleFilter} onChange={(event) => setUserRoleFilter(event.target.value as 'all' | User['role'])}>
                   <option value="all">ทุกบทบาท</option>
@@ -647,7 +694,7 @@ export default function AdminDashboard() {
 
           <Panel>
             <PanelToolbar title="รายการคอร์ส" description={`${filteredCourses.length.toLocaleString('th-TH')} รายการ`}>
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,220px)_140px]">
+              <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_140px] lg:w-[370px]">
                 <SearchField value={courseSearch} onChange={setCourseSearch} placeholder="ค้นหาคอร์ส" />
                 <select
                   className="minimal-input"
@@ -862,19 +909,19 @@ function Panel({ children }: { children: ReactNode }) {
 
 function PanelToolbar({ title, description, children }: { title: string; description?: string; children?: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+    <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="min-w-0">
         <h2 className="text-base font-semibold text-slate-950">{title}</h2>
         {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
       </div>
-      {children ? <div className="shrink-0">{children}</div> : null}
+      {children ? <div className="w-full lg:w-auto lg:shrink-0">{children}</div> : null}
     </div>
   )
 }
 
 function SearchField({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
       <input className="minimal-input pl-9" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
     </div>

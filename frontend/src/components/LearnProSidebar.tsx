@@ -92,12 +92,12 @@ export default function LearnProSidebar({
       />
       <aside
         className={[
-          'fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-black text-white transition-transform duration-300 ease-out lg:z-40 lg:w-[280px] lg:translate-x-0',
+          'mobile-landscape-scroll fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-black text-white transition-transform duration-300 ease-out lg:z-40 lg:w-[280px] lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           className,
         ].join(' ')}
       >
-        <div className="flex h-20 items-center justify-between px-8">
+        <div className="landscape-compact-y flex h-20 shrink-0 items-center justify-between px-8">
           <Link to={dashboardPath} className="flex items-center gap-3" onClick={onMobileClose}>
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black">
               <BrandMark className="h-10 w-10" />
@@ -109,7 +109,7 @@ export default function LearnProSidebar({
           </button>
         </div>
 
-        <nav className="student-sidebar-nav space-y-2 px-5">
+        <nav className="student-sidebar-nav shrink-0 space-y-2 px-5">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = active === item.key
@@ -132,7 +132,7 @@ export default function LearnProSidebar({
         </nav>
 
         {role === 'student' ? (
-          <div className="mt-5 px-5">
+          <div className="mt-5 shrink-0 px-5">
             <Link
               to="/student/teacher-application"
               onClick={onMobileClose}
@@ -152,7 +152,7 @@ export default function LearnProSidebar({
           </div>
         ) : null}
 
-        <div className="mt-auto px-7 pb-7">
+        <div className="mt-auto shrink-0 px-7 pb-7">
           <div className="border-t border-white/10 pt-5">
             <div className="flex items-center gap-3">
               {avatarUrl ? (
