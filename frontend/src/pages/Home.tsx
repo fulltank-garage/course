@@ -45,12 +45,15 @@ function HeroBanner() {
   return (
     <section className="relative isolate overflow-hidden bg-white">
       <div className="mx-auto w-full max-w-[1800px] px-0 sm:px-4 lg:px-6">
-        <div className="relative aspect-[9/11] overflow-hidden bg-[#eef4ff] sm:aspect-auto sm:min-h-[420px] sm:rounded-[32px] lg:min-h-[620px]">
-          <img
-            src="/home-hero-course-banner.png"
-            alt="ระบบคอร์สออนไลน์ เรียนรู้ได้ทุกที่ ทุกเวลา"
-            className="absolute inset-0 h-full w-full object-contain object-top sm:object-cover sm:object-center"
-          />
+        <div className="relative aspect-[3/4] overflow-hidden bg-[#eef4ff] sm:aspect-auto sm:min-h-[420px] sm:rounded-[32px] lg:min-h-[620px]">
+          <picture>
+            <source media="(max-width: 639px)" srcSet="/home-hero-course-banner-mobile.png" />
+            <img
+              src="/home-hero-course-banner.png"
+              alt="ระบบคอร์สออนไลน์ เรียนรู้ได้ทุกที่ ทุกเวลา"
+              className="absolute inset-0 h-full w-full object-cover object-center"
+            />
+          </picture>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/65 to-transparent sm:hidden" />
         </div>
       </div>

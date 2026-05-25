@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   GraduationCap,
@@ -44,6 +44,7 @@ export default function LearnProSidebar({
   onMobileClose,
 }: LearnProSidebarProps) {
   const navigate = useNavigate()
+  const lockedScrollYRef = useRef(0)
   const session = authStorage.getSession()
   const role = session?.user.role
   const dashboardPath =
@@ -60,15 +61,29 @@ export default function LearnProSidebar({
   useEffect(() => {
     if (!mobileOpen) return
 
+    lockedScrollYRef.current = window.scrollY
     const previousOverflow = document.body.style.overflow
+    const previousHtmlOverflow = document.documentElement.style.overflow
     const previousTouchAction = document.body.style.touchAction
+    const previousPosition = document.body.style.position
+    const previousTop = document.body.style.top
+    const previousWidth = document.body.style.width
 
+    document.documentElement.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
     document.body.style.touchAction = 'none'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${lockedScrollYRef.current}px`
+    document.body.style.width = '100%'
 
     return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow
       document.body.style.overflow = previousOverflow
       document.body.style.touchAction = previousTouchAction
+      document.body.style.position = previousPosition
+      document.body.style.top = previousTop
+      document.body.style.width = previousWidth
+      window.scrollTo(0, lockedScrollYRef.current)
     }
   }, [mobileOpen])
 

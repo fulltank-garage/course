@@ -294,6 +294,24 @@ export default function VideoLearning() {
     })
   }
 
+  useEffect(() => {
+    if (!mobileAiOpen) return
+
+    const timeout = window.setTimeout(() => {
+      const panel = mobileAiPanelRef.current
+      if (!panel) return
+
+      const panelRect = panel.getBoundingClientRect()
+      const bottomOverflow = panelRect.bottom - window.innerHeight + 12
+
+      if (bottomOverflow > 0) {
+        window.scrollBy({ top: bottomOverflow, behavior: 'smooth' })
+      }
+    }, 120)
+
+    return () => window.clearTimeout(timeout)
+  }, [activeTab, aiLoading, aiQuiz?.length, mobileAiOpen])
+
   const generateSummary = async () => {
     if (!lesson) return
     setAiError(null)
@@ -504,7 +522,7 @@ export default function VideoLearning() {
   const quizGenerationsRemaining = Math.max(0, maxQuizGenerations - quizGenerationCount)
   const aiTutorContent = (
     <>
-      <div className="grid shrink-0 grid-cols-3 rounded-xl border border-zinc-200 bg-zinc-50 p-1 text-sm">
+      <div className="mobile-ai-tabs grid shrink-0 grid-cols-3 rounded-xl border border-zinc-200 bg-zinc-50 p-1 text-sm">
         {tabs.map((tab) => {
           const TabIcon = tab.icon
 
@@ -513,7 +531,7 @@ export default function VideoLearning() {
               key={tab.id}
               type="button"
               className={[
-                'flex h-11 items-center justify-center gap-1.5 rounded-lg px-2 font-semibold transition sm:h-10',
+                'mobile-ai-tab-button flex h-11 items-center justify-center gap-1.5 rounded-lg px-2 font-semibold transition sm:h-10',
                 activeTab === tab.id ? 'bg-white text-black shadow-[0_8px_20px_rgba(15,23,42,0.08)] ring-1 ring-zinc-200/80' : 'text-zinc-500 hover:bg-white/70 hover:text-black',
               ].join(' ')}
               onClick={() => setActiveTab(tab.id)}
@@ -526,12 +544,12 @@ export default function VideoLearning() {
         })}
       </div>
 
-      <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 xl:overflow-hidden xl:pr-0">
+      <div className="mt-4 min-h-0 flex-1 overflow-hidden overscroll-contain pr-1 xl:pr-0">
         {activeTab === 'summary' ? (
-          <div className="flex min-h-full flex-col gap-4 xl:h-full xl:min-h-0">
+          <div className="flex h-full min-h-0 flex-col gap-4">
             <button
               type="button"
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mobile-ai-action-button inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={generateSummary}
               disabled={aiLoading === 'summary'}
             >
@@ -539,7 +557,7 @@ export default function VideoLearning() {
               {aiLoading === 'summary' ? 'กำลังสรุป...' : 'สร้างสรุปบทเรียน'}
             </button>
             {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
-            <div className="ai-scroll-panel min-h-[180px] flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-[#faf9f7] p-4 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:min-h-[240px] sm:p-5 xl:min-h-0 xl:pb-5">
+            <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-[#faf9f7] p-4 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:p-5 xl:pb-5">
               <AiResponsePanel text={aiSummary ?? lesson.summary} />
             </div>
           </div>
@@ -555,10 +573,10 @@ export default function VideoLearning() {
         ) : null}
 
         {activeTab === 'quiz' ? (
-          <div className="flex min-h-full flex-col gap-4 xl:h-full xl:min-h-0">
+          <div className="flex h-full min-h-0 flex-col gap-4">
             <button
               type="button"
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mobile-ai-action-button inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={generateQuiz}
               disabled={aiLoading === 'quiz' || quizGenerationsRemaining <= 0}
             >
@@ -570,7 +588,7 @@ export default function VideoLearning() {
                   : 'สร้างแบบทดสอบ'}
             </button>
             {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
-            <div className="ai-scroll-panel min-h-[180px] flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:min-h-[240px] xl:min-h-0 xl:pb-4">
+            <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] xl:pb-4">
               <QuizCard questions={aiQuiz ?? lesson.quizQuestions} onSubmitScore={saveQuizScore} />
             </div>
           </div>
@@ -714,10 +732,10 @@ export default function VideoLearning() {
                 className="mobile-ai-inline-panel mt-3 flex flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-[0_18px_44px_rgba(15,23,42,0.10)] xl:hidden"
                 aria-label="AI Tutor"
               >
-                <div className="mb-3 flex shrink-0 items-center justify-between gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
+                <div className="mobile-ai-shell-header mb-3 flex shrink-0 items-center justify-between gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Mobile AI</p>
-                    <h2 className="text-base font-semibold text-black">ผู้ช่วย AI ใต้คลิปวิดีโอ</h2>
+                    <p className="mobile-ai-shell-kicker text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Mobile AI</p>
+                    <h2 className="mobile-ai-shell-title text-base font-semibold text-black">ผู้ช่วย AI ใต้คลิปวิดีโอ</h2>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <button

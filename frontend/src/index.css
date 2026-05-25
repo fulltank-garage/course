@@ -280,6 +280,30 @@ video {
   .mobile-ai-inline-panel {
     height: min(82svh, 360px);
     min-height: 280px;
+    padding: 0.5rem;
+  }
+
+  .mobile-ai-shell-header {
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .mobile-ai-shell-kicker {
+    display: none;
+  }
+
+  .mobile-ai-shell-title {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .mobile-ai-tabs {
+    font-size: 0.75rem;
+  }
+
+  .mobile-ai-tab-button,
+  .mobile-ai-action-button {
+    height: 2.25rem;
   }
 
   .mobile-landscape-scroll {
