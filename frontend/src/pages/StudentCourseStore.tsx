@@ -7,6 +7,7 @@ import {
   ChevronDown,
   CreditCard,
   LoaderCircle,
+  Menu,
   MoreVertical,
   Search,
   ShoppingBag,
@@ -244,6 +245,7 @@ export default function StudentCourseStore() {
   const [showPurchasedOnly, setShowPurchasedOnly] = useState(false)
   const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
   const [cartOpen, setCartOpen] = useState(() => searchParams.get('cart') === '1')
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [cartError, setCartError] = useState<string | null>(null)
   const [cartMessage, setCartMessage] = useState<string | null>(null)
   const [checkoutSlug, setCheckoutSlug] = useState<string | null>(null)
@@ -434,19 +436,29 @@ export default function StudentCourseStore() {
   const activeCheckoutStepIndex = checkoutStep === 'cart' ? 0 : checkoutStep === 'payment' ? 1 : 2
 
   return (
-    <section className="min-h-screen bg-white text-black lg:pl-[280px]">
-      <LearnProSidebar active="all-courses" />
+    <section className="student-page-shell">
+      <LearnProSidebar active="all-courses" mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
 
-      <main className="min-w-0">
+      <main className="student-page-main min-w-0">
         <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
           <header className="flex flex-col gap-5 border-b border-zinc-200 pb-6 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h1 className="text-4xl font-semibold tracking-tight text-black">คอร์สทั้งหมด</h1>
+            <div className="flex min-w-0 items-start gap-3">
+              <button
+                type="button"
+                className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white lg:hidden"
+                onClick={() => setMobileSidebarOpen(true)}
+                aria-label="เปิดเมนู"
+              >
+                <Menu size={20} />
+              </button>
+              <div className="min-w-0">
+              <h1 className="text-3xl font-semibold tracking-tight text-black sm:text-4xl">คอร์สทั้งหมด</h1>
               <p className="mt-3 text-base text-zinc-600">เลือกดูและสมัครเรียนคอร์สทั้งหมดที่เปิดอยู่ในระบบ</p>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <label className="relative block sm:w-80">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_13rem_3rem] lg:flex lg:flex-row">
+              <label className="relative block lg:w-80">
                 <span className="sr-only">ค้นหาคอร์ส</span>
                 <Search size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-black" />
                 <input
@@ -457,7 +469,7 @@ export default function StudentCourseStore() {
                 />
               </label>
 
-              <label className="relative block sm:w-52">
+              <label className="relative block lg:w-52">
                 <span className="sr-only">เรียงตาม</span>
                 <select
                   value={sortBy}
@@ -476,7 +488,7 @@ export default function StudentCourseStore() {
               <button
                 type="button"
                 onClick={() => setCartOpen(true)}
-                className="relative inline-flex h-12 w-12 items-center justify-center rounded-lg bg-black text-white transition hover:bg-zinc-800"
+                className="relative inline-flex h-12 w-full items-center justify-center rounded-lg bg-black text-white transition hover:bg-zinc-800 sm:w-12"
                 aria-label="ตะกร้าสินค้า"
                 title="ตะกร้าสินค้า"
               >
@@ -552,11 +564,11 @@ export default function StudentCourseStore() {
 
             <section className="min-w-0">
               <div className="mb-7 flex flex-col gap-4 border-b border-zinc-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
-                <div className="inline-flex w-fit rounded-lg border border-zinc-200 bg-white p-1">
+                <div className="inline-flex w-full overflow-hidden rounded-lg border border-zinc-200 bg-white p-1 sm:w-fit">
                   <button
                     type="button"
                     className={[
-                      'h-9 rounded-md px-4 text-sm font-semibold transition',
+                      'h-9 flex-1 rounded-md px-3 text-sm font-semibold transition sm:flex-none sm:px-4',
                       !showPurchasedOnly ? 'bg-black text-white' : 'text-zinc-500 hover:text-black',
                     ].join(' ')}
                     onClick={() => setShowPurchasedOnly(false)}
@@ -566,7 +578,7 @@ export default function StudentCourseStore() {
                   <button
                     type="button"
                     className={[
-                      'h-9 rounded-md px-4 text-sm font-semibold transition',
+                      'h-9 flex-1 rounded-md px-3 text-sm font-semibold transition sm:flex-none sm:px-4',
                       showPurchasedOnly ? 'bg-black text-white' : 'text-zinc-500 hover:text-black',
                     ].join(' ')}
                     onClick={() => setShowPurchasedOnly(true)}
@@ -634,7 +646,7 @@ export default function StudentCourseStore() {
         aria-hidden={!cartOpen}
       >
         <div className="mx-auto min-h-screen w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-10">
-          <div className="mx-auto flex max-w-2xl items-center justify-center gap-3 text-xs font-semibold text-zinc-500">
+          <div className="mx-auto flex max-w-2xl items-center justify-start gap-3 overflow-x-auto text-xs font-semibold text-zinc-500 sm:justify-center">
             {cartStepItems.map((item, index) => (
               <div key={item} className="flex min-w-0 items-center gap-3">
                 <span
@@ -651,9 +663,9 @@ export default function StudentCourseStore() {
             ))}
           </div>
 
-          <div className="mt-8 flex items-center justify-between gap-4">
+          <div className="mt-8 flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-black">รถเข็น / รายการสั่งซื้อ</h2>
+              <h2 className="text-xl font-semibold tracking-tight text-black sm:text-2xl">รถเข็น / รายการสั่งซื้อ</h2>
               <p className="mt-1 text-sm text-zinc-500">{cartCourses.length} รายการในตะกร้า</p>
             </div>
             <button
@@ -667,7 +679,7 @@ export default function StudentCourseStore() {
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-            <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="flex items-center justify-between border-b border-zinc-200 pb-4">
                 <h3 className="text-lg font-semibold text-black">คอร์สที่คุณเลือก</h3>
                 {cartCourses.length > 0 ? (

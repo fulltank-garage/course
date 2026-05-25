@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogIn, LogOut, Menu, ShoppingCart, UserRound, X } from 'lucide-react'
+import { BookOpen, Home, LayoutDashboard, Library, LogOut, Mail, Menu, ShoppingCart, UserCog, UserRound, X } from 'lucide-react'
 import BrandMark from './BrandMark'
 import { api, authStorage, cartStorage, type AuthSession } from '../services/api'
 
@@ -21,6 +21,26 @@ const logoutButtonClass =
   'inline-flex items-center justify-center gap-2 rounded-md bg-rose-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-rose-800 focus:outline-none focus:ring-2 focus:ring-rose-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60'
 
 const themeStorageKey = 'mycourse_theme'
+
+const getMobileNavIcon = (to: string) => {
+  if (to === '/') return Home
+  if (to === '/contact') return Mail
+  if (to.includes('profile')) return UserRound
+  if (to.includes('users')) return UserCog
+  if (to.includes('courses')) return Library
+  if (to.includes('student')) return BookOpen
+  return LayoutDashboard
+}
+
+function LoginAvatarIcon({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 128 128" aria-hidden="true" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="64" cy="64" r="59" fill="black" />
+      <circle cx="64" cy="46" r="24" fill="white" />
+      <path d="M29 110c3.5-27.5 17.2-45 35-45s31.5 17.5 35 45c-9.8 6.1-21.6 9.5-35 9.5S38.8 116.1 29 110Z" fill="white" />
+    </svg>
+  )
+}
 
 function UserAvatar({ session, className = 'h-8 w-8' }: { session: AuthSession; className?: string }) {
   if (session.user.avatarUrl) {
@@ -199,7 +219,7 @@ export default function Navbar() {
               to="/login"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800 hover:shadow-[0_18px_38px_rgba(0,0,0,0.24)]"
             >
-              <LogIn size={16} />
+              <LoginAvatarIcon className="h-5 w-5 shrink-0" />
               เข้าสู่ระบบ
             </Link>
           )}
@@ -217,14 +237,31 @@ export default function Navbar() {
 
       {open ? (
         <div className="border-t border-slate-200 bg-white md:hidden">
-          <div className="container-page space-y-2 py-4">
-            {navItems.map((item) => (
-              <Link key={item.to} to={item.to} className={navItemClass(isNavItemActive(item.to))}>
-                {item.label}
-              </Link>
-            ))}
+          <div className="container-page py-4">
             {session ? (
               <div className="grid gap-2 pt-2">
+                <div className="flex items-center gap-2 overflow-x-auto">
+                  {navItems.map((item) => {
+                    const Icon = getMobileNavIcon(item.to)
+
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        className={[
+                          'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition',
+                          isNavItemActive(item.to)
+                            ? 'border-black bg-black text-white shadow-[0_12px_24px_rgba(0,0,0,0.18)]'
+                            : 'border-slate-200 bg-white text-slate-950 hover:border-black hover:bg-slate-50',
+                        ].join(' ')}
+                        aria-label={item.label}
+                        title={item.label}
+                      >
+                        <Icon size={18} strokeWidth={2.2} />
+                      </Link>
+                    )
+                  })}
+                </div>
                 <Link
                   to={dashboardPath}
                   className="flex items-center gap-3 rounded-md border border-slate-200 bg-white p-3 text-slate-900 transition hover:bg-slate-100"
@@ -239,12 +276,32 @@ export default function Navbar() {
                 </button>
               </div>
             ) : isAuthPage ? null : (
-              <div className="grid gap-2 pt-2">
+              <div className="flex items-center gap-2">
+                {navItems.map((item) => {
+                  const Icon = getMobileNavIcon(item.to)
+
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className={[
+                        'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition',
+                        isNavItemActive(item.to)
+                          ? 'border-black bg-black text-white shadow-[0_12px_24px_rgba(0,0,0,0.18)]'
+                          : 'border-slate-200 bg-white text-slate-950 hover:border-black hover:bg-slate-50',
+                      ].join(' ')}
+                      aria-label={item.label}
+                      title={item.label}
+                    >
+                      <Icon size={18} strokeWidth={2.2} />
+                    </Link>
+                  )
+                })}
                 <Link
                   to="/login"
-                  className="flex items-center justify-center gap-2 rounded-full bg-black p-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800"
+                  className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800"
                 >
-                  <LogIn size={16} />
+                  <LoginAvatarIcon className="h-5 w-5 shrink-0" />
                   เข้าสู่ระบบ
                 </Link>
               </div>

@@ -75,6 +75,7 @@ body {
   min-height: 100vh;
   margin: 0;
   background: inherit;
+  overflow-x: hidden;
 }
 
 button,
@@ -156,10 +157,11 @@ video {
   }
 
   .student-page-shell {
-    @apply min-h-screen bg-white text-black lg:pl-[280px];
+    @apply min-h-screen overflow-x-hidden bg-white text-black lg:pl-[280px];
   }
 
   .student-page-main {
+    @apply w-full min-w-0;
     animation: studentPageIn 180ms ease-out both;
     will-change: transform;
   }

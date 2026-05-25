@@ -92,7 +92,7 @@ export default function LearnProSidebar({
       />
       <aside
         className={[
-          'fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-black text-white transition-transform duration-300 ease-out lg:z-40 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-black text-white transition-transform duration-300 ease-out lg:z-40 lg:w-[280px] lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           className,
         ].join(' ')}

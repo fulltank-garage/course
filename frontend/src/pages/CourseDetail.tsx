@@ -4,17 +4,16 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
-  BadgeCheck,
   CheckCircle2,
   Clock3,
   ClipboardList,
-  Gem,
-  GraduationCap,
   Lock,
   Pencil,
   PlayCircle,
   ShoppingCart,
+  Sparkles,
   Target,
+  UserRound,
   X,
 } from 'lucide-react'
 import { api, authStorage, cartStorage } from '../services/api'
@@ -37,23 +36,6 @@ const getLearningPath = (course: Course) =>
   course.viewerState?.enrollment?.lastLessonId
     ? `/learn/${course.slug}?lesson=${course.viewerState.enrollment.lastLessonId}`
     : `/learn/${course.slug}`
-
-const infoToneClasses = {
-  sapphire:
-    'from-[#edf5ff] via-white to-[#dbeafe] text-[#1550a8] ring-[#bfdbfe] shadow-[0_18px_40px_rgba(37,99,235,0.18),inset_0_1px_0_rgba(255,255,255,0.96)]',
-  emerald:
-    'from-[#ecfdf5] via-white to-[#ccfbf1] text-[#047857] ring-[#99f6e4] shadow-[0_18px_40px_rgba(5,150,105,0.16),inset_0_1px_0_rgba(255,255,255,0.96)]',
-  amber:
-    'from-[#fffbeb] via-white to-[#fde68a] text-[#b45309] ring-[#fde68a] shadow-[0_18px_40px_rgba(217,119,6,0.18),inset_0_1px_0_rgba(255,255,255,0.96)]',
-  rose:
-    'from-[#fff1f2] via-white to-[#fecdd3] text-[#be123c] ring-[#fecdd3] shadow-[0_18px_40px_rgba(225,29,72,0.16),inset_0_1px_0_rgba(255,255,255,0.96)]',
-  violet:
-    'from-[#f5f3ff] via-white to-[#ddd6fe] text-[#6d28d9] ring-[#ddd6fe] shadow-[0_18px_40px_rgba(124,58,237,0.17),inset_0_1px_0_rgba(255,255,255,0.96)]',
-  cyan:
-    'from-[#ecfeff] via-white to-[#bae6fd] text-[#0369a1] ring-[#bae6fd] shadow-[0_18px_40px_rgba(14,165,233,0.17),inset_0_1px_0_rgba(255,255,255,0.96)]',
-} satisfies Record<string, string>
-
-type InfoTone = keyof typeof infoToneClasses
 
 function PreviewModal({
   course,
@@ -173,21 +155,16 @@ function PreviewModal({
 function CourseInfoBlock({
   icon: Icon,
   title,
-  tone,
   children,
 }: {
   icon: typeof ClipboardList
   title: string
-  tone: InfoTone
   children: ReactNode
 }) {
   return (
-    <article className="grid grid-cols-[58px_minmax(0,1fr)] gap-5">
-      <span
-        className={`relative inline-flex h-14 w-14 items-center justify-center overflow-hidden rounded-[18px] border border-white/90 bg-gradient-to-br ring-1 ${infoToneClasses[tone]}`}
-      >
-        <span className="absolute inset-x-2 top-1 h-5 rounded-full bg-white/65 blur-md" aria-hidden="true" />
-        <Icon size={23} strokeWidth={1.85} />
+    <article className="grid grid-cols-[56px_minmax(0,1fr)] gap-4">
+      <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#173f86] text-white shadow-[0_12px_30px_rgba(23,63,134,0.18)]">
+        <Icon size={22} strokeWidth={2.2} />
       </span>
       <div className="min-w-0">
         <h2 className="text-3xl font-semibold tracking-tight text-zinc-950">{title}</h2>
@@ -374,7 +351,7 @@ export default function CourseDetail() {
 
         <section className="mx-auto grid w-full max-w-[1600px] gap-12 bg-[#ffffff] px-6 py-14 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.55fr)] lg:px-16">
           <div className="space-y-11">
-            <CourseInfoBlock icon={BadgeCheck} tone="sapphire" title="เป้าหมายการเรียนรู้">
+            <CourseInfoBlock icon={ClipboardList} title="เป้าหมายการเรียนรู้">
               <p>{course.description}</p>
               {learningObjectives.length > 0 ? (
                 <ul className="mt-4 list-disc space-y-1 pl-5">
@@ -385,12 +362,12 @@ export default function CourseDetail() {
               ) : null}
             </CourseInfoBlock>
 
-            <CourseInfoBlock icon={GraduationCap} tone="emerald" title="วิทยากร">
+            <CourseInfoBlock icon={UserRound} title="วิทยากร">
               <p className="font-medium text-zinc-700">{course.instructor.name}</p>
               <p className="mt-1 text-sm text-zinc-500">{course.instructor.title}</p>
             </CourseInfoBlock>
 
-            <CourseInfoBlock icon={Pencil} tone="amber" title="ประเด็นการเรียนรู้">
+            <CourseInfoBlock icon={Pencil} title="ประเด็นการเรียนรู้">
               <ol className="list-decimal space-y-1 pl-6">
                 {lessonTitles.slice(0, 9).map((title, index) => (
                   <li key={`${title}-${index}`}>
@@ -402,7 +379,7 @@ export default function CourseDetail() {
           </div>
 
           <div className="space-y-11">
-            <CourseInfoBlock icon={Target} tone="rose" title="กลุ่มเป้าหมาย">
+            <CourseInfoBlock icon={Target} title="กลุ่มเป้าหมาย">
               <ol className="list-decimal space-y-1 pl-6">
                 {targetAudience.map((item) => (
                   <li key={item}>{item}</li>
@@ -410,11 +387,11 @@ export default function CourseDetail() {
               </ol>
             </CourseInfoBlock>
 
-            <CourseInfoBlock icon={Gem} tone="violet" title="มี AI ช่วย">
+            <CourseInfoBlock icon={Sparkles} title="มี AI ช่วย">
               <p>{aiSupport}</p>
             </CourseInfoBlock>
 
-            <CourseInfoBlock icon={Clock3} tone="cyan" title="จำนวนชั่วโมงการเรียนรู้">
+            <CourseInfoBlock icon={Clock3} title="จำนวนชั่วโมงการเรียนรู้">
               <p>{course.duration}</p>
             </CourseInfoBlock>
           </div>

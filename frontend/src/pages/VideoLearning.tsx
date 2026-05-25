@@ -12,11 +12,13 @@ import {
   HelpCircle,
   Lock,
   Maximize2,
+  Menu,
   MessageSquare,
   PlayCircle,
   Send,
   Sparkles,
   Star,
+  X,
 } from 'lucide-react'
 import AIChatBox from '../components/AIChatBox'
 import LearnProSidebar from '../components/LearnProSidebar'
@@ -162,6 +164,8 @@ export default function VideoLearning() {
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewText, setReviewText] = useState('')
   const [lessonReviews, setLessonReviews] = useState<LessonReview[]>([])
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [mobileAiOpen, setMobileAiOpen] = useState(false)
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [reviewMessage, setReviewMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
@@ -272,6 +276,11 @@ export default function VideoLearning() {
     setAiError(null)
     setProgressMessage(null)
     setSearchParams({ lesson: nextLessonId })
+  }
+
+  const openMobileAi = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setMobileAiOpen(true)
   }
 
   const generateSummary = async () => {
@@ -407,15 +416,150 @@ export default function VideoLearning() {
 
   const learnerAvatar = sessionUser?.avatarUrl
   const quizGenerationsRemaining = Math.max(0, maxQuizGenerations - quizGenerationCount)
+  const aiTutorContent = (
+    <>
+      <div className="flex shrink-0 items-center gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black ring-1 ring-zinc-200/80">
+          <Sparkles size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="min-w-0 text-lg font-semibold text-black">AI Tutor</h2>
+          <p className="mt-0.5 text-xs text-zinc-500">สรุป ถามตอบ และทบทวนบทนี้</p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid shrink-0 grid-cols-3 rounded-xl border border-zinc-200 bg-zinc-50 p-1 text-sm">
+        {tabs.map((tab) => {
+          const TabIcon = tab.icon
+
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              className={[
+                'flex h-11 items-center justify-center gap-1.5 rounded-lg px-2 font-semibold transition sm:h-10',
+                activeTab === tab.id ? 'bg-white text-black shadow-[0_8px_20px_rgba(15,23,42,0.08)] ring-1 ring-zinc-200/80' : 'text-zinc-500 hover:bg-white/70 hover:text-black',
+              ].join(' ')}
+              onClick={() => setActiveTab(tab.id)}
+              aria-label={tab.label}
+            >
+              <TabIcon size={15} />
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 lg:overflow-hidden lg:pr-0">
+        {activeTab === 'summary' ? (
+          <div className="flex min-h-full flex-col gap-4 lg:h-full lg:min-h-0">
+            <button
+              type="button"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={generateSummary}
+              disabled={aiLoading === 'summary'}
+            >
+              <FileText size={15} />
+              {aiLoading === 'summary' ? 'กำลังสรุป...' : 'สร้างสรุปบทเรียน'}
+            </button>
+            {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
+            <div className="ai-scroll-panel min-h-[280px] flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-[#faf9f7] p-5 pb-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] lg:min-h-0 lg:pb-5">
+              <AiResponsePanel text={aiSummary ?? lesson.summary} />
+            </div>
+          </div>
+        ) : null}
+
+        {activeTab === 'assistant' ? (
+          <AIChatBox
+            lessonId={lesson.id}
+            lessonTitle={lesson.title}
+            embedded
+            className="h-full min-h-0 rounded-2xl border border-zinc-200/70 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+          />
+        ) : null}
+
+        {activeTab === 'quiz' ? (
+          <div className="flex min-h-full flex-col gap-4 lg:h-full lg:min-h-0">
+            <button
+              type="button"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={generateQuiz}
+              disabled={aiLoading === 'quiz' || quizGenerationsRemaining <= 0}
+            >
+              <HelpCircle size={16} />
+              {aiLoading === 'quiz'
+                ? 'กำลังสร้างแบบทดสอบ...'
+                : quizGenerationCount > 0
+                  ? `สร้างชุดใหม่ ${quizGenerationCount}/${maxQuizGenerations}`
+                  : 'สร้างแบบทดสอบ'}
+            </button>
+            {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
+            <div className="ai-scroll-panel min-h-[280px] flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 pb-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] lg:min-h-0 lg:pb-4">
+              <QuizCard questions={aiQuiz ?? lesson.quizQuestions} onSubmitScore={saveQuizScore} />
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </>
+  )
+  const lessonListContent = (
+    <>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-lg font-semibold text-black">เนื้อหาคอร์ส</h2>
+        <p className="text-sm text-zinc-500">{course.lessons.length} บทเรียน</p>
+      </div>
+
+      <div className="mt-5 space-y-2">
+        {course.lessons.map((item, index) => {
+          const active = item.id === lesson.id
+          const completed = enrollment ? enrollment.completedLessons > index : false
+          const locked = !isEnrolledStudent && !item.preview
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={[
+                'grid w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition',
+                active ? 'border-black bg-[#faf9f7] text-black shadow-sm' : 'border-transparent bg-white text-zinc-700 hover:border-zinc-200 hover:bg-zinc-50',
+              ].join(' ')}
+              onClick={() => openLesson(item.id)}
+            >
+              <span className={active ? 'text-xs font-semibold text-black' : 'text-xs text-zinc-500'}>{String(index + 1).padStart(2, '0')}</span>
+              <span className="min-w-0 truncate font-medium">{item.title}</span>
+              <span className="flex items-center gap-3 text-xs text-zinc-500">
+                <span>{item.duration}</span>
+                {active ? (
+                  <PlayCircle size={16} className="text-black" />
+                ) : completed ? (
+                  <CheckCircle2 size={16} className="text-emerald-600" />
+                ) : locked ? (
+                  <Lock size={15} className="text-zinc-400" />
+                ) : null}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </>
+  )
 
   return (
-    <section className="min-h-screen bg-white text-black lg:pl-[280px]">
-      <LearnProSidebar active="my-courses" />
+    <section className="student-page-shell">
+      <LearnProSidebar active="my-courses" mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
 
-      <main className="min-w-0">
+      <main className="student-page-main min-w-0">
         <div className="border-b border-zinc-200 bg-white px-4 py-4 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
+              <button
+                type="button"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-black lg:hidden"
+                onClick={() => setMobileSidebarOpen(true)}
+                aria-label="เปิดเมนู"
+              >
+                <Menu size={20} />
+              </button>
               <Link
                 to={backPath}
                 className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-black transition hover:border-black"
@@ -442,7 +586,7 @@ export default function VideoLearning() {
           </div>
         </div>
 
-        <div className="mx-auto grid max-w-[1780px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:px-8 2xl:grid-cols-[minmax(0,1fr)_520px]">
+        <div className="mx-auto grid max-w-[1780px] gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:px-8 2xl:grid-cols-[minmax(0,1fr)_520px]">
           <div className="min-w-0">
             <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -543,6 +687,10 @@ export default function VideoLearning() {
                 <ArrowRight size={18} />
               </button>
             </div>
+
+            <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm lg:hidden">
+              {lessonListContent}
+            </section>
 
             {progressMessage ? (
               <p
@@ -662,7 +810,7 @@ export default function VideoLearning() {
           </div>
 
           <aside className="space-y-6">
-            <section className="flex min-h-[520px] flex-col rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-[740px]">
+            <section className="hidden min-h-[520px] flex-col rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.06)] lg:sticky lg:top-4 lg:flex lg:h-[calc(100vh-2rem)] lg:max-h-[740px]">
               <div className="flex shrink-0 items-center gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black ring-1 ring-zinc-200/80">
                   <Sparkles size={18} />
@@ -741,7 +889,7 @@ export default function VideoLearning() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <section className="hidden rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:block">
               <div className="flex items-center justify-between gap-4">
                 <h2 className="text-lg font-semibold text-black">เนื้อหาคอร์ส</h2>
                 <p className="text-sm text-zinc-500">{course.lessons.length} บทเรียน</p>
@@ -782,6 +930,46 @@ export default function VideoLearning() {
             </section>
           </aside>
         </div>
+
+        <button
+          type="button"
+          className="fixed bottom-5 right-5 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-[0_18px_42px_rgba(0,0,0,0.28)] transition hover:bg-zinc-800 lg:hidden"
+          onClick={openMobileAi}
+          aria-label="เปิด AI Tutor"
+        >
+          <Sparkles size={22} />
+        </button>
+
+        {mobileAiOpen ? (
+          <div className="fixed inset-0 z-[70] lg:hidden">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/45"
+              onClick={() => setMobileAiOpen(false)}
+              aria-label="ปิด AI Tutor"
+            />
+            <section className="absolute inset-x-0 bottom-0 flex h-[48vh] min-h-[360px] max-h-[68vh] flex-col rounded-t-[28px] bg-white p-4 shadow-[0_-24px_60px_rgba(0,0,0,0.24)]">
+              <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-zinc-300" aria-hidden="true" />
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Mobile AI</p>
+                  <h2 className="text-lg font-semibold text-black">ผู้ช่วย AI</h2>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-black"
+                  onClick={() => setMobileAiOpen(false)}
+                  aria-label="ปิด AI Tutor"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="flex h-full min-h-0 flex-col">{aiTutorContent}</div>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </main>
     </section>
   )
