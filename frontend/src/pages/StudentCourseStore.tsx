@@ -473,8 +473,6 @@ export default function StudentCourseStore() {
   const totalCartPrice = cartCourses.reduce((sum, course) => sum + course.price, 0)
   const freeCartCourses = cartCourses.filter((course) => course.price === 0).length
   const paidCartCourses = cartCourses.length - freeCartCourses
-  const modalCourses = checkoutModal?.mode === 'single' ? [checkoutModal.course] : cartCourses
-  const modalTotal = modalCourses.reduce((sum, course) => sum + course.price, 0)
   const modalActionLoading =
     checkoutModal?.mode === 'single'
       ? checkoutSlug === checkoutModal.course.slug
@@ -1140,131 +1138,54 @@ export default function StudentCourseStore() {
 
       <div
         className={[
-          'fixed inset-0 z-[120] bg-black/30 px-4 transition-opacity duration-200',
+          'fixed inset-0 z-[120] flex items-center justify-center bg-black/30 px-4 transition-opacity duration-200',
           checkoutModal ? 'opacity-100' : 'pointer-events-none opacity-0',
         ].join(' ')}
         onClick={closeCheckoutModal}
       >
-        <div className="flex min-h-full items-center justify-center py-8">
-          <section
-            className={[
-              'w-full max-w-[560px] rounded-[32px] border border-zinc-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.18)] transition duration-200 sm:p-6',
-              checkoutModal ? 'translate-y-0 scale-100' : 'translate-y-3 scale-[0.98]',
-            ].join(' ')}
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label="ชำระเงิน"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-400">Invoice</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-black">ชำระเงินคอร์ส</h2>
-                <p className="mt-2 text-sm text-zinc-500">ตรวจสอบบิลและกรอกข้อมูลการชำระเงินให้ครบก่อนยืนยัน</p>
-              </div>
-              <button
-                type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-500 transition hover:border-black hover:text-black"
-                onClick={closeCheckoutModal}
-                aria-label="ปิดหน้าชำระเงิน"
-              >
-                <X size={18} />
-              </button>
-            </div>
+        <section
+          className={[
+            'w-full max-w-[380px] rounded-[28px] border border-zinc-200 bg-white p-5 text-center shadow-[0_24px_60px_rgba(15,23,42,0.18)] transition duration-200 sm:p-6',
+            checkoutModal ? 'translate-y-0 scale-100' : 'translate-y-3 scale-[0.98]',
+          ].join(' ')}
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label="ยืนยันการชำระเงิน"
+        >
+          <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-black text-white">
+            <CreditCard size={20} />
+          </span>
+          <h2 className="mt-4 text-xl font-semibold tracking-tight text-black">ยืนยันการชำระเงิน?</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">กรุณายืนยันอีกครั้งก่อนดำเนินการชำระเงิน</p>
 
-            <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-              <div className="flex items-center gap-2 overflow-x-auto">
-                {checkoutSteps.map((step, index) => {
-                  const isActive = index === activeCheckoutStepIndex
-                  const isCompleted = index < activeCheckoutStepIndex
-
-                  return (
-                    <div key={step.id} className="flex shrink-0 items-center gap-2">
-                      <span
-                        className={[
-                          'inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold',
-                          isActive || isCompleted ? 'border-black bg-black text-white' : 'border-zinc-300 bg-white text-zinc-400',
-                        ].join(' ')}
-                      >
-                        {isCompleted ? <Check size={15} /> : index + 1}
-                      </span>
-                      <span className={isActive ? 'text-sm font-semibold text-black' : 'text-sm font-medium text-zinc-500'}>
-                        {step.label}
-                      </span>
-                      {index < checkoutSteps.length - 1 ? <span className="h-px w-8 bg-zinc-300" /> : null}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-3xl border border-zinc-200 bg-zinc-50 p-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className={cartMetricClass}>
-                  <p className="text-[11px] text-zinc-500">{'\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14'}</p>
-                  <p className="mt-1 text-xl font-semibold text-black">{modalCourses.length}</p>
-                </div>
-                <div className={cartMetricClass}>
-                  <p className="text-[11px] text-zinc-500">{'\u0e1f\u0e23\u0e35'}</p>
-                  <p className="mt-1 text-xl font-semibold text-black">{modalCourses.filter((course) => course.price === 0).length}</p>
-                </div>
-                <div className={cartMetricClass}>
-                  <p className="text-[11px] text-zinc-500">{'\u0e40\u0e2a\u0e35\u0e22\u0e40\u0e07\u0e34\u0e19'}</p>
-                  <p className="mt-1 text-xl font-semibold text-black">{modalCourses.filter((course) => course.price > 0).length}</p>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-zinc-200 bg-white px-4 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-zinc-500">{'\u0e22\u0e2d\u0e14\u0e0a\u0e33\u0e23\u0e30'}</span>
-                  <span className="text-3xl font-semibold tracking-tight text-black">{formatPrice(modalTotal)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-4">
-                <p className="text-sm font-medium text-black">
-                  {checkoutModal?.mode === 'single'
-                    ? checkoutModal.course.title
-                    : `${modalCourses.length} คอร์สในรายการชำระเงิน`}
-                </p>
-                <p className="mt-1 text-sm text-zinc-500">
-                  {checkoutModal?.mode === 'single'
-                    ? 'ชำระเฉพาะคอร์สที่เลือก'
-                    : 'ยืนยันการซื้อคอร์สทั้งหมดในตะกร้าพร้อมกัน'}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className={minimalPrimaryButtonClass}
-                onClick={() => {
-                  if (!checkoutModal) return
-                  if (checkoutModal.mode === 'single') {
-                    checkoutCourse(checkoutModal.course)
-                    return
-                  }
-                  checkoutAllCourses()
-                }}
-                disabled={modalActionLoading}
-              >
-                {modalActionLoading ? <LoaderCircle size={16} className="animate-spin" /> : <CreditCard size={16} />}
-                {modalActionLoading
-                  ? '\u0e01\u0e33\u0e25\u0e31\u0e07\u0e14\u0e33\u0e40\u0e19\u0e34\u0e19\u0e01\u0e32\u0e23...'
-                  : '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e0a\u0e33\u0e23\u0e30\u0e40\u0e07\u0e34\u0e19'}
-              </button>
-              <button
-                type="button"
-                className={minimalSecondaryButtonClass}
-                onClick={closeCheckoutModal}
-                disabled={modalActionLoading}
-              >
-                {'\u0e22\u0e01\u0e40\u0e25\u0e34\u0e01'}
-              </button>
-            </div>
-          </section>
-        </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              className={minimalSecondaryButtonClass}
+              onClick={closeCheckoutModal}
+              disabled={modalActionLoading}
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              className={minimalPrimaryButtonClass}
+              onClick={() => {
+                if (!checkoutModal) return
+                if (checkoutModal.mode === 'single') {
+                  checkoutCourse(checkoutModal.course)
+                  return
+                }
+                checkoutAllCourses()
+              }}
+              disabled={modalActionLoading}
+            >
+              {modalActionLoading ? <LoaderCircle size={16} className="animate-spin" /> : <Check size={16} />}
+              {modalActionLoading ? 'กำลังดำเนินการ...' : 'ยืนยัน'}
+            </button>
+          </div>
+        </section>
       </div>
     </section>
   )
