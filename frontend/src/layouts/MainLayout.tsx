@@ -24,22 +24,21 @@ export default function MainLayout() {
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-[6px] bg-black text-white">
                 ▮▮
               </span>
-              <p>เรียนรู้วันนี้ เพื่ออนาคตที่ดีกว่าในวันพรุ่งนี้</p>
+              <p>เรียนรู้วันนี้ มีผู้ช่วยAI</p>
             </div>
             <div>
               <p className="font-bold text-black">Company</p>
               <div className="mt-4 space-y-2">
-                <p>About</p>
-                <p>Careers</p>
-                <p>Blog</p>
+                <p>ติดต่อเรา 000</p>
+                <p>สามารถสนับสนุนเราได้ที่นี่</p>
+                <p></p>
               </div>
             </div>
             <div>
               <p className="font-bold text-black">Support</p>
               <div className="mt-4 space-y-2">
-                <p>Help Center</p>
-                <p>Contact Us</p>
-                <p>Terms of Service</p>
+                <p>ศูนย์บริการลูกค้า</p>
+                <p>สามารถติดต่อสอบถาม</p>
               </div>
             </div>
             <div>

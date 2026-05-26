@@ -14,7 +14,7 @@ const port = Number(process.env.PORT ?? 4000)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const aiProvider = process.env.AI_PROVIDER ?? 'none'
 const aiModel = process.env.AI_MODEL ?? 'not-configured'
-const aiRequestTimeoutSeconds = Math.max(30, Number(process.env.AI_REQUEST_TIMEOUT_SECONDS ?? 90) || 90)
+const aiRequestTimeoutSeconds = Math.max(30, Number(process.env.AI_REQUEST_TIMEOUT_SECONDS ?? 300) || 300)
 const aiPromptTranscriptMaxChars = Math.max(12000, Number(process.env.AI_PROMPT_TRANSCRIPT_MAX_CHARS ?? 28000) || 28000)
 const aiQuestionContextMaxChars = Math.max(8000, Number(process.env.AI_QUESTION_CONTEXT_MAX_CHARS ?? 18000) || 18000)
 const aiSummaryChunkChars = Math.max(8000, Number(process.env.AI_SUMMARY_CHUNK_CHARS ?? 14000) || 14000)
@@ -25,11 +25,11 @@ const ffmpegBinary = process.env.FFMPEG_PATH ?? 'ffmpeg'
 const transcodeUploadedVideos = process.env.TRANSCODE_UPLOADED_VIDEOS === 'true'
 const validateUploadedVideos = process.env.VALIDATE_UPLOADED_VIDEOS === 'true'
 const normalizeExistingUploads = process.env.NORMALIZE_EXISTING_UPLOADS === 'true'
-const autoTranscribeLessons = process.env.AUTO_TRANSCRIBE_LESSONS === 'true'
+const autoTranscribeLessons = process.env.AUTO_TRANSCRIBE_LESSONS !== 'false'
 const maxAutoTranscribeVideoBytes = Number(process.env.MAX_AUTO_TRANSCRIBE_VIDEO_MB ?? 100) * 1024 * 1024
 const muxAudioWaitSeconds = Math.max(30, Number(process.env.MUX_AUDIO_WAIT_SECONDS ?? 1800) || 1800)
 const muxAudioDownloadMaxBytes = Number(process.env.MUX_AUDIO_DOWNLOAD_MAX_MB ?? 1024) * 1024 * 1024
-const transcriptionChunkSeconds = Math.max(60, Number(process.env.TRANSCRIPTION_CHUNK_SECONDS ?? 600) || 600)
+const transcriptionChunkSeconds = Math.max(60, Number(process.env.TRANSCRIPTION_CHUNK_SECONDS ?? 300) || 300)
 const ffmpegThreads = Math.max(1, Number(process.env.FFMPEG_THREADS ?? 2) || 2)
 const adminEmail = (process.env.ADMIN_EMAIL ?? 'admin@example.com').trim().toLowerCase()
 const adminPassword = process.env.ADMIN_PASSWORD ?? 'Admin12345'
@@ -873,13 +873,7 @@ const summarizeLongTranscriptForAi = async (lesson, transcript) => {
   if (compactedTranscript.length <= aiPromptTranscriptMaxChars) return compactedTranscript
 
   const allChunks = splitTextForAi(compactedTranscript, aiSummaryChunkChars)
-  const chunks =
-    allChunks.length <= aiSummaryMaxChunks
-      ? allChunks
-      : Array.from({ length: aiSummaryMaxChunks }, (_, index) => {
-          const sourceIndex = Math.round((index * (allChunks.length - 1)) / (aiSummaryMaxChunks - 1))
-          return allChunks[sourceIndex]
-        })
+  const chunks = allChunks
   const chunkSummaries = await Promise.all(chunks.map(async (chunk, index) => {
     const chunkPrompt = `
 สรุปเนื้อหาบทเรียนช่วงที่ ${index + 1}/${chunks.length} เป็นภาษาไทย
@@ -1297,10 +1291,30 @@ const transcodeVideoToMp4 = async (inputPath, outputPath) =>
     })
   })
 
+const getMediaDurationSeconds = async (absolutePath) =>
+  new Promise((resolve) => {
+    const ffprobe = spawn(
+      ffmpegBinary.replace(/ffmpeg$/i, 'ffprobe'),
+      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', absolutePath],
+      { stdio: ['ignore', 'pipe', 'ignore'] },
+    )
+
+    let stdout = ''
+    ffprobe.stdout.on('data', (chunk) => {
+      stdout += String(chunk)
+    })
+    ffprobe.on('error', () => resolve(null))
+    ffprobe.on('close', (code) => {
+      const duration = Number(stdout.trim())
+      resolve(code === 0 && Number.isFinite(duration) && duration > 0 ? duration : null)
+    })
+  })
+
 const splitAudioForTranscription = async (inputPath, chunkSeconds = transcriptionChunkSeconds) => {
   const fileInfo = await stat(inputPath)
+  const durationSeconds = await getMediaDurationSeconds(inputPath)
 
-  if (fileInfo.size <= maxAutoTranscribeVideoBytes) {
+  if (fileInfo.size <= maxAutoTranscribeVideoBytes && (!durationSeconds || durationSeconds <= chunkSeconds)) {
     return [inputPath]
   }
 
@@ -2192,8 +2206,12 @@ const saveUploadAsset = async (request) => {
     const { fields, filePart } = parseMultipartFormData(contentType, rawBody)
     const kind = String(fields.kind ?? '').trim()
 
-    if (!['cover', 'video', 'avatar'].includes(kind) || !filePart) {
+    if (!['cover', 'video', 'avatar', 'sponsor'].includes(kind) || !filePart) {
       return { statusCode: 400, payload: { message: 'ข้อมูลไฟล์ไม่ครบ' } }
+    }
+
+    if (kind === 'sponsor' && authUser.role !== 'admin') {
+      return { statusCode: 403, payload: { message: 'เฉพาะแอดมินเท่านั้นที่อัปโหลดโลโก้ผู้สนับสนุนได้' } }
     }
 
     if (['cover', 'video'].includes(kind) && !['teacher', 'admin'].includes(authUser.role)) {
@@ -2213,8 +2231,12 @@ const saveUploadAsset = async (request) => {
   const fileName = String(body.fileName ?? '').trim()
   const dataUrl = String(body.dataUrl ?? '')
 
-  if (!['cover', 'video', 'avatar'].includes(kind) || !fileName || !dataUrl) {
+  if (!['cover', 'video', 'avatar', 'sponsor'].includes(kind) || !fileName || !dataUrl) {
     return { statusCode: 400, payload: { message: 'ข้อมูลไฟล์ไม่ครบ' } }
+  }
+
+  if (kind === 'sponsor' && authUser.role !== 'admin') {
+    return { statusCode: 403, payload: { message: 'เฉพาะแอดมินเท่านั้นที่อัปโหลดโลโก้ผู้สนับสนุนได้' } }
   }
 
   if (['cover', 'video'].includes(kind) && !['teacher', 'admin'].includes(authUser.role)) {
@@ -4670,7 +4692,7 @@ const saveCourseLesson = async (request, slug, lessonId) => {
   if (lessonId) {
     const lessonResult = await query(
       `
-        SELECT id
+        SELECT id, video_url, ai_status
         FROM lessons
         WHERE id = $1 AND course_id = $2
         LIMIT 1
@@ -4691,14 +4713,21 @@ const saveCourseLesson = async (request, slug, lessonId) => {
           preview = $3,
           video_url = $4,
           summary = $5,
-          ai_status = CASE WHEN $4::text IS NULL OR $4::text = '' THEN 'idle' ELSE 'pending' END,
+          ai_status = CASE
+            WHEN $4::text IS NULL OR $4::text = '' THEN 'idle'
+            WHEN COALESCE(video_url, '') IS DISTINCT FROM $4::text THEN 'pending'
+            WHEN ai_status = 'failed' THEN 'pending'
+            ELSE ai_status
+          END,
           ai_error = NULL
         WHERE id = $6
       `,
       [title, duration, preview, videoUrl || null, summary, lessonId],
     )
 
-    if (videoUrl) queueAutoTranscribeLesson(lessonId, videoUrl)
+    if (videoUrl && (String(lessonResult.rows[0].video_url ?? '') !== videoUrl || lessonResult.rows[0].ai_status === 'failed')) {
+      queueAutoTranscribeLesson(lessonId, videoUrl)
+    }
   } else {
     const sortResult = await query(
       'SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_sort_order FROM lessons WHERE course_id = $1',

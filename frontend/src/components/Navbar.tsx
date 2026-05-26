@@ -175,6 +175,16 @@ export default function Navbar() {
             <UserAvatar session={session} />
             <span className="max-w-36 truncate">{session.user.name}</span>
           </Link>
+
+          <button
+            type="button"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-black px-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
+            onClick={handleLogout}
+            disabled={loggingOut}
+          >
+            <LogOut size={16} />
+            <span className="hidden sm:inline">{loggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}</span>
+          </button>
         </div>
       </header>
     )

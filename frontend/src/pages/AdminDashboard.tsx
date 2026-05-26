@@ -11,6 +11,7 @@ import {
   Check,
   Eye,
   GraduationCap,
+  ImagePlus,
   LoaderCircle,
   Pencil,
   Plus,
@@ -103,6 +104,7 @@ export default function AdminDashboard() {
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null)
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
   const [savingSponsor, setSavingSponsor] = useState(false)
+  const [uploadingSponsorLogo, setUploadingSponsorLogo] = useState(false)
   const [movingSponsorId, setMovingSponsorId] = useState<string | null>(null)
   const [deletingSponsorId, setDeletingSponsorId] = useState<string | null>(null)
   const [courseActionError, setCourseActionError] = useState<string | null>(null)
@@ -411,6 +413,46 @@ export default function AdminDashboard() {
       setSponsorError(currentError instanceof Error ? currentError.message : 'ไม่สามารถบันทึกผู้สนับสนุนได้')
     } finally {
       setSavingSponsor(false)
+    }
+  }
+
+  const uploadSponsorLogo = async (file: File | undefined) => {
+    if (!file) return
+
+    const name = sponsorDraft.name.trim()
+
+    setUploadingSponsorLogo(true)
+    setSponsorError(null)
+    setSponsorSuccess(null)
+
+    try {
+      const uploaded = await api.uploadAsset({ kind: 'sponsor', file })
+      const nextDraft = { ...sponsorDraft, logoUrl: uploaded.fileUrl }
+      setSponsorDraft(nextDraft)
+
+      if (editingSponsorId && name) {
+        const savedSponsor = await api.saveSponsor(
+          {
+            name,
+            logoUrl: uploaded.fileUrl,
+            websiteUrl: nextDraft.websiteUrl.trim() || undefined,
+            displayOrder: nextDraft.displayOrder,
+            isActive: nextDraft.isActive,
+          },
+          editingSponsorId,
+        )
+
+        setSponsors((current) => normalizeSponsors(current.map((item) => (item.id === savedSponsor.id ? savedSponsor : item))))
+        setSponsorDraft(toSponsorDraft(savedSponsor))
+        setSponsorSuccess('อัปโหลดและบันทึกโลโก้แล้ว')
+        return
+      }
+
+      setSponsorSuccess('อัปโหลดโลโก้แล้ว กรอกข้อมูลให้ครบแล้วกดบันทึก')
+    } catch (currentError) {
+      setSponsorError(currentError instanceof Error ? currentError.message : 'อัปโหลดโลโก้ผู้สนับสนุนไม่สำเร็จ')
+    } finally {
+      setUploadingSponsorLogo(false)
     }
   }
 
@@ -776,13 +818,13 @@ export default function AdminDashboard() {
   if (activeSection === 'sponsors') {
     return (
       <div className="space-y-5">
-        <AdminHeader title="ผู้สนับสนุน" description="" />
+        <AdminHeader title="ผู้สนับสนุน" description="จัดการโลโก้ที่แสดงเป็นไอคอนขาวดำใน marquee หน้า Home" />
 
         <SponsorPreview sponsors={activeSponsors} />
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <Panel>
-            <PanelToolbar title="รายการ" description={`${orderedSponsors.length.toLocaleString('th-TH')} โลโก้`}>
+            <PanelToolbar title="รายการไอคอนผู้สนับสนุน" description={`${orderedSponsors.length.toLocaleString('th-TH')} รายการ เรียงตามลำดับ marquee`}>
               <button type="button" className="minimal-action" onClick={() => resetSponsorEditor(orderedSponsors.length + 1)}>
                 <Plus size={15} />
                 เพิ่ม
@@ -843,7 +885,9 @@ export default function AdminDashboard() {
             draft={sponsorDraft}
             editing={Boolean(editingSponsorId)}
             saving={savingSponsor}
+            uploadingLogo={uploadingSponsorLogo}
             onChange={setSponsorDraft}
+            onLogoUpload={uploadSponsorLogo}
             onReset={() => resetSponsorEditor(orderedSponsors.length + 1)}
             onSubmit={saveSponsor}
           />
@@ -932,15 +976,15 @@ function SponsorPreview({ sponsors }: { sponsors: Sponsor[] }) {
   const previewItems = sponsors.length > 0 ? sponsors : []
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-black p-4 text-white">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-[linear-gradient(135deg,#ffffff,#f5f5f7)] p-4 text-slate-950 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Sponsors</p>
-          <h2 className="mt-1 text-xl font-semibold tracking-tight">ผู้สนับสนุนที่ร่วมผลักดันการเรียนรู้</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Home Preview</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight">Sponsor icons marquee</h2>
         </div>
-        <p className="max-w-xl text-sm leading-6 text-white/55">ตัวอย่างแถบโลโก้บนหน้าแรก ใช้เฉพาะรายการที่เปิดแสดงผล</p>
+        <p className="max-w-xl text-sm leading-6 text-slate-500">หน้า Home จะแสดงเฉพาะโลโก้/ไอคอนแบบขาวดำ ไม่มีชื่อบริษัทบนการ์ด</p>
       </div>
-      <div className="mt-4 overflow-hidden">
+      <div className="sponsor-marquee-row mt-4 overflow-hidden rounded-[28px] border border-slate-200 bg-white p-3">
         {previewItems.length > 0 ? (
           <div className="sponsor-marquee-track">
             {[...previewItems, ...previewItems].map((sponsor, index) => (
@@ -948,7 +992,7 @@ function SponsorPreview({ sponsors }: { sponsors: Sponsor[] }) {
             ))}
           </div>
         ) : (
-          <div className="rounded-md border border-white/10 bg-white/[0.06] px-4 py-5 text-sm text-white/55">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
             ยังไม่มีโลโก้ที่เปิดแสดงผล
           </div>
         )}
@@ -961,20 +1005,24 @@ function SponsorForm({
   draft,
   editing,
   saving,
+  uploadingLogo,
   onChange,
+  onLogoUpload,
   onReset,
   onSubmit,
 }: {
   draft: SponsorDraft
   editing: boolean
   saving: boolean
+  uploadingLogo: boolean
   onChange: (draft: SponsorDraft) => void
+  onLogoUpload: (file: File | undefined) => void
   onReset: () => void
   onSubmit: () => void
 }) {
   return (
     <form
-      className="h-fit rounded-lg border border-slate-200 bg-white p-4"
+      className="h-fit rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
       onSubmit={(event) => {
         event.preventDefault()
         onSubmit()
@@ -982,7 +1030,7 @@ function SponsorForm({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Form</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Home icon</p>
           <h2 className="mt-1 text-lg font-semibold text-slate-950">{editing ? 'แก้ไขผู้สนับสนุน' : 'เพิ่มผู้สนับสนุน'}</h2>
         </div>
         {editing ? (
@@ -992,21 +1040,52 @@ function SponsorForm({
         ) : null}
       </div>
 
-      <div className="mt-5 space-y-3">
-        <MinimalField label="ชื่อบริษัท">
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs leading-5 text-slate-500">
+        ชื่อบริษัทใช้สำหรับจัดการและ accessibility เท่านั้น หน้า Home จะแสดงเป็นไอคอนโลโก้ขาวดำโดยไม่โชว์ข้อความบนการ์ด
+        {editing ? ' เมื่อแก้ไขรายการเดิม การอัปโหลดโลโก้จะบันทึกให้อัตโนมัติ' : ' สำหรับรายการใหม่ หลังอัปโหลดโลโก้แล้วให้กดบันทึกเพื่อสร้างรายการ'}
+      </div>
+
+      <div className="mt-5 space-y-4">
+        <MinimalField label="ชื่อบริษัท" hint="ใช้สำหรับรายการแอดมินและ accessibility ไม่แสดงบนการ์ดหน้า Home">
           <input className="minimal-input" value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} placeholder="เช่น AWS" />
         </MinimalField>
 
-        <MinimalField label="โลโก้ URL">
-          <input
-            className="minimal-input"
-            value={draft.logoUrl}
-            onChange={(event) => onChange({ ...draft, logoUrl: event.target.value })}
-            placeholder="เว้นว่างเพื่อใช้ตัวอักษร"
-          />
+        <MinimalField label="โลโก้ / ไอคอน" hint="อัปโหลด JPG, PNG หรือ WEBP ระบบจะแสดงเป็นขาวดำอัตโนมัติบนหน้า Home">
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm transition hover:border-slate-950 hover:bg-white">
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm">
+                {uploadingLogo ? <LoaderCircle size={18} className="animate-spin" /> : <ImagePlus size={18} />}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-semibold text-slate-900">{uploadingLogo ? 'กำลังอัปโหลด...' : draft.logoUrl ? 'เปลี่ยนรูปโลโก้' : 'อัปโหลดรูปโลโก้'}</span>
+                <span className="block truncate text-xs text-slate-500">{draft.logoUrl || 'ยังไม่มีไฟล์โลโก้'}</span>
+              </span>
+            </span>
+            <span className="rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white">เลือกไฟล์</span>
+            <input
+              type="file"
+              className="sr-only"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={uploadingLogo}
+              onChange={(event) => {
+                onLogoUpload(event.currentTarget.files?.[0])
+                event.currentTarget.value = ''
+              }}
+            />
+          </label>
+          {draft.logoUrl ? (
+            <button
+              type="button"
+              className="mt-2 text-xs font-semibold text-slate-500 underline underline-offset-4 transition hover:text-slate-950"
+              onClick={() => onChange({ ...draft, logoUrl: '' })}
+              disabled={uploadingLogo}
+            >
+              ลบรูปโลโก้ออกจากรายการนี้
+            </button>
+          ) : null}
         </MinimalField>
 
-        <MinimalField label="เว็บไซต์">
+        <MinimalField label="เว็บไซต์ปลายทาง" hint="ถ้าใส่ URL ผู้ใช้จะกดไอคอนจากหน้า Home เพื่อเปิดเว็บไซต์ได้">
           <input
             className="minimal-input"
             value={draft.websiteUrl}
@@ -1040,9 +1119,9 @@ function SponsorForm({
         </div>
       </div>
 
-      <div className="mt-5 rounded-lg border border-slate-100 bg-slate-50 p-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Preview</p>
-        <div className="mt-3 rounded-lg bg-black p-3">
+      <div className="mt-5 rounded-2xl border border-slate-200 bg-[linear-gradient(135deg,#ffffff,#f5f5f7)] p-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Icon preview</p>
+        <div className="mt-3 flex justify-center rounded-[24px] border border-slate-200 bg-white p-4">
           <SponsorLogo
             sponsor={{
               id: 'preview',
@@ -1062,7 +1141,7 @@ function SponsorForm({
         <button type="button" className="minimal-action" onClick={onReset} disabled={saving}>
           ล้าง
         </button>
-        <button type="submit" className="btn-primary px-3 py-2" disabled={saving}>
+        <button type="submit" className="btn-primary px-3 py-2" disabled={saving || uploadingLogo}>
           {saving ? <LoaderCircle size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
           {saving ? 'บันทึก...' : 'บันทึก'}
         </button>
@@ -1071,11 +1150,12 @@ function SponsorForm({
   )
 }
 
-function MinimalField({ label, children }: { label: string; children: ReactNode }) {
+function MinimalField({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
       <span className="text-xs font-semibold text-slate-500">{label}</span>
       <div className="mt-1.5">{children}</div>
+      {hint ? <span className="mt-1.5 block text-xs leading-5 text-slate-400">{hint}</span> : null}
     </label>
   )
 }
@@ -1086,15 +1166,19 @@ function SponsorLogo({ sponsor, compact = false }: { sponsor: Sponsor; compact?:
   return (
     <div
       className={[
-        'flex items-center justify-center rounded-md border border-white/10 bg-white/[0.07] text-center font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]',
-        compact ? 'h-11 w-32 px-3 text-sm' : 'h-14 min-w-[158px] px-5 text-base',
+        'flex shrink-0 items-center justify-center rounded-[22px] border border-slate-200 bg-white text-slate-950 shadow-[0_14px_34px_rgba(15,23,42,0.10)]',
+        compact ? 'h-14 w-14 p-2' : 'h-20 w-20 p-3',
       ].join(' ')}
+      title={sponsor.name}
+      aria-label={sponsor.name}
     >
-      {sponsor.logoUrl && !imageError ? (
-        <img src={sponsor.logoUrl} alt={sponsor.name} className="h-7 w-auto max-w-full object-contain" loading="lazy" onError={() => setImageError(true)} />
-      ) : (
-        <span className="truncate">{sponsor.name}</span>
-      )}
+      <span className={['flex items-center justify-center bg-slate-950 text-white shadow-inner', compact ? 'h-10 w-10 rounded-2xl p-2' : 'h-14 w-14 rounded-[20px] p-2.5'].join(' ')}>
+        {sponsor.logoUrl && !imageError ? (
+          <img src={sponsor.logoUrl} alt="" className="max-h-full w-auto max-w-full object-contain brightness-0 invert" loading="lazy" onError={() => setImageError(true)} />
+        ) : (
+          <Building2 size={compact ? 19 : 24} strokeWidth={1.8} />
+        )}
+      </span>
     </div>
   )
 }

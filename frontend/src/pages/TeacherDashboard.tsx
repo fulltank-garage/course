@@ -77,6 +77,54 @@ const emptyLessonDraft: LessonDraft = {
 }
 const maxVideoUploadBytes = 1024 * 1024 * 1024
 
+const getLessonAiDisplay = (lesson?: Lesson | null) => {
+  if (!lesson?.videoUrl) {
+    return {
+      label: 'ยังไม่มีวิดีโอ',
+      description: 'อัปโหลดวิดีโอและบันทึกบทเรียนก่อน ระบบจึงจะเตรียม AI ได้',
+      className: 'border-zinc-200 bg-white text-zinc-500',
+    }
+  }
+
+  if (lesson.hasTranscript || lesson.aiStatus === 'ready') {
+    return {
+      label: 'AI พร้อมใช้งาน',
+      description: 'ถอดเสียงเสร็จแล้ว นักเรียนสร้างสรุป ถาม AI และทำแบบทดสอบได้เร็วขึ้น',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    }
+  }
+
+  if (lesson.aiStatus === 'processing') {
+    return {
+      label: 'AI กำลังเตรียมเนื้อหา',
+      description: 'ระบบกำลังถอดเสียงวิดีโอเบื้องหลัง คลิปยาวอาจใช้เวลาหลายนาที',
+      className: 'border-sky-200 bg-sky-50 text-sky-700',
+    }
+  }
+
+  if (lesson.aiStatus === 'pending') {
+    return {
+      label: 'รอ AI ถอดเสียง',
+      description: 'ระบบจะเริ่มเตรียม transcript หลังบันทึกบทเรียนหรือคิวว่าง',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    }
+  }
+
+  if (lesson.aiStatus === 'failed') {
+    return {
+      label: 'AI ถอดเสียงไม่สำเร็จ',
+      description: lesson.aiError || 'กดบันทึกบทเรียนอีกครั้งเพื่อลองให้ระบบถอดเสียงใหม่',
+      className: 'border-rose-200 bg-rose-50 text-rose-700',
+    }
+  }
+
+  return {
+    label: 'ยังไม่เริ่ม AI',
+    description: 'บันทึกบทเรียนเพื่อให้ระบบเตรียม AI สำหรับวิดีโอนี้',
+    className: 'border-zinc-200 bg-white text-zinc-500',
+  }
+}
+
 const formatUploadSpeed = (bytesPerSecond: number) => {
   if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return 'กำลังคำนวณความเร็ว'
   if (bytesPerSecond >= 1024 * 1024) return `${(bytesPerSecond / 1024 / 1024).toFixed(1)} MB/s`
@@ -806,6 +854,8 @@ function LessonManagerModal({
 
   const controlsBusy = saving || uploading
   const selectedLessonIndex = course.lessons.findIndex((lesson) => lesson.id === editingLessonId)
+  const selectedLesson = course.lessons.find((lesson) => lesson.id === editingLessonId) ?? null
+  const selectedLessonAi = getLessonAiDisplay(selectedLesson)
 
   useEffect(() => {
     setVideoPreviewError(false)
@@ -854,6 +904,7 @@ function LessonManagerModal({
               {course.lessons.length ? (
                 course.lessons.map((lesson, index) => {
                   const active = editingLessonId === lesson.id
+                  const lessonAi = getLessonAiDisplay(lesson)
 
                   return (
                     <button
@@ -877,6 +928,11 @@ function LessonManagerModal({
                           {lesson.preview ? <span>Preview</span> : null}
                           {lesson.videoUrl ? <span>Video</span> : null}
                         </span>
+                        {lesson.videoUrl ? (
+                          <span className={`mt-2 inline-flex max-w-full rounded-full border px-2 py-0.5 text-[11px] font-semibold ${lessonAi.className}`}>
+                            <span className="truncate">{lessonAi.label}</span>
+                          </span>
+                        ) : null}
                       </span>
                     </button>
                   )
@@ -990,6 +1046,21 @@ function LessonManagerModal({
                       </div>
                     </div>
                   ) : null}
+
+                  {editingLessonId ? (
+                    <div className={`rounded-xl border px-4 py-3 text-sm ${selectedLessonAi.className}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-semibold">{selectedLessonAi.label}</span>
+                        {selectedLesson?.aiStatus === 'processing' ? <LoaderCircle size={16} className="shrink-0 animate-spin" /> : null}
+                      </div>
+                      <p className="mt-1 text-xs leading-5 opacity-80">{selectedLessonAi.description}</p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-500">
+                      <span className="font-semibold text-zinc-700">สถานะ AI จะแสดงหลังบันทึกบทเรียน</span>
+                      <p className="mt-1 text-xs leading-5">ระบบจะเตรียม transcript จากวิดีโอให้เบื้องหลังโดยไม่ต้องให้นักเรียนรอครั้งแรก</p>
+                    </div>
+                  )}
                 </aside>
               </div>
 

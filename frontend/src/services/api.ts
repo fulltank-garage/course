@@ -112,13 +112,13 @@ export interface AuthSession {
 }
 
 export interface UploadAssetPayload {
-  kind: 'cover' | 'video' | 'avatar'
+  kind: 'cover' | 'video' | 'avatar' | 'sponsor'
   file: File
   onProgress?: (progress: number) => void
 }
 
 export interface UploadAssetResponse {
-  kind: 'cover' | 'video' | 'avatar'
+  kind: 'cover' | 'video' | 'avatar' | 'sponsor'
   fileName: string
   fileUrl: string
   storage?: 'local' | 'r2' | 'mux'
@@ -268,6 +268,8 @@ const authChangeEvent = 'mycourse-auth-change'
 const cartStorageKey = 'mycourse_cart'
 const cartChangeEvent = 'mycourse-cart-change'
 const studentDashboardCacheKey = 'mycourse_student_dashboard_cache'
+const requestTimeoutMs = 15000
+const aiRequestTimeoutMs = 10 * 60 * 1000
 
 const getStoredSession = (): AuthSession | null => {
   const raw = localStorage.getItem(authStorageKey)
@@ -417,8 +419,10 @@ export const cartStorage = {
   },
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs = requestTimeoutMs): Promise<T> {
   const token = authStorage.getSession()?.token
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
   let response: Response
 
   try {
@@ -429,15 +433,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         ...init?.headers,
       },
       ...init,
+      signal: init?.signal ?? controller.signal,
     })
   } catch (error) {
     const message =
-      error instanceof Error && error.message === 'Failed to fetch'
+      error instanceof DOMException && error.name === 'AbortError'
+        ? 'เชื่อมต่อ API นานเกินไป กรุณาตรวจสอบว่า backend ทำงานอยู่แล้วลองใหม่อีกครั้ง'
+        : error instanceof Error && error.message === 'Failed to fetch'
         ? 'เชื่อมต่อ API ไม่สำเร็จ กรุณาตรวจสอบ backend, CORS หรือ VITE_API_BASE_URL'
         : error instanceof Error
           ? error.message
           : 'เชื่อมต่อ API ไม่สำเร็จ'
     throw new Error(message)
+  } finally {
+    window.clearTimeout(timeoutId)
   }
 
   if (!response.ok) {
@@ -788,27 +797,27 @@ export const api = {
     request<{ lessonId: string; transcript: string }>(`/api/ai/lessons/${lessonId}/transcript`, {
       method: 'POST',
       body: JSON.stringify({ transcript, source: 'manual' }),
-    }),
+    }, aiRequestTimeoutMs),
   transcribeLesson: (lessonId: string) =>
     request<{ lessonId: string; transcript: string; source: string }>(`/api/ai/lessons/${lessonId}/transcribe`, {
       method: 'POST',
       body: JSON.stringify({}),
-    }),
+    }, aiRequestTimeoutMs),
   summarizeLesson: (lessonId: string) =>
     request<AiSummaryResponse>(`/api/ai/lessons/${lessonId}/summarize`, {
       method: 'POST',
       body: JSON.stringify({}),
-    }),
+    }, aiRequestTimeoutMs),
   askLesson: (lessonId: string, question: string) =>
     request<AiAnswerResponse>(`/api/ai/lessons/${lessonId}/ask`, {
       method: 'POST',
       body: JSON.stringify({ question }),
-    }),
+    }, aiRequestTimeoutMs),
   generateLessonQuiz: (lessonId: string, excludedQuestions: string[] = []) =>
     request<AiQuizResponse>(`/api/ai/lessons/${lessonId}/quiz`, {
       method: 'POST',
       body: JSON.stringify({ excludedQuestions }),
-    }),
+    }, aiRequestTimeoutMs),
   saveLessonQuizAttempt: (lessonId: string, payload: SaveQuizAttemptPayload) =>
     request<QuizAttemptResponse>(`/api/lessons/${lessonId}/quiz-attempts`, {
       method: 'POST',
