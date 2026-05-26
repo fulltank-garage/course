@@ -4540,6 +4540,19 @@ const readBody = async (request) =>
     })
   })
 
+const getAvailableCourseSlug = async (baseSlug, fallbackId) => {
+  const safeBaseSlug = String(baseSlug ?? '').trim() || fallbackId
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const candidate = attempt === 0 ? safeBaseSlug : `${safeBaseSlug}-${attempt + 1}`
+    const result = await query('SELECT 1 FROM courses WHERE slug = $1 LIMIT 1', [candidate])
+
+    if (!result.rows[0]) return candidate
+  }
+
+  return `${safeBaseSlug}-${crypto.randomUUID().slice(0, 8)}`
+}
+
 const createCourse = async (request) => {
   const body = await readBody(request)
   const authUser = await getAuthUser(request)
@@ -4549,17 +4562,21 @@ const createCourse = async (request) => {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-  const slug = body.slug || generatedSlug || id
 
   if (!title) {
-    throw new Error('Course title is required')
+    return { statusCode: 400, payload: { message: 'กรุณากรอกชื่อคอร์ส' } }
   }
 
   if (!authUser || !['teacher', 'admin'].includes(authUser.role)) {
-    const error = new Error('กรุณาเข้าสู่ระบบด้วยบัญชีคุณครูหรือแอดมิน')
-    error.statusCode = 401
-    throw error
+    return { statusCode: 401, payload: { message: 'กรุณาเข้าสู่ระบบด้วยบัญชีคุณครูหรือแอดมิน' } }
   }
+
+  const teacherId = authUser.role === 'teacher' ? authUser.id : String(body.teacherId ?? '').trim()
+  if (!teacherId) {
+    return { statusCode: 400, payload: { message: 'ไม่พบข้อมูลคุณครูสำหรับคอร์สนี้' } }
+  }
+
+  const slug = await getAvailableCourseSlug(body.slug || generatedSlug || id, id)
 
   const result = await query(
     `
@@ -4573,7 +4590,7 @@ const createCourse = async (request) => {
     [
       id,
       slug,
-      authUser.role === 'teacher' ? authUser.id : String(body.teacherId ?? ''),
+      teacherId,
       title,
       body.description,
       body.coverImage,
@@ -4609,7 +4626,7 @@ const createCourse = async (request) => {
     if (body.videoUrl) queueAutoTranscribeLesson(lessonId, String(body.videoUrl))
   }
 
-  return getCourseBySlug(result.rows[0].slug)
+  return { statusCode: 201, payload: { data: await getCourseBySlug(result.rows[0].slug) } }
 }
 
 const updateCourse = async (request, slug) => {
@@ -4817,6 +4834,15 @@ const deleteCourseLesson = async (request, slug, lessonId) => {
   if (permission.statusCode !== 200) {
     return permission
   }
+
+  await query(
+    `
+      UPDATE enrollments
+      SET last_lesson_id = NULL
+      WHERE course_id = $1 AND last_lesson_id = $2
+    `,
+    [permission.course.id, lessonId],
+  )
 
   const result = await query(
     `
@@ -5155,7 +5181,8 @@ const routeRequest = async (request, response) => {
   }
 
   if (url.pathname === '/api/courses' && request.method === 'POST') {
-    sendJson(response, 201, { data: await createCourse(request) })
+    const result = await createCourse(request)
+    sendJson(response, result.statusCode, result.payload)
     return
   }
 
