@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Bell,
   Camera,
+  CheckCircle2,
   CircleDollarSign,
   Clock3,
   Edit3,
@@ -19,6 +20,7 @@ import {
   Search,
   Settings,
   Star,
+  TextSearch,
   Trash2,
   UserRound,
   UsersRound,
@@ -123,6 +125,58 @@ const getLessonAiDisplay = (lesson?: Lesson | null) => {
     description: 'บันทึกบทเรียนเพื่อให้ระบบเตรียม AI สำหรับวิดีโอนี้',
     className: 'border-zinc-200 bg-white text-zinc-500',
   }
+}
+
+const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, saving: boolean, uploading: boolean) => {
+  const hasVideo = Boolean(draft.videoUrl || lesson?.videoUrl)
+  const savedWithVideo = Boolean(lesson?.id && lesson.videoUrl)
+  const aiReady = Boolean(lesson?.hasTranscript || lesson?.aiStatus === 'ready')
+  const aiWorking = lesson?.aiStatus === 'processing'
+  const aiPending = lesson?.aiStatus === 'pending'
+  const aiFailed = lesson?.aiStatus === 'failed'
+
+  return [
+    {
+      key: 'video',
+      label: 'เพิ่มวิดีโอ',
+      description: hasVideo ? 'มีไฟล์วิดีโอสำหรับบทเรียนนี้แล้ว' : 'เลือกไฟล์วิดีโอหรือใช้ลิงก์เดิมก่อนบันทึก',
+      status: uploading ? 'active' : hasVideo ? 'done' : 'idle',
+    },
+    {
+      key: 'save',
+      label: 'บันทึกบทเรียน',
+      description: saving
+        ? 'กำลังบันทึกข้อมูลบทเรียนและส่งคิวให้ AI'
+        : savedWithVideo
+          ? 'บันทึกแล้ว ระบบมีข้อมูลวิดีโอสำหรับสร้าง transcript'
+          : hasVideo
+            ? 'กดบันทึกเพื่อเริ่มคิว AI'
+            : 'บันทึกได้หลังกรอกชื่อบทเรียนและเตรียมวิดีโอ',
+      status: saving ? 'active' : savedWithVideo ? 'done' : 'idle',
+    },
+    {
+      key: 'transcript',
+      label: 'AI ถอดเสียง',
+      description: aiFailed
+        ? lesson?.aiError || 'ถอดเสียงไม่สำเร็จ กดบันทึกอีกครั้งเพื่อลองใหม่'
+        : aiWorking
+          ? 'ระบบกำลังถอดเสียงวิดีโอเบื้องหลัง'
+          : aiPending
+            ? 'อยู่ในคิว รอระบบเริ่มถอดเสียง'
+            : aiReady
+              ? 'ถอดเสียงเสร็จแล้ว'
+              : savedWithVideo
+                ? 'รอ AI เริ่มทำงาน'
+                : 'ขั้นตอนนี้จะเริ่มหลังบันทึกบทเรียน',
+      status: aiFailed ? 'error' : aiReady ? 'done' : aiWorking || aiPending ? 'active' : 'idle',
+    },
+    {
+      key: 'ready',
+      label: 'พร้อมให้นักเรียนใช้',
+      description: aiReady ? 'ถาม AI สรุปบทเรียน และสร้างแบบทดสอบได้เร็วขึ้น' : 'จะแสดงพร้อมใช้งานเมื่อ transcript พร้อม',
+      status: aiReady ? 'done' : 'idle',
+    },
+  ] as const
 }
 
 const formatUploadSpeed = (bytesPerSecond: number) => {
@@ -856,6 +910,13 @@ function LessonManagerModal({
   const selectedLessonIndex = course.lessons.findIndex((lesson) => lesson.id === editingLessonId)
   const selectedLesson = course.lessons.find((lesson) => lesson.id === editingLessonId) ?? null
   const selectedLessonAi = getLessonAiDisplay(selectedLesson)
+  const aiSteps = getLessonAiStepState(selectedLesson, draft, saving, uploading)
+  const aiStepIconClass = {
+    done: 'border-emerald-200 bg-emerald-600 text-white',
+    active: 'border-sky-200 bg-sky-600 text-white',
+    error: 'border-rose-200 bg-rose-600 text-white',
+    idle: 'border-zinc-200 bg-white text-zinc-400',
+  }
 
   useEffect(() => {
     setVideoPreviewError(false)
@@ -1047,20 +1108,53 @@ function LessonManagerModal({
                     </div>
                   ) : null}
 
-                  {editingLessonId ? (
-                    <div className={`rounded-xl border px-4 py-3 text-sm ${selectedLessonAi.className}`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-semibold">{selectedLessonAi.label}</span>
-                        {selectedLesson?.aiStatus === 'processing' ? <LoaderCircle size={16} className="shrink-0 animate-spin" /> : null}
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-black">ขั้นตอนเตรียม AI</p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">
+                          ดูได้ทันทีว่าระบบอยู่ขั้นไหน หลังบันทึกแล้ว AI จะเริ่มทำงานต่อเบื้องหลัง
+                        </p>
                       </div>
-                      <p className="mt-1 text-xs leading-5 opacity-80">{selectedLessonAi.description}</p>
+                      {editingLessonId ? (
+                        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${selectedLessonAi.className}`}>
+                          {selectedLessonAi.label}
+                        </span>
+                      ) : null}
                     </div>
-                  ) : (
-                    <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-500">
-                      <span className="font-semibold text-zinc-700">สถานะ AI จะแสดงหลังบันทึกบทเรียน</span>
-                      <p className="mt-1 text-xs leading-5">ระบบจะเตรียม transcript จากวิดีโอให้เบื้องหลังโดยไม่ต้องให้นักเรียนรอครั้งแรก</p>
-                    </div>
-                  )}
+
+                    <ol className="mt-4 space-y-3">
+                      {aiSteps.map((step, index) => (
+                        <li key={step.key} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3">
+                          <div className="flex flex-col items-center">
+                            <span
+                              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold ${aiStepIconClass[step.status]}`}
+                            >
+                              {step.status === 'done' ? (
+                                <CheckCircle2 size={15} />
+                              ) : step.status === 'active' ? (
+                                <LoaderCircle size={15} className="animate-spin" />
+                              ) : step.status === 'error' ? (
+                                <AlertTriangle size={14} />
+                              ) : (
+                                index + 1
+                              )}
+                            </span>
+                            {index < aiSteps.length - 1 ? <span className="mt-1 h-7 w-px bg-zinc-200" /> : null}
+                          </div>
+                          <div className="min-w-0 pb-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-black">{step.label}</p>
+                              {step.key === 'transcript' && selectedLesson?.aiStatus === 'processing' ? (
+                                <TextSearch size={14} className="text-sky-600" />
+                              ) : null}
+                            </div>
+                            <p className="mt-0.5 text-xs leading-5 text-zinc-500">{step.description}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
                 </aside>
               </div>
 
