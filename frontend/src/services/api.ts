@@ -5,7 +5,7 @@ import type { User, UserRole } from '../types/user'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 const DIRECT_MUX_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
-const DIRECT_R2_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD !== 'false'
+const DIRECT_R2_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD === 'true'
 const configuredR2VideoUploadConcurrency = Number(import.meta.env.VITE_R2_VIDEO_UPLOAD_CONCURRENCY ?? 5)
 const R2_VIDEO_UPLOAD_CONCURRENCY = Math.min(
   8,

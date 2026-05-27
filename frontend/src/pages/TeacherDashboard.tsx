@@ -35,7 +35,7 @@ import type { Course, CourseStudent, Lesson } from '../types/course'
 const defaultCover =
   'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80'
 const directMuxVideoUploadEnabled = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
-const directR2VideoUploadEnabled = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD !== 'false'
+const directR2VideoUploadEnabled = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD === 'true'
 const maxCoverImageBytes = 5 * 1024 * 1024
 
 const createEmptyDraft = () => ({
