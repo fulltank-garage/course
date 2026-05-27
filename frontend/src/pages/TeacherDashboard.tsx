@@ -36,6 +36,7 @@ const defaultCover =
   'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80'
 const directMuxVideoUploadEnabled = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
 const directR2VideoUploadEnabled = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD === 'true'
+const maxCoverImageBytes = 5 * 1024 * 1024
 
 const createEmptyDraft = () => ({
   title: '',
@@ -1671,6 +1672,19 @@ export default function TeacherDashboard() {
 
   const handleCoverChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
+
+    if (file && file.size > maxCoverImageBytes) {
+      event.target.value = ''
+      setCoverFile(null)
+      setCoverPreview(draft.coverImageUrl || editingCourse?.coverImage || defaultCover)
+      setMessage({
+        tone: 'error',
+        text: 'รูปปกต้องไม่เกิน 5MB กรุณาบีบอัดรูปหรือเลือกรูปใหม่',
+      })
+      return
+    }
+
+    setMessage(null)
     setCoverFile(file)
 
     if (!file) {
