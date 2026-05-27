@@ -28,6 +28,19 @@ const normalizeExistingUploads = process.env.NORMALIZE_EXISTING_UPLOADS === 'tru
 const autoTranscribeLessons = process.env.AUTO_TRANSCRIBE_LESSONS !== 'false'
 const maxAutoTranscribeVideoBytes = Number(process.env.MAX_AUTO_TRANSCRIBE_VIDEO_MB ?? 100) * 1024 * 1024
 const muxAudioWaitSeconds = Math.max(30, Number(process.env.MUX_AUDIO_WAIT_SECONDS ?? 1800) || 1800)
+
+const shuffleItems = (items) => {
+  const shuffled = [...items]
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = crypto.randomInt(index + 1)
+    const currentItem = shuffled[index]
+    shuffled[index] = shuffled[swapIndex]
+    shuffled[swapIndex] = currentItem
+  }
+
+  return shuffled
+}
 const muxAudioDownloadMaxBytes = Number(process.env.MUX_AUDIO_DOWNLOAD_MAX_MB ?? 1024) * 1024 * 1024
 const transcriptionChunkSeconds = Math.max(60, Number(process.env.TRANSCRIPTION_CHUNK_SECONDS ?? 300) || 300)
 const ffmpegThreads = Math.max(1, Number(process.env.FFMPEG_THREADS ?? 2) || 2)
@@ -3132,6 +3145,7 @@ Create a fresh quiz set with different angles, choices, and correct answers wher
   const prompt = `
 สร้างแบบทดสอบจากเนื้อหาบทเรียนนี้ จำนวน 10 ข้อ
 ต้องมีคำถามทั้งหมด 10 ข้อพอดี แต่ละข้อมี 4 ตัวเลือก และมีคำตอบที่ถูกต้องเพียง 1 ตัวเลือก
+สลับตำแหน่งคำตอบที่ถูกต้องให้กระจายอยู่ข้อ 1, 2, 3 และ 4 ไม่ให้คำตอบถูกอยู่ตำแหน่งเดิมซ้ำ ๆ
 ตอบกลับเป็น JSON เท่านั้น รูปแบบ:
 {
   "questions": [
@@ -3215,7 +3229,9 @@ ${quizContext}
       ],
     )
 
-    for (const [optionIndex, option] of options.entries()) {
+    const shuffledOptions = shuffleItems(options)
+
+    for (const [optionIndex, option] of shuffledOptions.entries()) {
       const optionId = `qo-ai-${crypto.randomUUID()}`
       const savedOption = {
         id: optionId,

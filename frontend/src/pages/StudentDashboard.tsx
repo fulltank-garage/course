@@ -639,9 +639,9 @@ export default function StudentDashboard() {
                       <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.min(averageLearningProgress, 100)}%` }} />
                     </div>
                   </div>
-                  <p className="mt-7 text-3xl font-semibold text-black">{Math.max(1, data.stats.completedLessons * 2)} ชม. 45 นาที</p>
-                  <p className="mt-1 text-sm text-zinc-500">เวลาเรียนรวม</p>
-                  <div className="mt-8 flex h-28 items-end justify-between gap-4">
+                  <p className="hidden">{Math.max(1, data.stats.completedLessons * 2)} ชม. 45 นาที</p>
+                  <p className="hidden">เวลาเรียนรวม</p>
+                  <div className="hidden">
                     {weeklyBars.map((height, index) => (
                       <div key={`${height}-${index}`} className="flex flex-1 flex-col items-center gap-3">
                         <div

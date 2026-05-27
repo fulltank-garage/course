@@ -59,6 +59,25 @@ const emptyQuizCache: QuizCachePayload = {
   generations: 0,
 }
 
+const shuffleQuizOptions = (options: QuizQuestion['options']) => {
+  const shuffled = [...options]
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1))
+    const currentOption = shuffled[index]
+    shuffled[index] = shuffled[swapIndex]
+    shuffled[swapIndex] = currentOption
+  }
+
+  return shuffled
+}
+
+const shuffleQuizQuestions = (questions: QuizQuestion[]) =>
+  questions.map((question) => ({
+    ...question,
+    options: shuffleQuizOptions(question.options),
+  }))
+
 const getCachedQuizPayload = (lessonId: string): QuizCachePayload => {
   try {
     const raw = window.localStorage.getItem(lessonAiCacheKey(lessonId, 'quiz'))
@@ -66,14 +85,14 @@ const getCachedQuizPayload = (lessonId: string): QuizCachePayload => {
 
     if (Array.isArray(parsed)) {
       return {
-        questions: parsed,
+        questions: shuffleQuizQuestions(parsed),
         history: parsed.map((question) => String(question.question ?? '')).filter(Boolean),
         generations: parsed.length > 0 ? 1 : 0,
       }
     }
 
     if (parsed && typeof parsed === 'object') {
-      const questions: QuizQuestion[] | null = Array.isArray(parsed.questions) ? parsed.questions : null
+      const questions: QuizQuestion[] | null = Array.isArray(parsed.questions) ? shuffleQuizQuestions(parsed.questions) : null
       const history = Array.isArray(parsed.history)
         ? parsed.history.map((question: unknown) => String(question ?? '')).filter(Boolean)
         : questions?.map((question) => String(question.question ?? '')).filter(Boolean) ?? []
@@ -145,6 +164,18 @@ function AiResponsePanel({ text }: { text: string }) {
           </p>
         )
       })}
+    </div>
+  )
+}
+
+function AiEmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 bg-white/70 px-5 py-8 text-center">
+      <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-black">
+        <Sparkles size={18} />
+      </span>
+      <h3 className="mt-4 text-sm font-semibold text-black">{title}</h3>
+      <p className="mt-2 max-w-sm text-sm leading-6 text-zinc-500">{description}</p>
     </div>
   )
 }
@@ -265,10 +296,10 @@ export default function VideoLearning() {
     const cachedSummary = window.localStorage.getItem(lessonAiCacheKey(lesson.id, 'summary'))
     const cachedQuiz = getCachedQuizPayload(lesson.id)
     setAiError(null)
-    setAiSummary(cachedSummary ?? lesson.aiSummary ?? null)
+    setAiSummary(cachedSummary ?? null)
     setAiQuiz(cachedQuiz.questions)
     setQuizGenerationCount(cachedQuiz.generations)
-  }, [lesson?.id])
+  }, [lesson?.id, sessionUser?.id])
 
   const openLesson = (nextLessonId: string) => {
     setAiSummary(null)
@@ -352,9 +383,10 @@ export default function VideoLearning() {
         generations: cachedQuiz.generations + 1,
       }
 
-      setAiQuiz(result.questions)
+      const shuffledQuestions = shuffleQuizQuestions(result.questions)
+      setAiQuiz(shuffledQuestions)
       setQuizGenerationCount(nextPayload.generations)
-      window.localStorage.setItem(lessonAiCacheKey(lesson.id, 'quiz'), JSON.stringify(nextPayload))
+      window.localStorage.setItem(lessonAiCacheKey(lesson.id, 'quiz'), JSON.stringify({ ...nextPayload, questions: shuffledQuestions }))
     } catch (currentError) {
       setAiError(currentError instanceof Error ? currentError.message : 'สร้างแบบทดสอบไม่สำเร็จ')
     } finally {
@@ -558,7 +590,11 @@ export default function VideoLearning() {
             </button>
             {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
             <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-[#faf9f7] p-4 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:p-5 xl:pb-5">
-              <AiResponsePanel text={aiSummary ?? lesson.summary} />
+              {aiSummary ? (
+                <AiResponsePanel text={aiSummary} />
+              ) : (
+                <AiEmptyState title="ยังไม่มีสรุปของคุณ" description="กดสร้างสรุปบทเรียนเพื่อให้ AI สรุปเนื้อหาชุดใหม่สำหรับบัญชีนี้" />
+              )}
             </div>
           </div>
         ) : null}
@@ -589,7 +625,11 @@ export default function VideoLearning() {
             </button>
             {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
             <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] xl:pb-4">
-              <QuizCard questions={aiQuiz ?? lesson.quizQuestions} onSubmitScore={saveQuizScore} />
+              {aiQuiz ? (
+                <QuizCard questions={aiQuiz} onSubmitScore={saveQuizScore} />
+              ) : (
+                <AiEmptyState title="ยังไม่มีแบบทดสอบของคุณ" description="กดสร้างแบบทดสอบเพื่อเริ่มชุดคำถามใหม่สำหรับบัญชีนี้ คะแนนและประวัติจะไม่ปนกับผู้ใช้อื่น" />
+              )}
             </div>
           </div>
         ) : null}
@@ -695,10 +735,10 @@ export default function VideoLearning() {
                     <button
                       type="button"
                       className={[
-                        'inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition',
+                        'inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold shadow-sm transition',
                         lessonCompleted
-                          ? 'border border-zinc-200 bg-zinc-50 text-zinc-500'
-                          : 'bg-black text-white shadow-sm hover:bg-zinc-800',
+                          ? 'border-emerald-100 bg-emerald-50 text-emerald-700 shadow-emerald-100/60'
+                          : 'border-zinc-200 bg-white text-black hover:border-black hover:bg-zinc-50',
                       ].join(' ')}
                       onClick={completeLesson}
                       disabled={progressLoading || lessonCompleted}
@@ -780,33 +820,44 @@ export default function VideoLearning() {
               </div>
             </section>
 
-            <div className="mt-6 grid gap-4 border-t border-zinc-200 pt-6 lg:grid-cols-2">
+            <div className="mt-6 grid gap-3 border-t border-zinc-200 pt-6 lg:grid-cols-2">
               <button
                 type="button"
-                className="flex min-h-20 items-center justify-between rounded-xl border border-zinc-200 bg-white px-5 text-left transition hover:border-black disabled:cursor-not-allowed disabled:opacity-50"
+                className="group flex min-h-20 items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left shadow-sm shadow-zinc-200/50 transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:opacity-60 sm:px-5"
                 disabled={!previousLesson}
                 onClick={() => previousLesson && openLesson(previousLesson.id)}
               >
-                <span className="flex items-center gap-4">
-                  <ArrowLeft size={18} />
-                  <span>
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 transition group-hover:border-zinc-300 group-hover:text-black">
+                    <ArrowLeft size={17} />
+                  </span>
+                  <span className="min-w-0">
                     <span className="block text-sm font-semibold text-black">บทก่อนหน้า</span>
-                    <span className="mt-1 block text-sm text-zinc-600">{previousLesson?.title ?? '-'}</span>
+                    <span className="mt-1 block truncate text-sm text-zinc-500">{previousLesson?.title ?? '-'}</span>
                   </span>
                 </span>
               </button>
 
               <button
                 type="button"
-                className="flex min-h-20 items-center justify-between rounded-xl bg-black px-5 text-left text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="group flex min-h-20 items-center justify-between rounded-2xl border border-zinc-900 bg-zinc-950 px-4 py-3 text-left text-white shadow-sm shadow-zinc-300/60 transition hover:bg-black disabled:cursor-default disabled:border-emerald-100 disabled:bg-emerald-50 disabled:text-emerald-800 disabled:shadow-emerald-100/70 sm:px-5"
                 disabled={!nextLesson}
                 onClick={() => nextLesson && openLesson(nextLesson.id)}
               >
-                <span>
+                <span className="min-w-0">
                   <span className="block text-sm font-semibold">{nextLesson ? 'บทถัดไป' : 'เรียนครบแล้ว'}</span>
-                  <span className="mt-1 block text-sm text-white/70">{nextLesson?.title ?? '-'}</span>
+                  <span className={`mt-1 block truncate text-sm ${nextLesson ? 'text-white/65' : 'text-emerald-700/70'}`}>
+                    {nextLesson?.title ?? '-'}
+                  </span>
                 </span>
-                <ArrowRight size={18} />
+                <span
+                  className={[
+                    'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition',
+                    nextLesson ? 'border-white/15 bg-white/10 text-white group-hover:bg-white/15' : 'border-emerald-200 bg-white text-emerald-700',
+                  ].join(' ')}
+                >
+                  {nextLesson ? <ArrowRight size={17} /> : <CheckCircle2 size={17} />}
+                </span>
               </button>
             </div>
 
@@ -973,7 +1024,11 @@ export default function VideoLearning() {
                     </button>
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
                     <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-[#faf9f7] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                      <AiResponsePanel text={aiSummary ?? lesson.summary} />
+                      {aiSummary ? (
+                        <AiResponsePanel text={aiSummary} />
+                      ) : (
+                        <AiEmptyState title="ยังไม่มีสรุปของคุณ" description="กดสร้างสรุปบทเรียนเพื่อให้ AI สรุปเนื้อหาชุดใหม่สำหรับบัญชีนี้" />
+                      )}
                     </div>
                   </div>
                 ) : null}
@@ -1004,7 +1059,11 @@ export default function VideoLearning() {
                     </button>
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
                     <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                      <QuizCard questions={aiQuiz ?? lesson.quizQuestions} onSubmitScore={saveQuizScore} />
+                      {aiQuiz ? (
+                        <QuizCard questions={aiQuiz} onSubmitScore={saveQuizScore} />
+                      ) : (
+                        <AiEmptyState title="ยังไม่มีแบบทดสอบของคุณ" description="กดสร้างแบบทดสอบเพื่อเริ่มชุดคำถามใหม่สำหรับบัญชีนี้ คะแนนและประวัติจะไม่ปนกับผู้ใช้อื่น" />
+                      )}
                     </div>
                   </div>
                 ) : null}

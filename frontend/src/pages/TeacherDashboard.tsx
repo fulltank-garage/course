@@ -138,13 +138,15 @@ const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, saving:
   return [
     {
       key: 'video',
-      label: 'เพิ่มวิดีโอ',
-      description: hasVideo ? 'มีไฟล์วิดีโอสำหรับบทเรียนนี้แล้ว' : 'เลือกไฟล์วิดีโอหรือใช้ลิงก์เดิมก่อนบันทึก',
+      label: 'วิดีโอเรียนจริง',
+      category: 'Media',
+      description: hasVideo ? 'มีไฟล์วิดีโอหลักสำหรับนักเรียนแล้ว' : 'อัปโหลดวิดีโอหลักที่นักเรียนจะใช้เรียนจริง',
       status: uploading ? 'active' : hasVideo ? 'done' : 'idle',
     },
     {
       key: 'save',
       label: 'บันทึกบทเรียน',
+      category: 'System',
       description: saving
         ? 'กำลังบันทึกข้อมูลบทเรียนและส่งคิวให้ AI'
         : savedWithVideo
@@ -157,6 +159,7 @@ const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, saving:
     {
       key: 'transcript',
       label: 'AI ถอดเสียง',
+      category: 'AI Process',
       description: aiFailed
         ? lesson?.aiError || 'ถอดเสียงไม่สำเร็จ กดบันทึกอีกครั้งเพื่อลองใหม่'
         : aiWorking
@@ -173,6 +176,7 @@ const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, saving:
     {
       key: 'ready',
       label: 'พร้อมให้นักเรียนใช้',
+      category: 'Learning Tools',
       description: aiReady ? 'ถาม AI สรุปบทเรียน และสร้างแบบทดสอบได้เร็วขึ้น' : 'จะแสดงพร้อมใช้งานเมื่อ transcript พร้อม',
       status: aiReady ? 'done' : 'idle',
     },
@@ -911,11 +915,42 @@ function LessonManagerModal({
   const selectedLesson = course.lessons.find((lesson) => lesson.id === editingLessonId) ?? null
   const selectedLessonAi = getLessonAiDisplay(selectedLesson)
   const aiSteps = getLessonAiStepState(selectedLesson, draft, saving, uploading)
-  const aiStepIconClass = {
-    done: 'border-emerald-200 bg-emerald-600 text-white',
-    active: 'border-sky-200 bg-sky-600 text-white',
-    error: 'border-rose-200 bg-rose-600 text-white',
-    idle: 'border-zinc-200 bg-white text-zinc-400',
+  const aiStepTheme = {
+    video: {
+      shell: 'border-sky-200 bg-sky-50/85',
+      icon: 'border-sky-200 bg-sky-600 text-white shadow-sky-200/70',
+      idleIcon: 'border-sky-200 bg-white text-sky-500',
+      label: 'text-sky-800',
+      rail: 'bg-sky-200',
+    },
+    save: {
+      shell: 'border-amber-200 bg-amber-50/85',
+      icon: 'border-amber-200 bg-amber-500 text-white shadow-amber-200/70',
+      idleIcon: 'border-amber-200 bg-white text-amber-600',
+      label: 'text-amber-800',
+      rail: 'bg-amber-200',
+    },
+    transcript: {
+      shell: 'border-violet-200 bg-violet-50/85',
+      icon: 'border-violet-200 bg-violet-600 text-white shadow-violet-200/70',
+      idleIcon: 'border-violet-200 bg-white text-violet-500',
+      label: 'text-violet-800',
+      rail: 'bg-violet-200',
+    },
+    ready: {
+      shell: 'border-emerald-200 bg-emerald-50/85',
+      icon: 'border-emerald-200 bg-emerald-600 text-white shadow-emerald-200/70',
+      idleIcon: 'border-emerald-200 bg-white text-emerald-500',
+      label: 'text-emerald-800',
+      rail: 'bg-emerald-200',
+    },
+  } satisfies Record<(typeof aiSteps)[number]['key'], { shell: string; icon: string; idleIcon: string; label: string; rail: string }>
+  const aiErrorIconClass = 'border-rose-200 bg-rose-600 text-white shadow-rose-200/70'
+  const getAiStepIconClass = (step: (typeof aiSteps)[number]) => {
+    if (step.status === 'error') return aiErrorIconClass
+    if (step.status === 'idle') return aiStepTheme[step.key].idleIcon
+
+    return aiStepTheme[step.key].icon
   }
 
   useEffect(() => {
@@ -1021,52 +1056,75 @@ function LessonManagerModal({
               ) : null}
 
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-                <div className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-                  <div className="border-b border-zinc-100 pb-4">
-                    <p className="text-sm font-semibold text-black">ข้อมูลบทเรียน</p>
-                    <p className="mt-1 text-xs leading-5 text-zinc-500">ชื่อ สรุป และการเปิดตัวอย่างก่อนซื้อ</p>
+                <div className="space-y-5">
+                  <section className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                    <div className="border-b border-zinc-100 pb-4">
+                      <p className="text-sm font-semibold text-black">ข้อมูลบทเรียน</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">ชื่อและสรุปที่ใช้แสดงในหน้าบทเรียน</p>
+                    </div>
+                    <label className="block">
+                      <span className="text-sm font-medium text-zinc-700">ชื่อบทเรียน</span>
+                      <input
+                        className="mt-2 h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
+                        value={draft.title}
+                        onChange={(event) => onDraftChange('title', event.target.value)}
+                        placeholder="บทเรียนที่ 1: เริ่มต้นคอร์ส"
+                        required
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-zinc-700">สรุปบทเรียน</span>
+                      <textarea
+                        className="mt-2 min-h-44 w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
+                        value={draft.summary}
+                        onChange={(event) => onDraftChange('summary', event.target.value)}
+                        placeholder="เขียนสรุปสั้น ๆ ของบทเรียน"
+                      />
+                    </label>
+                  </section>
+
+                <section className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-5 shadow-sm shadow-cyan-100/70">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-cyan-950">พรีวิวหน้าขายคอร์ส</p>
+                      <p className="mt-1 text-xs leading-5 text-cyan-800/80">
+                        ใช้สำหรับให้ผู้สนใจทดลองดูบางบทเรียนก่อนสมัครเรียน
+                      </p>
+                    </div>
+                    <span
+                      className={[
+                        'inline-flex w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-semibold',
+                        draft.preview
+                          ? 'border-cyan-300 bg-white text-cyan-800'
+                          : 'border-zinc-200 bg-white/80 text-zinc-500',
+                      ].join(' ')}
+                    >
+                      {draft.preview ? 'เปิดพรีวิว' : 'ปิดพรีวิว'}
+                    </span>
                   </div>
-                  <label className="block">
-                    <span className="text-sm font-medium text-zinc-700">ชื่อบทเรียน</span>
-                    <input
-                      className="mt-2 h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
-                      value={draft.title}
-                      onChange={(event) => onDraftChange('title', event.target.value)}
-                      placeholder="บทเรียนที่ 1: เริ่มต้นคอร์ส"
-                      required
-                    />
-                  </label>
 
-                  <label className="block">
-                    <span className="text-sm font-medium text-zinc-700">สรุปบทเรียน</span>
-                    <textarea
-                      className="mt-2 min-h-44 w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
-                      value={draft.summary}
-                      onChange={(event) => onDraftChange('summary', event.target.value)}
-                      placeholder="เขียนสรุปสั้น ๆ ของบทเรียน"
-                    />
-                  </label>
-
-                  <label className="flex items-start gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+                  <label className="mt-5 flex items-start gap-3 rounded-lg border border-white/80 bg-white px-4 py-3 text-sm text-cyan-900 shadow-sm shadow-cyan-100/70">
                     <input
                       type="checkbox"
                       checked={draft.preview}
                       onChange={(event) => onDraftChange('preview', event.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-zinc-300 accent-black"
+                      className="mt-1 h-4 w-4 rounded border-cyan-300 accent-cyan-700"
                     />
                     <span>
-                      <span className="block font-medium text-black">เปิดเป็นวิดีโอตัวอย่างก่อนซื้อ</span>
-                      <span className="mt-0.5 block text-xs leading-5 text-zinc-500">
-                        ใช้วิดีโอหลักไฟล์เดียวกันเป็น preview โดยไม่เพิ่มชุดข้อมูลวิดีโอแยก
+                      <span className="block font-semibold text-cyan-950">อนุญาตให้บทเรียนนี้ดูเป็นตัวอย่าง</span>
+                      <span className="mt-1 block text-xs leading-5 text-cyan-800/80">
+                        ระบบปัจจุบันใช้วิดีโอเรียนจริงไฟล์เดียวกันเป็นพรีวิว ถ้าปิดไว้ ผู้เรียนต้องสมัครคอร์สก่อนจึงจะดูวิดีโอนี้ได้
                       </span>
                     </span>
                   </label>
+                  </section>
                 </div>
 
                 <aside className="space-y-5 rounded-2xl border border-zinc-200 bg-[#faf9f7] p-5 shadow-sm">
                   <div className="border-b border-zinc-200 pb-4">
-                    <p className="text-sm font-semibold text-black">ไฟล์วิดีโอ</p>
-                    <p className="mt-1 text-xs leading-5 text-zinc-500">อัปโหลดวิดีโอหลักและตรวจความยาวก่อนบันทึก</p>
+                    <p className="text-sm font-semibold text-black">วิดีโอเรียนจริง</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">ไฟล์หลักที่นักเรียนใช้เรียน และเป็นแหล่งข้อมูลให้ AI ถอดเสียง</p>
                   </div>
                   <label className="block">
                     <span className="text-sm font-medium text-zinc-700">ความยาววิดีโอ</span>
@@ -1079,7 +1137,7 @@ function LessonManagerModal({
                   </label>
 
                   <label className="block">
-                    <span className="text-sm font-medium text-zinc-700">วิดีโอหลัก</span>
+                    <span className="text-sm font-medium text-zinc-700">อัปโหลดวิดีโอเรียนจริง</span>
                     <input
                       type="file"
                       accept="video/*"
@@ -1108,27 +1166,30 @@ function LessonManagerModal({
                     </div>
                   ) : null}
 
-                  <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+                  <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-black">ขั้นตอนเตรียม AI</p>
+                      <div className="p-4">
+                        <p className="text-sm font-semibold text-black">ขั้นตอนการทำงานของ AI</p>
                         <p className="mt-1 text-xs leading-5 text-zinc-500">
-                          ดูได้ทันทีว่าระบบอยู่ขั้นไหน หลังบันทึกแล้ว AI จะเริ่มทำงานต่อเบื้องหลัง
+                          แยกสถานะตามหมวดงาน ตั้งแต่วิดีโอหลักจนถึงเครื่องมือช่วยเรียนของนักเรียน
                         </p>
                       </div>
                       {editingLessonId ? (
-                        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${selectedLessonAi.className}`}>
+                        <span className={`mr-4 mt-4 shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${selectedLessonAi.className}`}>
                           {selectedLessonAi.label}
                         </span>
                       ) : null}
                     </div>
 
-                    <ol className="mt-4 space-y-3">
+                    <ol className="space-y-2 border-t border-zinc-100 bg-zinc-50/70 p-3">
                       {aiSteps.map((step, index) => (
-                        <li key={step.key} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3">
-                          <div className="flex flex-col items-center">
+                        <li
+                          key={step.key}
+                          className={`grid grid-cols-[32px_minmax(0,1fr)] gap-3 rounded-xl border p-3 ${aiStepTheme[step.key].shell}`}
+                        >
+                          <div className="flex flex-col items-center pt-0.5">
                             <span
-                              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold ${aiStepIconClass[step.status]}`}
+                              className={`inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold shadow-sm ${getAiStepIconClass(step)}`}
                             >
                               {step.status === 'done' ? (
                                 <CheckCircle2 size={15} />
@@ -1140,10 +1201,13 @@ function LessonManagerModal({
                                 index + 1
                               )}
                             </span>
-                            {index < aiSteps.length - 1 ? <span className="mt-1 h-7 w-px bg-zinc-200" /> : null}
+                            {index < aiSteps.length - 1 ? <span className={`mt-2 h-8 w-px ${aiStepTheme[step.key].rail}`} /> : null}
                           </div>
                           <div className="min-w-0 pb-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold uppercase ${aiStepTheme[step.key].label}`}>
+                                {step.category}
+                              </span>
                               <p className="text-sm font-semibold text-black">{step.label}</p>
                               {step.key === 'transcript' && selectedLesson?.aiStatus === 'processing' ? (
                                 <TextSearch size={14} className="text-sky-600" />
