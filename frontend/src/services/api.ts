@@ -5,7 +5,7 @@ import type { User, UserRole } from '../types/user'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 const DIRECT_MUX_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
-const DIRECT_R2_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD === 'true'
+const DIRECT_R2_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD !== 'false'
 const configuredR2VideoUploadConcurrency = Number(import.meta.env.VITE_R2_VIDEO_UPLOAD_CONCURRENCY ?? 5)
 const R2_VIDEO_UPLOAD_CONCURRENCY = Math.min(
   8,
@@ -842,7 +842,7 @@ export const api = {
     try {
       return await uploadVideoAssetToR2(payload)
     } catch (error) {
-      if (error instanceof ApiRequestError && error.status === 501) {
+      if (error instanceof ApiRequestError && error.status === 501 && payload.file.size <= 100 * 1024 * 1024) {
         return uploadVideoRequest(payload)
       }
 
