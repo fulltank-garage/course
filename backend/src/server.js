@@ -5470,7 +5470,7 @@ ensureBaseSchema()
   .then(seedDefaultSponsors)
   .then(() => (normalizeExistingUploads ? normalizeExistingUploadedVideos() : undefined))
   .then(() => {
-    server.listen(port, '0.0.0.0', () => {
+    server.listen(port, () => {
       console.log(`Backend API listening on port ${port}`)
     })
   })
