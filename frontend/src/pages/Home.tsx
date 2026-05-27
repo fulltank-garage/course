@@ -53,9 +53,9 @@ type CategoryOption = {
 
 function HeroBanner() {
   return (
-    <section className="relative isolate overflow-hidden bg-white">
-      <div className="mx-auto w-full max-w-[1800px] px-0 sm:px-4 lg:px-6">
-        <div className="relative aspect-[3/4] overflow-hidden bg-[#eef4ff] sm:aspect-auto sm:min-h-[420px] sm:rounded-[32px] lg:min-h-[620px]">
+    <section className="relative isolate -mt-px overflow-hidden bg-white">
+      <div className="w-full px-0">
+        <div className="relative min-h-[calc(100svh-72px)] overflow-hidden bg-[#eef4ff] sm:min-h-[calc(100svh-80px)]">
           <picture>
             <source media="(max-width: 639px)" srcSet="/home-hero-course-banner-mobile.png" />
             <img
@@ -64,7 +64,7 @@ function HeroBanner() {
               className="absolute inset-0 h-full w-full object-cover object-center"
             />
           </picture>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/65 to-transparent sm:hidden" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/70 to-transparent" />
         </div>
       </div>
     </section>
