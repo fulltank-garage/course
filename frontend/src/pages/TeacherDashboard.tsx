@@ -83,7 +83,7 @@ const getLessonAiDisplay = (lesson?: Lesson | null) => {
   if (!lesson?.videoUrl) {
     return {
       label: 'ยังไม่มีวิดีโอ',
-      description: 'อัปโหลดวิดีโอและบันทึกบทเรียนก่อน ระบบจึงจะเตรียม AI ได้',
+      description: 'อัปโหลดวิดีโอและกดบันทึก จากนั้น AI จะเริ่มทำงานเบื้องหลังอัตโนมัติ',
       className: 'border-zinc-200 bg-white text-zinc-500',
     }
   }
@@ -99,7 +99,7 @@ const getLessonAiDisplay = (lesson?: Lesson | null) => {
   if (lesson.aiStatus === 'processing') {
     return {
       label: 'AI กำลังเตรียมเนื้อหา',
-      description: 'ระบบกำลังถอดเสียงวิดีโอเบื้องหลัง คลิปยาวอาจใช้เวลาหลายนาที',
+      description: 'ระบบกำลังถอดเสียงวิดีโอเบื้องหลัง คุณครูออกจากหน้านี้ได้',
       className: 'border-sky-200 bg-sky-50 text-sky-700',
     }
   }
@@ -107,7 +107,7 @@ const getLessonAiDisplay = (lesson?: Lesson | null) => {
   if (lesson.aiStatus === 'pending') {
     return {
       label: 'รอ AI ถอดเสียง',
-      description: 'ระบบจะเริ่มเตรียม transcript หลังบันทึกบทเรียนหรือคิวว่าง',
+      description: 'บันทึกแล้ว อยู่ในคิวเตรียม AI อัตโนมัติ ไม่ต้องรอหน้านี้',
       className: 'border-amber-200 bg-amber-50 text-amber-700',
     }
   }
@@ -122,7 +122,7 @@ const getLessonAiDisplay = (lesson?: Lesson | null) => {
 
   return {
     label: 'ยังไม่เริ่ม AI',
-    description: 'บันทึกบทเรียนเพื่อให้ระบบเตรียม AI สำหรับวิดีโอนี้',
+    description: 'เมื่อกดบันทึก ระบบจะส่งงาน AI เข้าคิวให้เอง',
     className: 'border-zinc-200 bg-white text-zinc-500',
   }
 }
@@ -148,11 +148,11 @@ const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, saving:
       label: 'บันทึกบทเรียน',
       category: 'System',
       description: saving
-        ? 'กำลังบันทึกข้อมูลบทเรียนและส่งคิวให้ AI'
+        ? 'กำลังบันทึกข้อมูลบทเรียนและส่งคิว AI เบื้องหลัง'
         : savedWithVideo
-          ? 'บันทึกแล้ว ระบบมีข้อมูลวิดีโอสำหรับสร้าง transcript'
+          ? 'บันทึกแล้ว คุณครูไม่ต้องรอ AI จบ'
           : hasVideo
-            ? 'กดบันทึกเพื่อเริ่มคิว AI'
+            ? 'กดบันทึกเพื่อเริ่ม AI อัตโนมัติ'
             : 'บันทึกได้หลังกรอกชื่อบทเรียนและเตรียมวิดีโอ',
       status: saving ? 'active' : savedWithVideo ? 'done' : 'idle',
     },
@@ -165,11 +165,11 @@ const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, saving:
         : aiWorking
           ? 'ระบบกำลังถอดเสียงวิดีโอเบื้องหลัง'
           : aiPending
-            ? 'อยู่ในคิว รอระบบเริ่มถอดเสียง'
+            ? 'อยู่ในคิว AI อัตโนมัติ'
             : aiReady
               ? 'ถอดเสียงเสร็จแล้ว'
               : savedWithVideo
-                ? 'รอ AI เริ่มทำงาน'
+                ? 'รอระบบเริ่มงานเบื้องหลัง'
                 : 'ขั้นตอนนี้จะเริ่มหลังบันทึกบทเรียน',
       status: aiFailed ? 'error' : aiReady ? 'done' : aiWorking || aiPending ? 'active' : 'idle',
     },
@@ -177,7 +177,7 @@ const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, saving:
       key: 'ready',
       label: 'พร้อมให้นักเรียนใช้',
       category: 'Learning Tools',
-      description: aiReady ? 'ถาม AI สรุปบทเรียน และสร้างแบบทดสอบได้เร็วขึ้น' : 'จะแสดงพร้อมใช้งานเมื่อ transcript พร้อม',
+      description: aiReady ? 'ถาม AI สรุปบทเรียน และสร้างแบบทดสอบได้เร็วขึ้น' : 'จะแจ้งพร้อมใช้เมื่อ AI เตรียมเสร็จ',
       status: aiReady ? 'done' : 'idle',
     },
   ] as const
@@ -867,6 +867,7 @@ function LessonManagerModal({
   videoPreviewUrl,
   videoPosterUrl,
   message,
+  saveConfirmed,
   onClose,
   onNew,
   onSelect,
@@ -885,6 +886,7 @@ function LessonManagerModal({
   videoPreviewUrl: string | null
   videoPosterUrl: string | null
   message: { tone: 'success' | 'error'; text: string } | null
+  saveConfirmed: boolean
   onClose: () => void
   onNew: () => void
   onSelect: (lesson: Lesson) => void
@@ -1045,13 +1047,17 @@ function LessonManagerModal({
             <div className="mx-auto max-w-5xl px-5 py-6 sm:px-7 lg:py-8">
               {message ? (
                 <div
-                  className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
+                  className={`mb-6 flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${
                     message.tone === 'success'
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-emerald-100/60'
                       : 'border-rose-200 bg-rose-50 text-rose-700'
                   }`}
                 >
-                  {message.text}
+                  {message.tone === 'success' ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <AlertTriangle size={18} className="mt-0.5 shrink-0" />}
+                  <div>
+                    <p className="font-semibold">{message.tone === 'success' ? 'สำเร็จ' : 'ดำเนินการไม่สำเร็จ'}</p>
+                    <p className="mt-0.5 leading-6">{message.text}</p>
+                  </div>
                 </div>
               ) : null}
 
@@ -1271,11 +1277,25 @@ function LessonManagerModal({
                     </button>
                   ) : null}
                 </div>
-                <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60" disabled={controlsBusy}>
+                <button
+                  type="submit"
+                  className={[
+                    'inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60',
+                    saveConfirmed && !controlsBusy
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'bg-black text-white hover:bg-zinc-800',
+                  ].join(' ')}
+                  disabled={controlsBusy}
+                >
                   {saving || uploading ? (
                     <>
                       <LoaderCircle size={16} className="animate-spin" />
                       กำลังบันทึก...
+                    </>
+                  ) : saveConfirmed ? (
+                    <>
+                      <CheckCircle2 size={16} />
+                      บันทึกแล้ว
                     </>
                   ) : (
                     <>
@@ -1330,6 +1350,7 @@ export default function TeacherDashboard() {
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
   const [lessonDraft, setLessonDraft] = useState<LessonDraft>(emptyLessonDraft)
   const [lessonMessage, setLessonMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const [lessonSaveConfirmed, setLessonSaveConfirmed] = useState(false)
   const [savingLesson, setSavingLesson] = useState(false)
   const [uploadingLessonVideo, setUploadingLessonVideo] = useState(false)
   const [lessonUploadProgress, setLessonUploadProgress] = useState<number | null>(null)
@@ -1546,6 +1567,7 @@ export default function TeacherDashboard() {
     setEditingLessonId(course.lessons[0]?.id ?? null)
     setLessonDraft(course.lessons[0] ? draftFromLesson(course.lessons[0]) : emptyLessonDraft)
     setLessonMessage(null)
+    setLessonSaveConfirmed(false)
   }
 
   const closeLessonManager = () => {
@@ -1553,6 +1575,7 @@ export default function TeacherDashboard() {
     setEditingLessonId(null)
     setLessonDraft(emptyLessonDraft)
     setLessonMessage(null)
+    setLessonSaveConfirmed(false)
     setUploadingLessonVideo(false)
     setLessonUploadProgress(null)
     setLessonUploadSpeedText(null)
@@ -1572,12 +1595,14 @@ export default function TeacherDashboard() {
     setEditingLessonId(lesson.id)
     setLessonDraft(draftFromLesson(lesson))
     setLessonMessage(null)
+    setLessonSaveConfirmed(false)
     setLessonUploadProgress(null)
     setLessonUploadSpeedText(null)
     clearLessonVideoPreview()
   }
 
   const handleLessonDraftChange = <K extends keyof LessonDraft>(key: K, value: LessonDraft[K]) => {
+    setLessonSaveConfirmed(false)
     setLessonDraft((current) => ({ ...current, [key]: value }))
   }
 
@@ -1643,6 +1668,7 @@ export default function TeacherDashboard() {
     setLessonUploadProgress(0)
     setLessonUploadSpeedText(null)
     setLessonMessage(null)
+    setLessonSaveConfirmed(false)
 
     try {
       let lastProgressSample = { progress: 0, timestamp: performance.now() }
@@ -1698,6 +1724,7 @@ export default function TeacherDashboard() {
 
     setSavingLesson(true)
     setLessonMessage(null)
+    setLessonSaveConfirmed(false)
 
     try {
       const nextCourse = await api.saveLesson(lessonCourse.slug, editingLessonId, {
@@ -1716,10 +1743,11 @@ export default function TeacherDashboard() {
 
       setEditingLessonId(nextLesson?.id ?? null)
       if (nextLesson) setLessonDraft(draftFromLesson(nextLesson))
+      setLessonSaveConfirmed(true)
       setLessonMessage({
         tone: 'success',
         text: lessonDraft.videoUrl
-          ? 'บันทึกบทเรียนแล้ว ระบบจะถอดสคริปต์ด้วย AI ให้อัตโนมัติ'
+          ? 'บันทึกบทเรียนแล้ว คุณครูออกจากหน้านี้ได้เลย ระบบจะเตรียม AI ให้อัตโนมัติเบื้องหลัง'
           : 'บันทึกบทเรียนเรียบร้อยแล้ว',
       })
     } catch (currentError) {
@@ -3067,6 +3095,7 @@ export default function TeacherDashboard() {
           videoPreviewUrl={lessonVideoPreviewUrl}
           videoPosterUrl={lessonVideoPosterUrl}
           message={lessonMessage}
+          saveConfirmed={lessonSaveConfirmed}
           onClose={closeLessonManager}
           onNew={startNewLesson}
           onSelect={selectLesson}

@@ -4749,7 +4749,7 @@ const saveCourseLesson = async (request, slug, lessonId) => {
           ai_status = CASE
             WHEN $4::text IS NULL OR $4::text = '' THEN 'idle'
             WHEN COALESCE(video_url, '') IS DISTINCT FROM $4::text THEN 'pending'
-            WHEN ai_status = 'failed' THEN 'pending'
+            WHEN ai_status IN ('failed', 'idle') THEN 'pending'
             ELSE ai_status
           END,
           ai_error = NULL
@@ -4758,7 +4758,10 @@ const saveCourseLesson = async (request, slug, lessonId) => {
       [title, duration, preview, videoUrl || null, summary, lessonId],
     )
 
-    if (videoUrl && (String(lessonResult.rows[0].video_url ?? '') !== videoUrl || lessonResult.rows[0].ai_status === 'failed')) {
+    if (
+      videoUrl &&
+      (String(lessonResult.rows[0].video_url ?? '') !== videoUrl || ['failed', 'idle'].includes(String(lessonResult.rows[0].ai_status ?? 'idle')))
+    ) {
       queueAutoTranscribeLesson(lessonId, videoUrl)
     }
   } else {
