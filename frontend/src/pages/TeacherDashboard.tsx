@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -127,7 +127,7 @@ const getLessonAiDisplay = (lesson?: Lesson | null) => {
   }
 }
 
-const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, saving: boolean, uploading: boolean) => {
+const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, uploading: boolean) => {
   const hasVideo = Boolean(draft.videoUrl || lesson?.videoUrl)
   const savedWithVideo = Boolean(lesson?.id && lesson.videoUrl)
   const aiReady = Boolean(lesson?.hasTranscript || lesson?.aiStatus === 'ready')
@@ -142,19 +142,6 @@ const getLessonAiStepState = (lesson: Lesson | null, draft: LessonDraft, saving:
       category: 'Media',
       description: hasVideo ? 'มีไฟล์วิดีโอหลักสำหรับนักเรียนแล้ว' : 'อัปโหลดวิดีโอหลักที่นักเรียนจะใช้เรียนจริง',
       status: uploading ? 'active' : hasVideo ? 'done' : 'idle',
-    },
-    {
-      key: 'save',
-      label: 'บันทึกบทเรียน',
-      category: 'System',
-      description: saving
-        ? 'กำลังบันทึกข้อมูลบทเรียนและส่งคิว AI เบื้องหลัง'
-        : savedWithVideo
-          ? 'บันทึกแล้ว คุณครูไม่ต้องรอ AI จบ'
-          : hasVideo
-            ? 'กดบันทึกเพื่อเริ่ม AI อัตโนมัติ'
-            : 'บันทึกได้หลังกรอกชื่อบทเรียนและเตรียมวิดีโอ',
-      status: saving ? 'active' : savedWithVideo ? 'done' : 'idle',
     },
     {
       key: 'transcript',
@@ -916,7 +903,7 @@ function LessonManagerModal({
   const selectedLessonIndex = course.lessons.findIndex((lesson) => lesson.id === editingLessonId)
   const selectedLesson = course.lessons.find((lesson) => lesson.id === editingLessonId) ?? null
   const selectedLessonAi = getLessonAiDisplay(selectedLesson)
-  const aiSteps = getLessonAiStepState(selectedLesson, draft, saving, uploading)
+  const aiSteps = getLessonAiStepState(selectedLesson, draft, uploading)
   const aiStepTheme = {
     video: {
       shell: 'border-sky-200 bg-sky-50/85',
@@ -924,13 +911,6 @@ function LessonManagerModal({
       idleIcon: 'border-sky-200 bg-white text-sky-500',
       label: 'text-sky-800',
       rail: 'bg-sky-200',
-    },
-    save: {
-      shell: 'border-amber-200 bg-amber-50/85',
-      icon: 'border-amber-200 bg-amber-500 text-white shadow-amber-200/70',
-      idleIcon: 'border-amber-200 bg-white text-amber-600',
-      label: 'text-amber-800',
-      rail: 'bg-amber-200',
     },
     transcript: {
       shell: 'border-violet-200 bg-violet-50/85',
@@ -1175,9 +1155,9 @@ function LessonManagerModal({
                   <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="p-4">
-                        <p className="text-sm font-semibold text-black">ขั้นตอนการทำงานของ AI</p>
+                        <p className="text-sm font-semibold text-black">AI ทำงานเบื้องหลังอัตโนมัติ</p>
                         <p className="mt-1 text-xs leading-5 text-zinc-500">
-                          แยกสถานะตามหมวดงาน ตั้งแต่วิดีโอหลักจนถึงเครื่องมือช่วยเรียนของนักเรียน
+                          หลังบันทึกวิดีโอแล้ว คุณครูปิดหน้านี้ได้ ระบบจะอัปเดตสถานะและแจ้งเมื่อพร้อม
                         </p>
                       </div>
                       {editingLessonId ? (
@@ -1351,6 +1331,7 @@ export default function TeacherDashboard() {
   const [lessonDraft, setLessonDraft] = useState<LessonDraft>(emptyLessonDraft)
   const [lessonMessage, setLessonMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const [lessonSaveConfirmed, setLessonSaveConfirmed] = useState(false)
+  const lessonAiStatusRef = useRef<Record<string, Lesson['aiStatus'] | undefined>>({})
   const [savingLesson, setSavingLesson] = useState(false)
   const [uploadingLessonVideo, setUploadingLessonVideo] = useState(false)
   const [lessonUploadProgress, setLessonUploadProgress] = useState<number | null>(null)
@@ -1610,6 +1591,75 @@ export default function TeacherDashboard() {
     setCourses((current) => current.map((item) => (item.id === course.id ? course : item)))
     setLessonCourse(course)
   }
+
+  const rememberLessonAiStatuses = (course: Course) => {
+    lessonAiStatusRef.current = course.lessons.reduce<Record<string, Lesson['aiStatus'] | undefined>>((accumulator, lesson) => {
+      accumulator[lesson.id] = lesson.aiStatus
+      return accumulator
+    }, {})
+  }
+
+  const lessonAiPollingKey = lessonCourse
+    ? `${lessonCourse.id}:${lessonCourse.lessons.map((lesson) => `${lesson.id}:${lesson.aiStatus ?? 'idle'}:${lesson.hasTranscript ? '1' : '0'}`).join('|')}`
+    : ''
+
+  useEffect(() => {
+    if (!lessonCourse) return
+
+    rememberLessonAiStatuses(lessonCourse)
+  }, [lessonCourse?.id])
+
+  useEffect(() => {
+    if (!lessonCourse) return
+
+    const hasActiveAiWork = lessonCourse.lessons.some((lesson) => ['pending', 'processing'].includes(lesson.aiStatus ?? 'idle'))
+    if (!hasActiveAiWork) return
+
+    let active = true
+
+    const refreshLessonAiStatus = async () => {
+      try {
+        const dashboard = await api.getTeacherDashboard()
+        if (!active) return
+
+        setCourses(dashboard.courses)
+        const nextCourse = dashboard.courses.find((course) => course.id === lessonCourse.id)
+        if (!nextCourse) return
+
+        setLessonCourse(nextCourse)
+
+        for (const lesson of nextCourse.lessons) {
+          const previousStatus = lessonAiStatusRef.current[lesson.id]
+          const nextStatus = lesson.aiStatus ?? 'idle'
+          const wasWorking = previousStatus === 'pending' || previousStatus === 'processing'
+
+          if (wasWorking && (nextStatus === 'ready' || lesson.hasTranscript)) {
+            setLessonMessage({
+              tone: 'success',
+              text: `AI เตรียมบทเรียน "${lesson.title}" เสร็จแล้ว นักเรียนใช้งานสรุป ถาม AI และสร้างแบบทดสอบได้`,
+            })
+          } else if (wasWorking && nextStatus === 'failed') {
+            setLessonMessage({
+              tone: 'error',
+              text: `AI เตรียมบทเรียน "${lesson.title}" ไม่สำเร็จ ${lesson.aiError ?? 'กรุณาลองบันทึกบทเรียนอีกครั้ง'}`,
+            })
+          }
+
+          lessonAiStatusRef.current[lesson.id] = nextStatus
+        }
+      } catch {
+        // Keep the current UI state if a background status refresh fails.
+      }
+    }
+
+    const intervalId = window.setInterval(refreshLessonAiStatus, 7000)
+    refreshLessonAiStatus()
+
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+    }
+  }, [lessonAiPollingKey])
 
   const handleDraftChange = <K extends keyof CourseDraft>(key: K, value: CourseDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }))
