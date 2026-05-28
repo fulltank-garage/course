@@ -885,6 +885,7 @@ function LessonManagerModal({
   const videoPreviewSrc = videoPreviewUrl || draft.videoUrl
   const muxEmbedUrl = videoPreviewUrl ? null : getMuxPlayerEmbedUrl(draft.videoUrl)
   const [videoPreviewError, setVideoPreviewError] = useState(false)
+  const [showVideoPreview, setShowVideoPreview] = useState(false)
   const uploadStatusText = directMuxVideoUploadEnabled
     ? uploadProgress !== null && uploadProgress >= 92
       ? 'อัปโหลดครบแล้ว กำลังรอ Mux ประมวลผลวิดีโอ...'
@@ -937,6 +938,7 @@ function LessonManagerModal({
 
   useEffect(() => {
     setVideoPreviewError(false)
+    setShowVideoPreview(false)
   }, [videoPreviewSrc])
 
 
@@ -1209,36 +1211,59 @@ function LessonManagerModal({
               </div>
 
               {videoPreviewUrl || draft.videoUrl ? (
-                <div className="mt-6 overflow-hidden rounded-2xl border border-zinc-200 bg-black shadow-sm">
-                  {muxEmbedUrl ? (
-                    <iframe
-                      className="aspect-video max-h-[52vh] w-full bg-black"
-                      src={muxEmbedUrl}
-                      title="ตัวอย่างวิดีโอจาก Mux"
-                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <video
-                      className="aspect-video max-h-[52vh] w-full bg-black object-contain"
-                      controls
-                      playsInline
-                      preload="metadata"
-                      poster={videoPosterUrl ?? undefined}
-                      src={videoPreviewSrc}
-                      onError={() => setVideoPreviewError(true)}
-                      onLoadedMetadata={showFirstVideoFrame}
-                      onLoadedData={() => setVideoPreviewError(false)}
-                    />
-                  )}
-                  {videoPreviewError && !muxEmbedUrl ? (
-                    <p className="border-t border-rose-400/20 bg-rose-950/40 px-4 py-2 text-xs text-rose-100">
-                      แสดงตัวอย่างวิดีโอไม่ได้ อาจเป็นไฟล์ที่ browser ไม่รองรับ หรือเป็นลิงก์ที่ไม่ใช่ไฟล์วิดีโอโดยตรง
-                    </p>
-                  ) : videoPreviewUrl ? (
-                    <p className="border-t border-white/10 px-4 py-2 text-xs text-zinc-300">
-                      กำลังแสดงตัวอย่างจากไฟล์ในเครื่อง หลังบันทึกแล้วระบบจะใช้ URL วิดีโอที่อัปโหลด
-                    </p>
+                <div className="mt-6 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                  <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-black">วิดีโอพรีวิว</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">
+                        {videoPreviewUrl
+                          ? 'มีไฟล์ในเครื่องพร้อมให้ตรวจสอบ กดปุ่มเพื่อเปิดดูเมื่อจำเป็น'
+                          : 'มี URL วิดีโอของบทเรียนแล้ว กดปุ่มเพื่อเปิดดูตัวอย่าง'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 transition hover:border-black hover:text-black"
+                      onClick={() => setShowVideoPreview((current) => !current)}
+                    >
+                      {showVideoPreview ? <EyeOff size={16} /> : <Eye size={16} />}
+                      {showVideoPreview ? 'ซ่อนวิดีโอพรีวิว' : 'ดูวิดีโอพรีวิว'}
+                    </button>
+                  </div>
+
+                  {showVideoPreview ? (
+                    <div className="border-t border-zinc-200 bg-black">
+                      {muxEmbedUrl ? (
+                        <iframe
+                          className="aspect-video max-h-[52vh] w-full bg-black"
+                          src={muxEmbedUrl}
+                          title="ตัวอย่างวิดีโอจาก Mux"
+                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <video
+                          className="aspect-video max-h-[52vh] w-full bg-black object-contain"
+                          controls
+                          playsInline
+                          preload="metadata"
+                          poster={videoPosterUrl ?? undefined}
+                          src={videoPreviewSrc}
+                          onError={() => setVideoPreviewError(true)}
+                          onLoadedMetadata={showFirstVideoFrame}
+                          onLoadedData={() => setVideoPreviewError(false)}
+                        />
+                      )}
+                      {videoPreviewError && !muxEmbedUrl ? (
+                        <p className="border-t border-rose-400/20 bg-rose-950/40 px-4 py-2 text-xs text-rose-100">
+                          แสดงตัวอย่างวิดีโอไม่ได้ อาจเป็นไฟล์ที่ browser ไม่รองรับ หรือเป็นลิงก์ที่ไม่ใช่ไฟล์วิดีโอโดยตรง
+                        </p>
+                      ) : videoPreviewUrl ? (
+                        <p className="border-t border-white/10 px-4 py-2 text-xs text-zinc-300">
+                          กำลังแสดงตัวอย่างจากไฟล์ในเครื่อง หลังบันทึกแล้วระบบจะใช้ URL วิดีโอที่อัปโหลด
+                        </p>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
               ) : null}
