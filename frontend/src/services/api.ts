@@ -3,7 +3,8 @@ import type { QuizQuestion } from '../types/quiz'
 import type { Sponsor } from '../types/sponsor'
 import type { User, UserRole } from '../types/user'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+const productionApiBaseUrl = 'https://mycourse-backend-production.up.railway.app'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? productionApiBaseUrl : '')
 const DIRECT_MUX_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
 const DIRECT_R2_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD === 'true'
 const configuredR2VideoUploadConcurrency = Number(import.meta.env.VITE_R2_VIDEO_UPLOAD_CONCURRENCY ?? 5)
