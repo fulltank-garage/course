@@ -678,11 +678,28 @@ const getGeminiText = (response) => {
 
 const getGeminiFailureReason = (response) => {
   const promptBlockReason = response?.promptFeedback?.blockReason
-  if (promptBlockReason) return `Gemini blocked prompt: ${promptBlockReason}`
+  const promptSafetyRatings = response?.promptFeedback?.safetyRatings
+  const promptSafetyText = Array.isArray(promptSafetyRatings)
+    ? promptSafetyRatings
+        .map((rating) => `${rating?.category ?? 'unknown'}=${rating?.probability ?? 'unknown'}`)
+        .join(', ')
+    : ''
+  if (promptBlockReason) {
+    return `Gemini blocked prompt: ${promptBlockReason}${promptSafetyText ? ` (${promptSafetyText})` : ''}`
+  }
 
   const candidate = Array.isArray(response?.candidates) ? response.candidates[0] : null
   const finishReason = candidate?.finishReason
-  if (finishReason && finishReason !== 'STOP') return `Gemini finish reason: ${finishReason}`
+  const candidateSafetyRatings = candidate?.safetyRatings
+  const candidateSafetyText = Array.isArray(candidateSafetyRatings)
+    ? candidateSafetyRatings
+        .map((rating) => `${rating?.category ?? 'unknown'}=${rating?.probability ?? 'unknown'}`)
+        .join(', ')
+    : ''
+  if (finishReason && finishReason !== 'STOP') {
+    return `Gemini finish reason: ${finishReason}${candidateSafetyText ? ` (${candidateSafetyText})` : ''}`
+  }
+  if (candidateSafetyText) return `Gemini returned no text (${candidateSafetyText})`
 
   return 'Gemini returned an empty response'
 }
@@ -1323,12 +1340,58 @@ const getMediaDurationSeconds = async (absolutePath) =>
     })
   })
 
+const isAudioFileForTranscription = (inputPath) =>
+  ['.m4a', '.mp3', '.wav'].includes(path.extname(inputPath).toLowerCase())
+
+const extractAudioForTranscription = async (inputPath) => {
+  await ensureUploadsDir()
+  const outputPath = path.join(uploadsTempDir, `audio-${crypto.randomUUID()}.m4a`)
+
+  await new Promise((resolve, reject) => {
+    const ffmpeg = spawn(
+      ffmpegBinary,
+      [
+        '-y',
+        '-i',
+        inputPath,
+        '-vn',
+        '-ac',
+        '1',
+        '-ar',
+        '16000',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '64k',
+        outputPath,
+      ],
+      { stdio: ['ignore', 'ignore', 'pipe'] },
+    )
+
+    let errorOutput = ''
+    ffmpeg.stderr.on('data', (chunk) => {
+      errorOutput += String(chunk)
+    })
+    ffmpeg.on('error', reject)
+    ffmpeg.on('close', (code) => {
+      if (code === 0) {
+        resolve(undefined)
+        return
+      }
+
+      reject(new Error(`ไม่สามารถแยกไฟล์เสียงสำหรับ AI ได้${errorOutput ? `: ${errorOutput.trim()}` : ''}`))
+    })
+  })
+
+  return outputPath
+}
+
 const splitAudioForTranscription = async (inputPath, chunkSeconds = transcriptionChunkSeconds) => {
   const fileInfo = await stat(inputPath)
   const durationSeconds = await getMediaDurationSeconds(inputPath)
 
   if (fileInfo.size <= maxAutoTranscribeVideoBytes && (!durationSeconds || durationSeconds <= chunkSeconds)) {
-    return [inputPath]
+    return isAudioFileForTranscription(inputPath) ? [inputPath] : [await extractAudioForTranscription(inputPath)]
   }
 
   await ensureUploadsDir()
