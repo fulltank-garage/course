@@ -143,10 +143,6 @@ export default function Register() {
               </span>
             </label>
 
-            <p className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-xs leading-5 text-zinc-500">
-              รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร
-            </p>
-
             {error ? (
               <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-700">
                 <AlertCircle size={17} className="mt-0.5 shrink-0" />

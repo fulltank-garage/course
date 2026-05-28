@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import {
-  Bell,
-  BookOpenCheck,
+  Camera,
   ChevronDown,
   ChevronRight,
   GraduationCap,
   Menu,
   MoreVertical,
-  Search,
   Sparkles,
   Star,
   UserRound,
@@ -110,16 +108,29 @@ function ProfilePanel({
         <h1 className="text-3xl font-semibold tracking-tight text-black">ตั้งค่า</h1>
         <p className="mt-2 text-sm leading-6 text-zinc-500">จัดการโปรไฟล์ผู้เรียนและข้อมูลที่แสดงในบัญชีของคุณ</p>
         <div className="mt-8 flex items-center gap-4">
-          {draft.avatarUrl ? (
-            <img src={draft.avatarUrl} alt={draft.name} className="h-24 w-24 rounded-full object-cover" />
-          ) : (
-            <span className="inline-flex h-24 w-24 items-center justify-center rounded-full bg-black text-white">
-              <UserRound size={34} />
+          <label className="group relative block h-24 w-24 shrink-0 cursor-pointer overflow-hidden rounded-full bg-black text-white">
+            {draft.avatarUrl ? (
+              <img src={draft.avatarUrl} alt={draft.name} className="h-full w-full rounded-full object-cover" />
+            ) : (
+              <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-black text-white">
+                <UserRound size={34} />
+              </span>
+            )}
+            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100">
+              <Camera size={24} />
             </span>
-          )}
+            <input
+              type="file"
+              className="hidden"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={uploadingAvatar}
+              onChange={(event) => onAvatarChange(event.target.files?.[0])}
+            />
+          </label>
           <div>
             <p className="font-semibold text-black">{currentProfile.name || 'ผู้เรียน'}</p>
             <p className="mt-1 text-sm text-zinc-500">{currentProfile.headline || 'สมาชิกผู้เรียน'}</p>
+            <p className="mt-2 text-xs text-zinc-400">{uploadingAvatar ? 'กำลังอัปโหลดรูป...' : 'คลิกที่รูปเพื่อเปลี่ยนรูปโปรไฟล์'}</p>
           </div>
         </div>
       </section>
@@ -134,17 +145,6 @@ function ProfilePanel({
               onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
               placeholder="ชื่อของคุณ"
               required
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-semibold text-black">รูปโปรไฟล์</span>
-            <input
-              type="file"
-              className="mt-2 w-full rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-4 text-sm text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
-              accept="image/jpeg,image/png,image/webp"
-              disabled={uploadingAvatar}
-              onChange={(event) => onAvatarChange(event.target.files?.[0])}
             />
           </label>
 
@@ -417,21 +417,7 @@ export default function StudentDashboard() {
             >
               <Menu size={20} />
             </button>
-            <label className="relative hidden flex-1 md:block xl:max-w-[520px]">
-              <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input
-                className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-12 pr-4 text-sm outline-none transition placeholder:text-zinc-500 focus:border-black focus:bg-white"
-                placeholder="ค้นหาคอร์สหรือบทเรียน..."
-              />
-            </label>
             <div className="ml-auto flex items-center gap-3">
-              <Link to="/student/store?cart=1" className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-black">
-                <BookOpenCheck size={19} />
-              </Link>
-              <button type="button" className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white">
-                <Bell size={18} />
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-black" />
-              </button>
               <Link to="/student?section=profile" className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white py-1 pl-1 pr-3">
                 {currentProfile.avatarUrl ? (
                   <img src={currentProfile.avatarUrl} alt={currentProfile.name} className="h-9 w-9 rounded-full object-cover" />
@@ -440,8 +426,7 @@ export default function StudentDashboard() {
                     <UserRound size={16} />
                   </span>
                 )}
-                <span className="hidden text-sm font-semibold sm:inline">สวัสดี, {currentProfile.name || data.user.name}</span>
-                <ChevronDown size={16} />
+                <span className="hidden max-w-36 truncate text-sm font-semibold sm:inline">{currentProfile.name || data.user.name}</span>
               </Link>
             </div>
           </header>

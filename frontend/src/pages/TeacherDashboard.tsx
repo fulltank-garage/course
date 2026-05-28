@@ -2,7 +2,6 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
-  Bell,
   Camera,
   CheckCircle2,
   CircleDollarSign,
@@ -501,13 +500,6 @@ function TeacherShell({
               <span className="text-lg font-semibold">MyCourse</span>
             </Link>
             <div className="ml-auto flex items-center gap-3">
-              <button
-                type="button"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-200 bg-white text-black transition hover:border-black"
-                aria-label="แจ้งเตือน"
-              >
-                <Bell size={18} />
-              </button>
               {avatarUrl ? (
                 <img src={avatarUrl} alt={teacherName} className="h-11 w-11 rounded-full object-cover" />
               ) : (
@@ -2128,28 +2120,31 @@ export default function TeacherDashboard() {
           <form className="grid gap-0 lg:grid-cols-[280px_minmax(0,1fr)]" onSubmit={saveTeacherProfile}>
             <div className="border-b border-slate-200 bg-slate-50 p-5 lg:border-b-0 lg:border-r">
               <div className="flex flex-col items-start gap-4">
-                {profileDraft.avatarUrl ? (
-                  <img src={profileDraft.avatarUrl} alt="รูปโปรไฟล์" className="h-32 w-32 rounded-lg object-cover" />
-                ) : (
-                  <span className="inline-flex h-32 w-32 items-center justify-center rounded-lg bg-slate-950 text-white">
-                    <UserRound size={40} />
+                <label className="group relative block h-32 w-32 cursor-pointer overflow-hidden rounded-lg bg-slate-950 text-white">
+                  {profileDraft.avatarUrl ? (
+                    <img src={profileDraft.avatarUrl} alt="รูปโปรไฟล์" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="inline-flex h-full w-full items-center justify-center bg-slate-950 text-white">
+                      <UserRound size={40} />
+                    </span>
+                  )}
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100">
+                    <Camera size={26} />
                   </span>
-                )}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={uploadingAvatar}
+                    onChange={(event) => handleProfileAvatarChange(event.target.files?.[0])}
+                  />
+                </label>
 
                 <div>
                   <p className="text-sm font-semibold text-slate-950">รูปโปรไฟล์</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">รองรับ JPG, PNG, WEBP ไม่เกิน 5MB</p>
-                  <label className="btn-secondary mt-3 inline-flex cursor-pointer px-3 py-2">
-                    <Camera size={16} />
-                    {uploadingAvatar ? 'กำลังอัปโหลด...' : 'อัปโหลดรูป'}
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/jpeg,image/png,image/webp"
-                      disabled={uploadingAvatar}
-                      onChange={(event) => handleProfileAvatarChange(event.target.files?.[0])}
-                    />
-                  </label>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {uploadingAvatar ? 'กำลังอัปโหลดรูป...' : 'คลิกที่รูปเพื่อเปลี่ยน รองรับ JPG, PNG, WEBP ไม่เกิน 5MB'}
+                  </p>
                 </div>
               </div>
             </div>

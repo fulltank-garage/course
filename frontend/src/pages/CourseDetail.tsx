@@ -25,11 +25,7 @@ const MuxPlayer = lazy(() => import('@mux/mux-player-react'))
 const formatPrice = (price: number) =>
   price === 0
     ? 'ฟรี'
-    : new Intl.NumberFormat('th-TH', {
-        style: 'currency',
-        currency: 'THB',
-        maximumFractionDigits: 0,
-      }).format(price)
+    : `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(price)} บาท`
 
 const getLessonCount = (course: Course) => course.lessonCount ?? course.lessons.length
 const getLearningPath = (course: Course) =>

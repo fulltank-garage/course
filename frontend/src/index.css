@@ -184,8 +184,6 @@ video {
 
   .student-page-main {
     @apply w-full min-w-0;
-    animation: studentPageIn 180ms ease-out both;
-    will-change: transform;
   }
 
   .student-section-panel {
@@ -193,7 +191,7 @@ video {
   }
 
   .student-sidebar-nav {
-    animation: studentSidebarIn 220ms ease-out both;
+    animation: none;
   }
 
   .responsive-filter-panel {

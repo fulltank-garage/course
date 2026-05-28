@@ -1,10 +1,9 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
   BarChart3,
   Check,
-  ChevronDown,
   CreditCard,
   LoaderCircle,
   Menu,
@@ -40,13 +39,6 @@ const levelLabels: Record<string, string> = {
 }
 const getCategoryLabel = (category: string) => categoryLabels[category] ?? category
 const getLevelLabel = (level: string) => levelLabels[level] ?? level
-const sortOptionLabels: Record<SortOption, string> = {
-  popular: 'ยอดนิยม',
-  rating: 'คะแนนสูง',
-  'price-low': 'ราคาต่ำสุด',
-  'price-high': 'ราคาสูงสุด',
-}
-
 type SortOption = 'popular' | 'rating' | 'price-low' | 'price-high'
 type CheckoutModalState =
   | { mode: 'single'; course: Course }
@@ -56,13 +48,6 @@ type CheckoutStep = 'cart' | 'payment' | 'confirm'
 
 const getCourseReviewAverage = (course: Course) => course.reviewAverage ?? course.rating
 const getCourseReviewCount = (course: Course) => course.reviewCount ?? 0
-
-const sortOptions: Array<{ value: SortOption; label: string }> = [
-  { value: 'popular', label: 'ล่าสุด' },
-  { value: 'rating', label: 'คะแนนสูง' },
-  { value: 'price-low', label: 'ราคาต่ำสุด' },
-  { value: 'price-high', label: 'ราคาสูงสุด' },
-]
 
 const sortCourses = (items: Course[], sortBy: SortOption) => {
   const nextItems = [...items]
@@ -87,11 +72,7 @@ const sortCourses = (items: Course[], sortBy: SortOption) => {
 const formatPrice = (price: number) =>
   price === 0
     ? 'ฟรี'
-    : new Intl.NumberFormat('th-TH', {
-        style: 'currency',
-        currency: 'THB',
-        maximumFractionDigits: 0,
-      }).format(price)
+    : `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(price)} บาท`
 
 const cartMetricClass = 'rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-center'
 const minimalSecondaryButtonClass =
@@ -270,7 +251,6 @@ export default function StudentCourseStore() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const session = authStorage.getSession()
-  const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(allOption)
   const [selectedLevel, setSelectedLevel] = useState(allOption)
   const [sortBy, setSortBy] = useState<SortOption>('popular')
@@ -285,7 +265,6 @@ export default function StudentCourseStore() {
   const [checkoutAll, setCheckoutAll] = useState(false)
   const [checkoutModal, setCheckoutModal] = useState<CheckoutModalState>(null)
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart')
-  const deferredSearchTerm = useDeferredValue(searchTerm)
   const { data: courses, error: courseError, loading } = useApi(() => api.getCourses(), [])
 
   useEffect(() => cartStorage.subscribe(() => setCartItems(cartStorage.getItems())), [])
@@ -309,25 +288,18 @@ export default function StudentCourseStore() {
   }, [courses])
 
   const filteredCourses = useMemo(() => {
-    const normalizedSearch = deferredSearchTerm.trim().toLowerCase()
     const filtered = (courses ?? []).filter((course) => {
       const matchesCategory = selectedCategory === allOption || course.category === selectedCategory
       const matchesLevel = selectedLevel === allOption || course.level === selectedLevel
       const matchesPurchased = !showPurchasedOnly || Boolean(course.viewerState?.isEnrolled)
-      const matchesSearch =
-        !normalizedSearch ||
-        course.title.toLowerCase().includes(normalizedSearch) ||
-        course.description.toLowerCase().includes(normalizedSearch) ||
-        course.instructor.name.toLowerCase().includes(normalizedSearch)
 
-      return matchesCategory && matchesLevel && matchesPurchased && matchesSearch
+      return matchesCategory && matchesLevel && matchesPurchased
     })
 
     return sortCourses(filtered, sortBy)
-  }, [courses, deferredSearchTerm, selectedCategory, selectedLevel, showPurchasedOnly, sortBy])
+  }, [courses, selectedCategory, selectedLevel, showPurchasedOnly, sortBy])
 
   const resetFilters = () => {
-    setSearchTerm('')
     setSelectedCategory(allOption)
     setSelectedLevel(allOption)
     setShowPurchasedOnly(false)
@@ -507,34 +479,7 @@ export default function StudentCourseStore() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_13rem_3rem] lg:flex lg:flex-row">
-              <label className="relative block lg:w-80">
-                <span className="sr-only">ค้นหาคอร์ส</span>
-                <Search size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-black" />
-                <input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  className="h-12 w-full rounded-lg border border-zinc-200 bg-white px-4 pr-11 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
-                  placeholder="ค้นหาคอร์ส..."
-                />
-              </label>
-
-              <label className="relative block lg:w-52">
-                <span className="sr-only">เรียงตาม</span>
-                <select
-                  value={sortBy}
-                  onChange={(event) => setSortBy(event.target.value as SortOption)}
-                  className="h-12 w-full appearance-none rounded-lg border border-zinc-200 bg-white px-4 pr-10 text-sm font-semibold text-black outline-none transition focus:border-black"
-                >
-                  {sortOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      เรียงตาม: {sortOptionLabels[option.value]}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={16} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-black" />
-              </label>
-
+            <div className="flex justify-end">
               <button
                 type="button"
                 onClick={() => setCartOpen(true)}
@@ -732,7 +677,7 @@ export default function StudentCourseStore() {
 
       <div
         className={[
-          'fixed inset-0 z-[95] overflow-y-auto bg-[#f6f3ee] text-black transition-opacity duration-200',
+          'hidden fixed inset-0 z-[95] overflow-y-auto bg-[#f6f3ee] text-black transition-opacity duration-200',
           cartOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         ].join(' ')}
         aria-hidden={!cartOpen}
@@ -977,16 +922,17 @@ export default function StudentCourseStore() {
 
       <div
         className={[
-          'hidden fixed inset-0 z-[80] bg-black/35 transition-opacity duration-200',
-          'pointer-events-none opacity-0',
+          'fixed inset-0 z-[80] bg-black/35 transition-opacity duration-200',
+          cartOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         ].join(' ')}
         onClick={closeCart}
       />
       <aside
         className={[
-          'hidden fixed inset-y-0 right-0 z-[90] w-full max-w-[440px] flex-col border-l border-zinc-200 bg-white text-black shadow-2xl transition-transform duration-300 ease-out',
-          'translate-x-full',
+          'fixed inset-y-0 right-0 z-[90] flex w-full max-w-[440px] flex-col border-l border-zinc-200 bg-white text-black shadow-2xl transition-transform duration-300 ease-out',
+          cartOpen ? 'translate-x-0' : 'translate-x-full',
         ].join(' ')}
+        aria-hidden={!cartOpen}
         aria-label="ตะกร้าสินค้า"
       >
         <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-5">

@@ -9,11 +9,7 @@ import type { Sponsor } from '../types/sponsor'
 const formatPrice = (price: number) =>
   price === 0
     ? 'ฟรี'
-    : new Intl.NumberFormat('th-TH', {
-        style: 'currency',
-        currency: 'THB',
-        maximumFractionDigits: 0,
-      }).format(price)
+    : `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(price)} บาท`
 
 const getCourseReviewAverage = (course: Course) => course.reviewAverage ?? course.rating
 const getCourseReviewCount = (course: Course) => course.reviewCount ?? 0
@@ -127,7 +123,7 @@ function CourseRail({ courses }: { courses: Course[] }) {
     <div className="relative">
       <div
         ref={scrollRef}
-        className="-mx-4 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-6 scroll-smooth sm:-mx-6 sm:gap-6 sm:px-6 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-4 -my-8 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 py-8 scroll-smooth sm:-mx-6 sm:gap-6 sm:px-6 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {courses.map((course) => (
           <CourseRailCard key={course.id} course={course} />
@@ -388,7 +384,7 @@ export default function Home() {
   const sponsorRowB = sponsors.slice(sponsorSplitIndex)
 
   return (
-    <div className="overflow-hidden bg-white text-black">
+    <div className="bg-white text-black">
       <HeroBanner />
 
       <section className="container-page py-12 sm:py-16 lg:py-20">

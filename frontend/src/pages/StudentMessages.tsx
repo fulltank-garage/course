@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BookOpenCheck,
@@ -7,7 +7,6 @@ import {
   Mail,
   Menu,
   MessageCircle,
-  Search,
   Send,
   UserRound,
 } from 'lucide-react'
@@ -89,20 +88,9 @@ export default function StudentMessages() {
   const { data, error, loading } = useApi(() => api.getStudentDashboard(), [], studentDashboardStorage.get())
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
 
   const profileName = data?.profile.name || data?.user.name || 'ผู้เรียน'
-  const filteredCourses = useMemo(() => {
-    const courses = data?.courses ?? []
-    const searchText = query.trim().toLowerCase()
-    if (!searchText) return courses
-
-    return courses.filter((item) => {
-      const title = item.course.title.toLowerCase()
-      const instructor = item.course.instructor.name.toLowerCase()
-      return title.includes(searchText) || instructor.includes(searchText)
-    })
-  }, [data?.courses, query])
+  const filteredCourses = data?.courses ?? []
 
   const selectedThread =
     filteredCourses.find((item) => item.course.id === selectedCourseId) ?? filteredCourses[0] ?? null
@@ -115,9 +103,6 @@ export default function StudentMessages() {
           <div className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8">
             <header className="mb-6 flex items-center gap-4">
               <div className="skeleton h-11 w-11 rounded-lg lg:hidden" />
-              <div className="hidden flex-1 md:block xl:max-w-[520px]">
-                <div className="skeleton h-12 rounded-xl" />
-              </div>
               <div className="ml-auto skeleton h-11 w-40 rounded-full" />
             </header>
 
@@ -233,15 +218,6 @@ export default function StudentMessages() {
             >
               <Menu size={20} />
             </button>
-            <label className="relative hidden flex-1 md:block xl:max-w-[520px]">
-              <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input
-                className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-12 pr-4 text-sm outline-none transition placeholder:text-zinc-500 focus:border-black focus:bg-white"
-                placeholder="ค้นหาผู้สอนหรือคอร์ส..."
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </label>
             <div className="ml-auto flex items-center gap-3 rounded-full border border-zinc-200 bg-white py-1 pl-1 pr-3">
               {data.profile.avatarUrl || data.user.avatarUrl ? (
                 <img
@@ -285,15 +261,6 @@ export default function StudentMessages() {
                     <Inbox size={20} />
                   </span>
                 </div>
-                <label className="relative mt-4 block md:hidden">
-                  <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                  <input
-                    className="h-11 w-full rounded-lg border border-zinc-200 bg-zinc-50 pl-10 pr-3 text-sm outline-none transition placeholder:text-zinc-500 focus:border-black focus:bg-white"
-                    placeholder="ค้นหาข้อความ..."
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                </label>
               </div>
 
               <div className="max-h-[520px] overflow-y-auto">

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   GraduationCap,
@@ -6,7 +7,6 @@ import {
   LogIn,
   LogOut,
   Mail,
-  Settings,
   Trophy,
   UserRound,
   Video,
@@ -92,7 +92,6 @@ export default function LearnProSidebar({
     { key: 'my-courses', to: myCoursesPath, label: 'คอร์สของฉัน', icon: Video },
     { key: 'certificates', to: certificatesPath, label: 'ใบประกาศนียบัตร', icon: Trophy },
     { key: 'messages', to: studentPath, label: 'ข้อความ', icon: Mail },
-    { key: 'settings', to: settingsPath, label: 'การตั้งค่า', icon: Settings },
   ] as const
 
   const handleLogout = async () => {
@@ -110,6 +109,14 @@ export default function LearnProSidebar({
       onMobileClose?.()
       navigate('/')
     }
+  }
+
+  const handleNavClick = (event: MouseEvent<HTMLAnchorElement>, isActive: boolean) => {
+    if (isActive) {
+      event.preventDefault()
+    }
+
+    onMobileClose?.()
   }
 
   return (
@@ -149,7 +156,7 @@ export default function LearnProSidebar({
               <Link
                 key={item.key}
                 to={item.to}
-                onClick={onMobileClose}
+                onClick={(event) => handleNavClick(event, isActive)}
                 className={[
                   'flex items-center gap-4 rounded-lg px-4 py-3 text-sm font-medium transition duration-200 ease-out',
                   isActive ? 'bg-white/12 text-white shadow-inner shadow-white/5' : 'text-white/78 hover:bg-white/8 hover:text-white',
@@ -163,10 +170,10 @@ export default function LearnProSidebar({
         </nav>
 
         {role === 'student' ? (
-          <div className="mt-5 shrink-0 px-5">
+          <div className="mt-auto shrink-0 px-7">
             <Link
               to="/student/teacher-application"
-              onClick={onMobileClose}
+              onClick={(event) => handleNavClick(event, active === 'teacher-application')}
               className={[
                 'flex items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium transition',
                 active === 'teacher-application'
@@ -183,9 +190,16 @@ export default function LearnProSidebar({
           </div>
         ) : null}
 
-        <div className="mt-auto shrink-0 px-7 pb-7">
+        <div className="shrink-0 px-7 pb-7 pt-4">
           <div className="border-t border-white/10 pt-5">
-            <div className="flex items-center gap-3">
+            <Link
+              to={settingsPath}
+              onClick={onMobileClose}
+              className={[
+                'flex items-center gap-3 rounded-lg transition hover:bg-white/8',
+                active === 'settings' ? 'bg-white/12' : '',
+              ].join(' ')}
+            >
               {avatarUrl ? (
                 <img src={avatarUrl} alt={displayName} className="h-11 w-11 rounded-full object-cover" />
               ) : (
@@ -197,15 +211,16 @@ export default function LearnProSidebar({
                 <p className="truncate text-sm font-semibold">{displayName}</p>
                 <p className="truncate text-xs text-white/55">{profileLabel ?? session?.user.email ?? 'เลือกคอร์สที่สนใจ'}</p>
               </div>
-              <button
+            </Link>
+            <button
                 type="button"
-                className="rounded-md p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300 transition hover:border-red-400/40 hover:bg-red-500/20 hover:text-red-200"
                 onClick={handleLogout}
                 aria-label={session ? 'ออกจากระบบ' : 'เข้าสู่ระบบ'}
               >
                 {session ? <LogOut size={17} /> : <LogIn size={17} />}
-              </button>
-            </div>
+                <span>{session ? 'ออกจากระบบ' : 'เข้าสู่ระบบ'}</span>
+            </button>
           </div>
         </div>
       </aside>

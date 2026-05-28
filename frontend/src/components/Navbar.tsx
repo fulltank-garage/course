@@ -32,16 +32,6 @@ const getMobileNavIcon = (to: string) => {
   return LayoutDashboard
 }
 
-function LoginAvatarIcon({ className = 'h-5 w-5' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 128 128" aria-hidden="true" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="64" cy="64" r="59" fill="black" />
-      <circle cx="64" cy="46" r="24" fill="white" />
-      <path d="M29 110c3.5-27.5 17.2-45 35-45s31.5 17.5 35 45c-9.8 6.1-21.6 9.5-35 9.5S38.8 116.1 29 110Z" fill="white" />
-    </svg>
-  )
-}
-
 function UserAvatar({ session, className = 'h-8 w-8' }: { session: AuthSession; className?: string }) {
   if (session.user.avatarUrl) {
     return (
@@ -192,7 +182,7 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/95 backdrop-blur">
-      <div className="container-page flex h-20 items-center justify-between">
+      <div className="container-page relative flex h-20 items-center justify-between">
         <Link to={session ? dashboardPath : '/'} className="flex items-center gap-2 text-slate-950">
           <span className="inline-flex h-10 w-10 items-center justify-center text-black">
             <BrandMark className="h-10 w-10" />
@@ -200,7 +190,7 @@ export default function Navbar() {
           <span className="text-xl font-semibold tracking-tight">MyCourse</span>
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex">
+        <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
           {navItems.map((item) => (
             <Link key={item.to} to={item.to} className={navItemClass(isNavItemActive(item.to))}>
               {item.label}
@@ -225,13 +215,20 @@ export default function Navbar() {
               </button>
             </>
           ) : isAuthPage ? null : (
-            <Link
-              to="/login"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800 hover:shadow-[0_18px_38px_rgba(0,0,0,0.24)]"
-            >
-              <LoginAvatarIcon className="h-5 w-5 shrink-0" />
-              เข้าสู่ระบบ
-            </Link>
+            <>
+              <Link
+                to="/login"
+                className="inline-flex h-11 items-center justify-center rounded-full border border-zinc-300 bg-white px-5 text-sm font-semibold text-black transition hover:border-black hover:bg-zinc-50"
+              >
+                เข้าสู่ระบบ
+              </Link>
+              <Link
+                to="/register"
+                className="inline-flex h-11 items-center justify-center rounded-full bg-black px-5 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800 hover:shadow-[0_18px_38px_rgba(0,0,0,0.24)]"
+              >
+                สมัครสมาชิก
+              </Link>
+            </>
           )}
         </div>
 
@@ -309,10 +306,15 @@ export default function Navbar() {
                 })}
                 <Link
                   to="/login"
-                  className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-black px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800"
+                  className="flex h-11 min-w-0 flex-1 items-center justify-center rounded-full border border-zinc-300 bg-white px-4 text-sm font-semibold text-black transition hover:border-black hover:bg-zinc-50"
                 >
-                  <LoginAvatarIcon className="h-5 w-5 shrink-0" />
                   เข้าสู่ระบบ
+                </Link>
+                <Link
+                  to="/register"
+                  className="flex h-11 min-w-0 flex-1 items-center justify-center rounded-full bg-black px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:bg-zinc-800"
+                >
+                  สมัครสมาชิก
                 </Link>
               </div>
             )}

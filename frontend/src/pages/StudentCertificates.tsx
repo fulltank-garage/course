@@ -8,7 +8,6 @@ import {
   Download,
   Menu,
   Printer,
-  Search,
   Sparkles,
   Trophy,
   UserRound,
@@ -241,13 +240,6 @@ export default function StudentCertificates() {
             >
               <Menu size={20} />
             </button>
-            <label className="relative hidden flex-1 md:block xl:max-w-[520px]">
-              <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input
-                className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-12 pr-4 text-sm outline-none transition placeholder:text-zinc-500 focus:border-black focus:bg-white"
-                placeholder="ค้นหาใบประกาศนียบัตร..."
-              />
-            </label>
             <div className="ml-auto flex items-center gap-3 rounded-full border border-zinc-200 bg-white py-1 pl-1 pr-3">
               {data.profile.avatarUrl || data.user.avatarUrl ? (
                 <img
