@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
-  BarChart3,
   Check,
   CreditCard,
   LoaderCircle,
@@ -166,7 +165,25 @@ function CourseGridCard({
 
         <div className="mt-4 flex items-center justify-between gap-3">
           <p className="text-sm font-semibold text-slate-900">{formatPrice(course.price)}</p>
-          <BarChart3 size={17} className="text-zinc-500" />
+          {!isEnrolled ? (
+            <button
+              type="button"
+              className={[
+                'inline-flex h-9 w-9 items-center justify-center rounded-md border text-sm font-semibold transition',
+                !canBuy
+                  ? 'cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400'
+                  : inCart
+                    ? 'border-zinc-200 bg-zinc-100 text-zinc-600 hover:border-black hover:text-black'
+                    : 'border-zinc-200 bg-white text-black hover:border-black',
+              ].join(' ')}
+              disabled={!canBuy}
+              onClick={() => onAddToCart(course.slug)}
+              aria-label={inCart ? '\u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19\u0e15\u0e30\u0e01\u0e23\u0e49\u0e32\u0e41\u0e25\u0e49\u0e27' : '\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e25\u0e07\u0e15\u0e30\u0e01\u0e23\u0e49\u0e32'}
+              title={inCart ? '\u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19\u0e15\u0e30\u0e01\u0e23\u0e49\u0e32\u0e41\u0e25\u0e49\u0e27' : '\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e25\u0e07\u0e15\u0e30\u0e01\u0e23\u0e49\u0e32'}
+            >
+              {inCart ? <Check size={17} /> : <ShoppingCart size={17} />}
+            </button>
+          ) : null}
         </div>
 
         <div className="mt-4">
@@ -180,35 +197,13 @@ function CourseGridCard({
             </button>
           ) : null}
 
-          <div className={!canBuy && !isEnrolled ? 'mt-2 grid grid-cols-[1fr_auto] gap-2' : 'grid grid-cols-[1fr_auto] gap-2'}>
+          <div className={!canBuy && !isEnrolled ? 'mt-2' : ''}>
             <Link
               to={coursePathFor(course)}
-              className={[
-                'inline-flex h-10 items-center justify-center rounded-md border border-zinc-200 px-3 text-sm font-semibold text-black transition hover:border-black',
-                isEnrolled ? 'col-span-full' : '',
-              ].join(' ')}
+              className="inline-flex h-10 w-full items-center justify-center rounded-md border border-zinc-200 px-3 text-sm font-semibold text-black transition hover:border-black"
             >
               ดูรายละเอียด
             </Link>
-            {!isEnrolled ? (
-              <button
-                type="button"
-                className={[
-                  'inline-flex h-10 w-10 items-center justify-center rounded-md border text-sm font-semibold transition',
-                  !canBuy
-                    ? 'cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400'
-                    : inCart
-                      ? 'border-zinc-200 bg-zinc-100 text-zinc-600 hover:border-black hover:text-black'
-                      : 'border-zinc-200 bg-white text-black hover:border-black',
-                ].join(' ')}
-                disabled={!canBuy}
-                onClick={() => onAddToCart(course.slug)}
-                aria-label={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้า'}
-                title={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้า'}
-              >
-                {inCart ? <Check size={17} /> : <ShoppingCart size={17} />}
-              </button>
-            ) : null}
           </div>
         </div>
       </div>
@@ -238,9 +233,8 @@ function CourseGridCardSkeleton() {
           <div className="skeleton-line h-5 w-20" />
           <div className="skeleton h-5 w-5 rounded-md" />
         </div>
-        <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+        <div className="mt-4">
           <div className="skeleton h-10 rounded-md" />
-          <div className="skeleton h-10 w-10 rounded-md" />
         </div>
       </div>
     </article>

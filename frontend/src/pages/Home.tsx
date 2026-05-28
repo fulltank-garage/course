@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react'
+import { ArrowRight, Building2, Check, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useApi } from '../hooks/useApi'
-import { api, cartStorage } from '../services/api'
+import { api } from '../services/api'
 import type { Course } from '../types/course'
 import type { Sponsor } from '../types/sponsor'
 
@@ -67,15 +67,39 @@ function HeroBanner() {
   )
 }
 
-function CourseRailCard({
-  course,
-  inCart,
-  onAddToCart,
-}: {
-  course: Course
-  inCart: boolean
-  onAddToCart: (slug: string) => void
-}) {
+const whyMyCourseItems = [
+  'รวมคอร์สที่เลือกเรียนได้จริงไว้ในที่เดียว',
+  'ผู้เรียนซื้อคอร์สแล้วกลับมาเรียนต่อได้จากแดชบอร์ด',
+  'ครูจัดการคอร์ส บทเรียน นักเรียน และข้อความได้ง่ายขึ้น',
+]
+
+function WhyMyCourseSection() {
+  return (
+    <section className="container-page py-12 sm:py-16 lg:py-20">
+      <div className="grid gap-8 border-t border-zinc-200 pt-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">WHY MYCOURSE</p>
+          <h2 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl">ทำไมต้อง MyCourse</h2>
+          <p className="mt-4 max-w-xl text-base leading-8 text-zinc-600">
+            แพลตฟอร์มเรียนออนไลน์ที่ออกแบบให้ผู้เรียนค้นหา ซื้อ และกลับมาเรียนต่อได้ลื่นไหล ส่วนคุณครูก็จัดการคอร์สได้ในที่เดียว
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {whyMyCourseItems.map((item) => (
+            <div key={item} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black text-white">
+                <Check size={18} />
+              </span>
+              <p className="mt-5 text-sm font-semibold leading-6 text-zinc-950">{item}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CourseRailCard({ course }: { course: Course }) {
   const firstLesson = course.lessons[0]?.title
 
   return (
@@ -108,20 +132,6 @@ function CourseRailCard({
         <div className="mt-auto flex items-center justify-between gap-4 pt-6">
           <p className="text-base font-semibold text-zinc-950">{formatPrice(course.price)}</p>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className={[
-                'inline-flex h-9 w-9 items-center justify-center rounded-full border transition',
-                inCart
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-zinc-200 bg-white text-zinc-950 hover:border-zinc-950 hover:bg-zinc-50',
-              ].join(' ')}
-              onClick={() => onAddToCart(course.slug)}
-              aria-label={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้าสินค้า'}
-              title={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้าสินค้า'}
-            >
-              {inCart ? <Check size={16} /> : <ShoppingCart size={16} />}
-            </button>
             <Link
               to={`/courses/${course.slug}`}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-950 text-white transition group-hover:translate-x-0.5"
@@ -138,13 +148,6 @@ function CourseRailCard({
 
 function CourseRail({ courses }: { courses: Course[] }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
-
-  useEffect(() => cartStorage.subscribe(() => setCartItems(cartStorage.getItems())), [])
-
-  const handleAddToCart = (slug: string) => {
-    setCartItems(cartStorage.addItem(slug))
-  }
 
   const scrollCourses = (direction: 'previous' | 'next') => {
     const container = scrollRef.current
@@ -162,7 +165,7 @@ function CourseRail({ courses }: { courses: Course[] }) {
         className="-mx-4 -my-8 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 py-8 scroll-smooth sm:-mx-6 sm:gap-6 sm:px-6 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {courses.map((course) => (
-          <CourseRailCard key={course.id} course={course} inCart={cartItems.includes(course.slug)} onAddToCart={handleAddToCart} />
+          <CourseRailCard key={course.id} course={course} />
         ))}
       </div>
 
@@ -423,7 +426,9 @@ export default function Home() {
     <div className="bg-white text-black">
       <HeroBanner />
 
-      <section className="container-page py-12 sm:py-16 lg:py-20">
+      <WhyMyCourseSection />
+
+      <section className="container-page pb-12 sm:pb-16 lg:pb-20">
         <div className="flex flex-col gap-6 border-t border-zinc-200 pt-8 sm:pt-10 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <h2 className="text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl lg:text-6xl">รายการคอร์ส</h2>
