@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Building2, Check, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowRight, Building2, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useApi } from '../hooks/useApi'
 import { api } from '../services/api'
 import type { Course } from '../types/course'
@@ -61,38 +61,6 @@ function HeroBanner() {
             />
           </picture>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/70 to-transparent" />
-        </div>
-      </div>
-    </section>
-  )
-}
-
-const whyMyCourseItems = [
-  'รวมคอร์สที่เลือกเรียนได้จริงไว้ในที่เดียว',
-  'ผู้เรียนซื้อคอร์สแล้วกลับมาเรียนต่อได้จากแดชบอร์ด',
-  'ครูจัดการคอร์ส บทเรียน นักเรียน และข้อความได้ง่ายขึ้น',
-]
-
-function WhyMyCourseSection() {
-  return (
-    <section className="container-page py-12 sm:py-16 lg:py-20">
-      <div className="grid gap-8 border-t border-zinc-200 pt-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">WHY MYCOURSE</p>
-          <h2 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl">ทำไมต้อง MyCourse</h2>
-          <p className="mt-4 max-w-xl text-base leading-8 text-zinc-600">
-            แพลตฟอร์มเรียนออนไลน์ที่ออกแบบให้ผู้เรียนค้นหา ซื้อ และกลับมาเรียนต่อได้ลื่นไหล ส่วนคุณครูก็จัดการคอร์สได้ในที่เดียว
-          </p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {whyMyCourseItems.map((item) => (
-            <div key={item} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black text-white">
-                <Check size={18} />
-              </span>
-              <p className="mt-5 text-sm font-semibold leading-6 text-zinc-950">{item}</p>
-            </div>
-          ))}
         </div>
       </div>
     </section>
@@ -426,9 +394,7 @@ export default function Home() {
     <div className="bg-white text-black">
       <HeroBanner />
 
-      <WhyMyCourseSection />
-
-      <section className="container-page pb-12 sm:pb-16 lg:pb-20">
+      <section className="container-page py-12 sm:py-16 lg:py-20">
         <div className="flex flex-col gap-6 border-t border-zinc-200 pt-8 sm:pt-10 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <h2 className="text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl lg:text-6xl">รายการคอร์ส</h2>

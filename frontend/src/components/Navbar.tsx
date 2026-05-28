@@ -6,6 +6,7 @@ import { api, authStorage, cartStorage, type AuthSession } from '../services/api
 
 const publicNavItems = [
   { to: '/', label: 'หน้าหลัก' },
+  { to: '/why-mycourse', label: '\u0e17\u0e33\u0e44\u0e21\u0e15\u0e49\u0e2d\u0e07 MyCourse' },
   { to: '/contact', label: 'ติดต่อ' },
 ]
 

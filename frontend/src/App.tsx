@@ -14,6 +14,7 @@ import StudentMessages from './pages/StudentMessages'
 import StudentTeacherApplication from './pages/StudentTeacherApplication'
 import TeacherDashboard from './pages/TeacherDashboard'
 import VideoLearning from './pages/VideoLearning'
+import WhyMyCourse from './pages/WhyMyCourse'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
       <Routes>
         <Route element={<MainLayout />}>
           <Route index element={<Home />} />
+          <Route path="why-mycourse" element={<WhyMyCourse />} />
           <Route path="contact" element={<Contact />} />
           <Route path="cart" element={<Navigate to="/student/store?cart=1" replace />} />
           <Route path="login" element={<Login />} />
