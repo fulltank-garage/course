@@ -153,11 +153,13 @@ export default function VideoPlayer({ lesson, poster, courseTitle, compact = fal
             </Suspense>
           ) : (
             <video
+              key={videoSource.src}
               className="aspect-video max-h-[68vh] w-full bg-slate-950 object-contain"
               controls
               playsInline
               preload="auto"
               poster={poster}
+              src={videoSource.src}
               onLoadedMetadata={showFirstVideoFrame}
               onLoadedData={() => setPlaybackError(null)}
               onTimeUpdate={rememberPlaybackTime}
@@ -168,7 +170,6 @@ export default function VideoPlayer({ lesson, poster, courseTitle, compact = fal
                 setPlaybackError('วิดีโอนี้เปิดไม่ได้ในเบราว์เซอร์ กรุณาตรวจสอบ URL หรือใช้ลิงก์ MP4 ที่เข้าถึงได้โดยตรง')
               }
             >
-              <source src={videoSource.src} type="video/mp4" />
               เบราว์เซอร์นี้ไม่รองรับวิดีโอ
             </video>
           )}

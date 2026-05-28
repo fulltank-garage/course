@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
   Check,
   CreditCard,
+  ImagePlus,
+  Landmark,
   LoaderCircle,
   Menu,
   MoreVertical,
@@ -13,6 +15,7 @@ import {
   SlidersHorizontal,
   Star,
   Trash2,
+  UploadCloud,
   UsersRound,
   X,
 } from 'lucide-react'
@@ -72,14 +75,13 @@ const formatPrice = (price: number) =>
   price === 0
     ? 'ฟรี'
     : `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(price)} บาท`
+const formatCartTotal = (price: number) =>
+  `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(price)} บาท`
 
-const cartMetricClass = 'rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-center'
 const minimalSecondaryButtonClass =
   'inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:text-zinc-400'
 const minimalPrimaryButtonClass =
   'inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300'
-const minimalTertiaryButtonClass =
-  'inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-zinc-500 transition hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300'
 const coursePathFor = (course: Course) => `/courses/${course.slug}`
 
 function FilterCheckbox({
@@ -259,6 +261,9 @@ export default function StudentCourseStore() {
   const [checkoutAll, setCheckoutAll] = useState(false)
   const [checkoutModal, setCheckoutModal] = useState<CheckoutModalState>(null)
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart')
+  const [paymentSlipFile, setPaymentSlipFile] = useState<File | null>(null)
+  const [paymentSlipPreview, setPaymentSlipPreview] = useState<string | null>(null)
+  const [paymentSlipError, setPaymentSlipError] = useState<string | null>(null)
   const { data: courses, error: courseError, loading } = useApi(() => api.getCourses(), [])
 
   useEffect(() => cartStorage.subscribe(() => setCartItems(cartStorage.getItems())), [])
@@ -266,6 +271,17 @@ export default function StudentCourseStore() {
   useEffect(() => {
     if (searchParams.get('cart') === '1') setCartOpen(true)
   }, [searchParams])
+
+  useEffect(() => {
+    const shouldLockPageScroll = cartOpen || Boolean(checkoutModal) || mobileSidebarOpen || mobileFiltersOpen
+    const previousBodyOverflow = document.body.style.overflow
+
+    if (shouldLockPageScroll) document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow
+    }
+  }, [cartOpen, checkoutModal, mobileFiltersOpen, mobileSidebarOpen])
 
   const categoryCounts = useMemo(() => {
     const map = new Map<string, number>()
@@ -322,14 +338,63 @@ export default function StudentCourseStore() {
     }
   }
 
+  useEffect(() => {
+    if (!paymentSlipFile) {
+      setPaymentSlipPreview(null)
+      return
+    }
+
+    const objectUrl = URL.createObjectURL(paymentSlipFile)
+    setPaymentSlipPreview(objectUrl)
+
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [paymentSlipFile])
+
   const openCheckoutModal = (nextCheckoutModal: CheckoutModalState) => {
+    if (!ensureStudentSession()) return
+
+    setCartOpen(false)
+    setCartMessage(null)
+    setCartError(null)
+    setPaymentSlipFile(null)
+    setPaymentSlipError(null)
     setCheckoutStep('payment')
     setCheckoutModal(nextCheckoutModal)
+
+    if (searchParams.get('cart') === '1') {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('cart')
+      setSearchParams(nextParams, { replace: true })
+    }
   }
 
   const closeCheckoutModal = () => {
     setCheckoutModal(null)
     setCheckoutStep('cart')
+    setPaymentSlipFile(null)
+    setPaymentSlipError(null)
+  }
+
+  const handlePaymentSlipChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFile = event.target.files?.[0] ?? null
+    setPaymentSlipFile(nextFile)
+    setPaymentSlipError(null)
+  }
+
+  const submitPaymentSlip = () => {
+    if (!checkoutModal) return
+
+    if (!paymentSlipFile) {
+      setPaymentSlipError('กรุณาแนบรูปภาพสลิปโอนเงินก่อนส่งหลักฐาน')
+      return
+    }
+
+    if (checkoutModal.mode === 'single') {
+      checkoutCourse(checkoutModal.course)
+      return
+    }
+
+    checkoutAllCourses()
   }
 
   const removeCourse = (slug: string) => {
@@ -427,7 +492,6 @@ export default function StudentCourseStore() {
     }
   }
 
-  const totalCourses = courses?.length ?? 0
   const purchasedCourses = (courses ?? []).filter((course) => course.viewerState?.isEnrolled).length
   const cartCourses = (courses ?? []).filter((course) => cartItems.includes(course.slug))
   const activeFilterCount = [selectedCategory !== allOption, selectedLevel !== allOption, showPurchasedOnly].filter(Boolean).length
@@ -449,7 +513,13 @@ export default function StudentCourseStore() {
     { id: 'confirm', label: 'ยืนยันสำเร็จ', helper: 'เปิดสิทธิ์เรียน' },
   ]
   const activeCheckoutStepIndex = checkoutSteps.findIndex((step) => step.id === checkoutStep)
-  const cartTotalLabel = formatPrice(totalCartPrice)
+  const cartTotalLabel = formatCartTotal(totalCartPrice)
+  const paymentCourses =
+    checkoutModal?.mode === 'single'
+      ? [checkoutModal.course]
+      : cartCourses
+  const paymentTotalPrice = paymentCourses.reduce((sum, course) => sum + course.price, 0)
+  const paymentTotalLabel = formatCartTotal(paymentTotalPrice)
 
   return (
     <section className="student-page-shell">
@@ -624,13 +694,8 @@ export default function StudentCourseStore() {
                 ) : null}
               </div>
 
-              <div className="mb-5 flex items-center justify-between gap-4 text-sm text-zinc-500">
-                <span>{loading ? 'กำลังโหลดคอร์ส...' : `พบ ${filteredCourses.length} คอร์ส`}</span>
-                <span>ทั้งหมด {totalCourses} คอร์ส</span>
-              </div>
-
               {loading ? (
-                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                   {Array.from({ length: 8 }).map((_, index) => (
                     <CourseGridCardSkeleton key={index} />
                   ))}
@@ -653,7 +718,7 @@ export default function StudentCourseStore() {
               ) : null}
 
               {!loading && !courseError && filteredCourses.length > 0 ? (
-                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                   {filteredCourses.map((course) => (
                     <CourseGridCard
                       key={course.id}
@@ -999,17 +1064,8 @@ export default function StudentCourseStore() {
                           <Trash2 size={16} />
                         </button>
                       </div>
-                      <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="mt-3">
                         <p className="text-base font-semibold text-black">{course.price === 0 ? 'ฟรี' : formatPrice(course.price)}</p>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-2 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-black transition hover:border-black"
-                          onClick={() => openCheckoutModal({ mode: 'single', course })}
-                          disabled={checkoutSlug === course.slug || checkoutAll}
-                        >
-                          <CreditCard size={13} />
-                          ซื้อ
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -1019,66 +1075,142 @@ export default function StudentCourseStore() {
           )}
         </div>
 
-        <footer className="border-t border-zinc-200 bg-white p-5">
-          <div className="grid grid-cols-3 gap-3">
-            <div className={cartMetricClass}>
-              <p className="text-xs text-zinc-500">{'\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14'}</p>
-              <p className="mt-2 text-2xl font-semibold text-black">{cartCourses.length}</p>
-            </div>
-            <div className={cartMetricClass}>
-              <p className="text-xs text-zinc-500">{'\u0e1f\u0e23\u0e35'}</p>
-              <p className="mt-2 text-2xl font-semibold text-black">{freeCartCourses}</p>
-            </div>
-            <div className={cartMetricClass}>
-              <p className="text-xs text-zinc-500">{'\u0e40\u0e2a\u0e35\u0e22\u0e40\u0e07\u0e34\u0e19'}</p>
-              <p className="mt-2 text-2xl font-semibold text-black">{paidCartCourses}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
+        <footer className="border-t border-zinc-200 bg-white p-4">
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm text-zinc-500">{'\u0e22\u0e2d\u0e14\u0e23\u0e27\u0e21'}</span>
-              <span className="text-3xl font-semibold tracking-tight text-black">{formatPrice(totalCartPrice)}</span>
+              {totalCartPrice > 0 ? (
+                <span className="text-2xl font-semibold tracking-tight text-black">{formatPrice(totalCartPrice)}</span>
+              ) : null}
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3">
-            {cartCourses.length > 0 ? (
-              <button
-                type="button"
-                className={minimalPrimaryButtonClass}
-                onClick={() => openCheckoutModal({ mode: 'all' })}
-                disabled={checkoutAll || Boolean(checkoutSlug)}
-              >
-                <CreditCard size={16} />
-                {'\u0e14\u0e33\u0e40\u0e19\u0e34\u0e19\u0e01\u0e32\u0e23\u0e0a\u0e33\u0e23\u0e30\u0e40\u0e07\u0e34\u0e19'}
-              </button>
-            ) : null}
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                className={minimalTertiaryButtonClass}
-                onClick={closeCart}
-              >
-                {'\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e04\u0e2d\u0e23\u0e4c\u0e2a\u0e40\u0e1e\u0e34\u0e48\u0e21'}
-                <ArrowRight size={15} />
-              </button>
-              <button
-                type="button"
-                className={minimalTertiaryButtonClass}
-                onClick={clearCart}
-                disabled={cartCourses.length === 0}
-              >
-                {'\u0e25\u0e49\u0e32\u0e07\u0e15\u0e30\u0e01\u0e23\u0e49\u0e32'}
-              </button>
-            </div>
-          </div>
+          {cartCourses.length > 0 ? (
+            <button
+              type="button"
+              className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+              onClick={() => openCheckoutModal({ mode: 'all' })}
+              disabled={checkoutAll || Boolean(checkoutSlug)}
+            >
+              <CreditCard size={16} />
+              {'\u0e0a\u0e33\u0e23\u0e30\u0e40\u0e07\u0e34\u0e19'}
+            </button>
+          ) : null}
         </footer>
       </aside>
 
       <div
         className={[
-          'fixed inset-0 z-[120] flex items-center justify-center bg-black/30 px-4 transition-opacity duration-200',
+          'fixed inset-0 z-[100] bg-black/35 transition-opacity duration-200',
+          checkoutModal ? 'opacity-100' : 'pointer-events-none opacity-0',
+        ].join(' ')}
+        onClick={closeCheckoutModal}
+      />
+      <aside
+        className={[
+          'fixed inset-y-0 right-0 z-[110] flex w-full max-w-[440px] flex-col border-l border-zinc-200 bg-white text-black shadow-2xl transition-transform duration-300 ease-out',
+          checkoutModal ? 'translate-x-0' : 'translate-x-full',
+        ].join(' ')}
+        aria-hidden={!checkoutModal}
+        aria-label="ชำระเงิน"
+      >
+        <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-5">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-black text-white">
+              <Landmark size={20} />
+            </span>
+            <div>
+              <h2 className="text-xl font-semibold text-black">ชำระเงิน</h2>
+              <p className="mt-1 text-sm text-zinc-500">โอนเงินและแนบสลิป</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-zinc-200 text-black transition hover:border-black"
+            onClick={closeCheckoutModal}
+            aria-label="ปิดหน้าชำระเงิน"
+            disabled={modalActionLoading}
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm text-zinc-500">ยอดที่ต้องโอน</span>
+              <span className="text-2xl font-semibold tracking-tight text-black">{paymentTotalLabel}</span>
+            </div>
+          </div>
+
+          <section className="mt-4 rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-black">
+                <Landmark size={18} />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-black">บัญชีสำหรับโอนเงิน</h3>
+                <div className="mt-3 space-y-1 text-sm text-zinc-600">
+                  <p>ธนาคาร: กสิกรไทย</p>
+                  <p>ชื่อบัญชี: MyCourse</p>
+                  <p className="font-semibold text-black">เลขบัญชี: 123-4-56789-0</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-4 rounded-xl border border-zinc-200 bg-white p-4">
+            <h3 className="text-sm font-semibold text-black">แนบสลิปโอนเงิน</h3>
+            <label className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-5 text-center transition hover:border-black hover:bg-white">
+              {paymentSlipPreview ? (
+                <img src={paymentSlipPreview} alt="สลิปโอนเงิน" className="max-h-48 w-full rounded-lg object-contain" />
+              ) : (
+                <>
+                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-black shadow-sm">
+                    <ImagePlus size={22} />
+                  </span>
+                  <span className="mt-3 text-sm font-semibold text-black">เลือกรูปภาพสลิป</span>
+                  <span className="mt-1 text-xs text-zinc-500">รองรับ JPG, PNG หรือ WEBP</span>
+                </>
+              )}
+              <input type="file" accept="image/*" className="sr-only" onChange={handlePaymentSlipChange} />
+            </label>
+            {paymentSlipFile ? (
+              <p className="mt-3 text-xs text-zinc-500">{paymentSlipFile.name}</p>
+            ) : null}
+            {paymentSlipError ? (
+              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{paymentSlipError}</p>
+            ) : null}
+          </section>
+        </div>
+
+        <footer className="border-t border-zinc-200 bg-white p-4">
+          <button
+            type="button"
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+            onClick={submitPaymentSlip}
+            disabled={modalActionLoading || paymentCourses.length === 0}
+          >
+            {modalActionLoading ? <LoaderCircle size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+            {modalActionLoading ? 'กำลังส่งหลักฐาน...' : 'ส่งหลักฐานชำระเงิน'}
+          </button>
+          <button
+            type="button"
+            className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-zinc-200 bg-white text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:text-zinc-400"
+            onClick={() => {
+              closeCheckoutModal()
+              setCartOpen(true)
+            }}
+            disabled={modalActionLoading}
+          >
+            กลับไปตะกร้า
+          </button>
+        </footer>
+      </aside>
+
+      <div
+        className={[
+          'hidden',
           checkoutModal ? 'opacity-100' : 'pointer-events-none opacity-0',
         ].join(' ')}
         onClick={closeCheckoutModal}
