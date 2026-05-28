@@ -391,11 +391,14 @@ type TeacherSection = 'home' | 'my-courses' | 'students' | 'messages' | 'reviews
 type StudentCategory = 'all' | 'by-course'
 
 const teacherNavItems: Array<{ key: TeacherSection; to: string; label: string; icon: typeof Home }> = [
-  { key: 'home', to: '/teacher', label: 'หน้าหลัก', icon: Home },
+  { key: 'home', to: '/teacher', label: 'แดชบอร์ด', icon: Home },
   { key: 'my-courses', to: '/teacher?section=my-courses', label: 'คอร์สของฉัน', icon: Video },
   { key: 'students', to: '/teacher?section=students', label: 'นักเรียน', icon: UserRound },
   { key: 'messages', to: '/teacher?section=messages', label: 'ข้อความ', icon: Mail },
   { key: 'reviews', to: '/teacher?section=reviews', label: 'รีวิว', icon: Star },
+]
+const teacherMobileNavItems: Array<{ key: TeacherSection; to: string; label: string; icon: typeof Home }> = [
+  ...teacherNavItems,
   { key: 'profile', to: '/teacher?section=profile', label: 'การตั้งค่า', icon: Settings },
 ]
 
@@ -428,11 +431,15 @@ function TeacherShell({
     }
   }
 
+  const handleActiveLinkClick = (event: React.MouseEvent<HTMLAnchorElement>, active: boolean) => {
+    if (active) event.preventDefault()
+  }
+
   return (
-    <div className="min-h-screen bg-white text-black lg:grid lg:grid-cols-[280px_minmax(0,1fr)]" style={{ minHeight: '100svh' }}>
-      <aside className="mobile-landscape-scroll hidden min-h-screen bg-black text-white lg:flex lg:flex-col">
-        <div className="flex h-20 items-center px-8">
-          <Link to="/teacher" className="flex items-center gap-3">
+    <div className="min-h-screen bg-white text-black lg:pl-[280px]" style={{ minHeight: '100svh' }}>
+      <aside className="mobile-landscape-scroll fixed inset-y-0 left-0 z-40 hidden w-[280px] flex-col bg-black text-white lg:flex">
+        <div className="landscape-compact-y flex h-20 shrink-0 items-center px-8">
+          <Link to="/teacher" className="flex items-center gap-3" onClick={(event) => handleActiveLinkClick(event, activeSection === 'home')}>
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black">
               <BrandMark className="h-10 w-10" />
             </span>
@@ -440,12 +447,12 @@ function TeacherShell({
           </Link>
         </div>
 
-        <nav className="space-y-2 px-5">
+        <nav className="shrink-0 space-y-2 px-5">
           {teacherNavItems.map((item) => {
             const Icon = item.icon
             const active = item.key === activeSection
             const navClassName = [
-              'flex items-center gap-4 rounded-lg px-4 py-3 text-sm font-medium transition',
+              'flex items-center gap-4 rounded-lg px-4 py-3 text-sm font-medium transition duration-200 ease-out',
               active ? 'bg-white/12 text-white shadow-inner shadow-white/5' : 'text-white/78 hover:bg-white/8 hover:text-white',
             ].join(' ')
 
@@ -454,6 +461,7 @@ function TeacherShell({
                 key={`${item.label}-${item.to}`}
                 to={item.to}
                 className={navClassName}
+                onClick={(event) => handleActiveLinkClick(event, active)}
               >
                 <Icon size={19} />
                 <span>{item.label}</span>
@@ -462,18 +470,16 @@ function TeacherShell({
           })}
         </nav>
 
-        <div className="mt-auto px-7 pb-7">
-          <button
-            type="button"
-            className="mb-8 inline-flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white/78 transition hover:bg-white/8 hover:text-white"
-            onClick={handleLogout}
-          >
-            <LogOut size={19} />
-            ออกจากระบบ
-          </button>
-
-          <div className="border-t border-white/10 pt-7">
-            <div className="flex items-center gap-3">
+        <div className="mt-auto shrink-0 px-7 pb-7 pt-4">
+          <div className="border-t border-white/10 pt-5">
+            <Link
+              to="/teacher?section=profile"
+              onClick={(event) => handleActiveLinkClick(event, activeSection === 'profile')}
+              className={[
+                'flex items-center gap-3 rounded-lg transition hover:bg-white/8',
+                activeSection === 'profile' ? 'bg-white/12' : '',
+              ].join(' ')}
+            >
               {avatarUrl ? (
                 <img src={avatarUrl} alt={teacherName} className="h-11 w-11 rounded-full object-cover" />
               ) : (
@@ -485,7 +491,17 @@ function TeacherShell({
                 <p className="truncate text-sm font-semibold">{teacherName}</p>
                 <p className="truncate text-xs text-white/55">{teacherEmail || 'ครูผู้สอน'}</p>
               </div>
-            </div>
+              <Settings size={17} className="shrink-0 text-white/55" />
+            </Link>
+
+            <button
+              type="button"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300 transition hover:border-red-400/40 hover:bg-red-500/20 hover:text-red-200"
+              onClick={handleLogout}
+            >
+              <LogOut size={17} />
+              <span>ออกจากระบบ</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -499,18 +515,9 @@ function TeacherShell({
               </span>
               <span className="text-lg font-semibold">MyCourse</span>
             </Link>
-            <div className="ml-auto flex items-center gap-3">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt={teacherName} className="h-11 w-11 rounded-full object-cover" />
-              ) : (
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black text-white">
-                  <UserRound size={17} />
-                </span>
-              )}
-            </div>
           </header>
           <nav className="mb-6 flex gap-2 overflow-x-auto pb-2 lg:hidden">
-            {teacherNavItems.map((item) => {
+            {teacherMobileNavItems.map((item) => {
               const Icon = item.icon
               const active = item.key === activeSection
               const mobileClassName = [
@@ -2215,22 +2222,12 @@ export default function TeacherDashboard() {
       >
         <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-7 shadow-sm">
           {activeSection === 'my-courses' ? (
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-base font-medium text-zinc-700">คอร์สของฉัน</p>
-                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">จัดการคอร์สและบทเรียนทั้งหมด</h1>
-                <p className="mt-3 text-base leading-7 text-zinc-600">
-                  รวมรายการคอร์ส ตัวกรองหมวดหมู่ สถานะ และปุ่มสร้างคอร์สไว้ในหน้านี้ เพื่อให้จัดการคอร์สได้จากที่เดียว
-                </p>
-              </div>
-              <button
-                type="button"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-black px-5 text-sm font-semibold text-white transition hover:bg-zinc-800"
-                onClick={openCreateModal}
-              >
-                <Plus size={17} />
-                สร้างคอร์สใหม่
-              </button>
+            <div className="max-w-2xl">
+              <p className="text-base font-medium text-zinc-700">คอร์สของฉัน</p>
+              <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">จัดการคอร์สและบทเรียนทั้งหมด</h1>
+              <p className="mt-3 text-base leading-7 text-zinc-600">
+                รวมรายการคอร์ส ตัวกรองหมวดหมู่ สถานะ และปุ่มสร้างคอร์สไว้ในหน้านี้ เพื่อให้จัดการคอร์สได้จากที่เดียว
+              </p>
             </div>
           ) : activeSection === 'students' ? (
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
