@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Building2, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowRight, Building2, Check, ChevronDown, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react'
 import { useApi } from '../hooks/useApi'
-import { api } from '../services/api'
+import { api, cartStorage } from '../services/api'
 import type { Course } from '../types/course'
 import type { Sponsor } from '../types/sponsor'
 
@@ -67,23 +67,30 @@ function HeroBanner() {
   )
 }
 
-function CourseRailCard({ course }: { course: Course }) {
+function CourseRailCard({
+  course,
+  inCart,
+  onAddToCart,
+}: {
+  course: Course
+  inCart: boolean
+  onAddToCart: (slug: string) => void
+}) {
   const firstLesson = course.lessons[0]?.title
 
   return (
-    <Link
-      to={`/courses/${course.slug}`}
+    <article
       data-course-rail-card
       className="group flex w-[82vw] shrink-0 snap-start flex-col overflow-hidden rounded-[18px] border border-zinc-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(15,23,42,0.14)] sm:w-[340px] md:w-[360px] lg:w-[calc((100%_-_72px)/4)]"
     >
-      <div className="aspect-[1.18] overflow-hidden bg-zinc-100">
+      <Link to={`/courses/${course.slug}`} className="aspect-[1.18] overflow-hidden bg-zinc-100">
         <img
           src={course.coverImage}
           alt={course.title}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
           loading="lazy"
         />
-      </div>
+      </Link>
       <div className="flex flex-1 flex-col p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-500">
           <span className="flex min-w-0 items-center gap-2">
@@ -92,23 +99,52 @@ function CourseRailCard({ course }: { course: Course }) {
           </span>
           <span className="shrink-0">{course.level}</span>
         </div>
-        <h3 className="mt-4 line-clamp-2 text-xl font-semibold leading-7 tracking-tight text-zinc-950">{course.title}</h3>
+        <Link to={`/courses/${course.slug}`} className="mt-4 line-clamp-2 text-xl font-semibold leading-7 tracking-tight text-zinc-950 hover:underline">
+          {course.title}
+        </Link>
         <p className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-500">
           {course.description || firstLesson || 'คอร์สสำหรับพัฒนาทักษะและต่อยอดการเรียนรู้'}
         </p>
         <div className="mt-auto flex items-center justify-between gap-4 pt-6">
           <p className="text-base font-semibold text-zinc-950">{formatPrice(course.price)}</p>
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-950 text-white transition group-hover:translate-x-0.5">
-            <ArrowRight size={16} />
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={[
+                'inline-flex h-9 w-9 items-center justify-center rounded-full border transition',
+                inCart
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-zinc-200 bg-white text-zinc-950 hover:border-zinc-950 hover:bg-zinc-50',
+              ].join(' ')}
+              onClick={() => onAddToCart(course.slug)}
+              aria-label={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้าสินค้า'}
+              title={inCart ? 'อยู่ในตะกร้าแล้ว' : 'เพิ่มลงตะกร้าสินค้า'}
+            >
+              {inCart ? <Check size={16} /> : <ShoppingCart size={16} />}
+            </button>
+            <Link
+              to={`/courses/${course.slug}`}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-950 text-white transition group-hover:translate-x-0.5"
+              aria-label={`ดูรายละเอียด ${course.title}`}
+            >
+              <ArrowRight size={16} />
+            </Link>
+          </div>
         </div>
       </div>
-    </Link>
+    </article>
   )
 }
 
 function CourseRail({ courses }: { courses: Course[] }) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
+
+  useEffect(() => cartStorage.subscribe(() => setCartItems(cartStorage.getItems())), [])
+
+  const handleAddToCart = (slug: string) => {
+    setCartItems(cartStorage.addItem(slug))
+  }
 
   const scrollCourses = (direction: 'previous' | 'next') => {
     const container = scrollRef.current
@@ -126,7 +162,7 @@ function CourseRail({ courses }: { courses: Course[] }) {
         className="-mx-4 -my-8 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 py-8 scroll-smooth sm:-mx-6 sm:gap-6 sm:px-6 lg:mx-0 lg:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {courses.map((course) => (
-          <CourseRailCard key={course.id} course={course} />
+          <CourseRailCard key={course.id} course={course} inCart={cartItems.includes(course.slug)} onAddToCart={handleAddToCart} />
         ))}
       </div>
 
