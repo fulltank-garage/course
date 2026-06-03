@@ -9,8 +9,14 @@
     "frontend:lint": "npm --prefix frontend run lint",
     "backend:dev": "npm --prefix backend run dev",
     "backend:start": "npm --prefix backend start",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up",
     "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^25.9.1"
   }
 }

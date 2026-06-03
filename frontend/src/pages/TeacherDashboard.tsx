@@ -31,8 +31,7 @@ import { useApi } from '../hooks/useApi'
 import { api, authStorage, type StudentProfile } from '../services/api'
 import type { Course, CourseStudent, Lesson } from '../types/course'
 
-const defaultCover =
-  'https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&w=1200&q=80'
+const emptyCoverPreview = ''
 const directMuxVideoUploadEnabled = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
 const directR2VideoUploadEnabled = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD === 'true'
 const maxCoverImageBytes = 5 * 1024 * 1024
@@ -567,7 +566,7 @@ function CourseFormModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/55 p-0 sm:items-center sm:p-5">
-      <div className="flex h-full w-full max-w-5xl flex-col overflow-hidden bg-white shadow-2xl sm:max-h-[calc(100vh-2.5rem)] sm:rounded-xl sm:border sm:border-zinc-200">
+      <div className="flex h-full w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl sm:max-h-[calc(100vh-2.5rem)] sm:rounded-xl sm:border sm:border-zinc-200">
         <div className="flex items-start justify-between gap-4 border-b border-zinc-200 px-5 py-5 sm:px-7">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -592,177 +591,213 @@ function CourseFormModal({
           </button>
         </div>
 
-        <form className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-7" onSubmit={onSubmit}>
-          {formMessage ? (
-            <div
-              className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
-                formMessage.tone === 'success'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-rose-200 bg-rose-50 text-rose-700'
-              }`}
-            >
-              {formMessage.text}
-            </div>
-          ) : null}
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <label className="block sm:col-span-2">
-                <span className="field-label">ชื่อคอร์ส</span>
-                <input
-                  className="field-input"
-                  required
-                  placeholder="เช่น React สำหรับทีมโปรดักชัน"
-                  value={draft.title}
-                  onChange={(event) => onDraftChange('title', event.target.value)}
-                />
-              </label>
-
-              <label className="block sm:col-span-2">
-                <span className="field-label">รายละเอียดคอร์ส</span>
-                <textarea
-                  className="field-input min-h-28 resize-y"
-                  required
-                  placeholder="อธิบายภาพรวม สิ่งที่ผู้เรียนจะได้ และผลลัพธ์หลังเรียนจบ"
-                  value={draft.description}
-                  onChange={(event) => onDraftChange('description', event.target.value)}
-                />
-              </label>
-
-              <label className="block">
-                <span className="field-label">ราคา</span>
-                <input
-                  className="field-input"
-                  type="number"
-                  min="0"
-                  value={draft.price}
-                  onChange={(event) => onDraftChange('price', event.target.value)}
-                />
-              </label>
-
-              <label className="block">
-                <span className="field-label">ระยะเวลา</span>
-                <input
-                  className="field-input"
-                  placeholder="6 ชม. 30 นาที"
-                  value={draft.duration}
-                  onChange={(event) => onDraftChange('duration', event.target.value)}
-                />
-              </label>
-
-              <label className="block">
-                <span className="field-label">หมวดหมู่</span>
-                <select
-                  className="field-input"
-                  value={draft.category}
-                  onChange={(event) => onDraftChange('category', event.target.value)}
-                >
-                  <option>Technology</option>
-                  <option>Business</option>
-                  <option>Design</option>
-                  <option>Marketing</option>
-                  <option>Data</option>
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="field-label">ระดับ</span>
-                <select
-                  className="field-input"
-                  value={draft.level}
-                  onChange={(event) => onDraftChange('level', event.target.value)}
-                >
-                  <option>Beginner</option>
-                  <option>Intermediate</option>
-                  <option>Advanced</option>
-                </select>
-              </label>
-
-              <label className="block sm:col-span-2">
-                <span className="field-label">ผลลัพธ์การเรียนรู้</span>
-                <textarea
-                  className="field-input min-h-28 resize-y"
-                  placeholder="ใส่ 1 หัวข้อต่อ 1 บรรทัด"
-                  value={draft.outcomes}
-                  onChange={(event) => onDraftChange('outcomes', event.target.value)}
-                />
-              </label>
-
-              <label className="block sm:col-span-2">
-                <span className="field-label">กลุ่มเป้าหมาย</span>
-                <textarea
-                  className="field-input min-h-24 resize-y"
-                  placeholder="ใส่ 1 กลุ่มต่อ 1 บรรทัด เช่น ผู้เรียนระดับ Beginner"
-                  value={draft.targetAudience}
-                  onChange={(event) => onDraftChange('targetAudience', event.target.value)}
-                />
-              </label>
-
-              <label className="block sm:col-span-2">
-                <span className="field-label">รายละเอียด AI ช่วย</span>
-                <textarea
-                  className="field-input min-h-24 resize-y"
-                  placeholder="เช่น ช่วยสรุปบทเรียน ถามตอบเนื้อหา และทบทวนความเข้าใจระหว่างเรียน"
-                  value={draft.aiSupport}
-                  onChange={(event) => onDraftChange('aiSupport', event.target.value)}
-                />
-              </label>
-            </div>
-
-            <aside className="grid gap-4">
-              <div>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-black">
-                  <ImagePlus size={16} />
-                  รูปปกคอร์ส
-                  </div>
-                  <span className="text-xs text-zinc-400">16:9</span>
-                </div>
-                <img
-                  src={coverPreview}
-                  alt="Course cover preview"
-                  className="mt-3 aspect-video w-full rounded-lg border border-zinc-200 bg-zinc-100 object-cover"
-                />
-                <div className="mt-4 space-y-4">
-                  <label className="block">
-                    <span className="field-label">อัปโหลดรูปปก</span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="field-input file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
-                      onChange={onCoverChange}
-                      disabled={saving}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="field-label">หรือใส่ URL รูปปก</span>
-                    <input
-                      className="field-input"
-                      placeholder={defaultCover}
-                      value={draft.coverImageUrl}
-                      onChange={(event) => onDraftChange('coverImageUrl', event.target.value)}
-                    />
-                  </label>
-                  {coverFile ? <p className="truncate text-xs text-zinc-500">{coverFile.name}</p> : null}
-                  {coverUploadProgress !== null ? (
-                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-                      <div className="flex items-center justify-between gap-3 text-xs font-medium text-zinc-600">
-                        <span>กำลังอัปโหลดรูปปก</span>
-                        <span>{coverUploadProgress}%</span>
-                      </div>
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200">
-                        <span
-                          className="block h-full rounded-full bg-black transition-all"
-                          style={{ width: `${coverUploadProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={onSubmit}>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6 overscroll-contain">
+            {formMessage ? (
+              <div
+                className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+                  formMessage.tone === 'success'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-rose-200 bg-rose-50 text-rose-700'
+                }`}
+              >
+                {formMessage.text}
               </div>
-            </aside>
+            ) : null}
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+              <div className="space-y-5">
+                <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
+                  <div className="mb-4">
+                    <h3 className="text-base font-semibold text-black">ข้อมูลหลัก</h3>
+                    <p className="mt-1 text-sm leading-6 text-zinc-500">ตั้งชื่อและอธิบายภาพรวมให้ผู้เรียนเข้าใจเร็ว</p>
+                  </div>
+                  <div className="grid gap-4">
+                    <label className="block">
+                      <span className="field-label">ชื่อคอร์ส</span>
+                      <input
+                        className="field-input"
+                        required
+                        placeholder="เช่น React สำหรับทีมโปรดักชัน"
+                        value={draft.title}
+                        onChange={(event) => onDraftChange('title', event.target.value)}
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="field-label">รายละเอียดคอร์ส</span>
+                      <textarea
+                        className="field-input min-h-32 resize-y"
+                        required
+                        placeholder="อธิบายภาพรวม สิ่งที่ผู้เรียนจะได้ และผลลัพธ์หลังเรียนจบ"
+                        value={draft.description}
+                        onChange={(event) => onDraftChange('description', event.target.value)}
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
+                  <div className="mb-4">
+                    <h3 className="text-base font-semibold text-black">ราคาและรายละเอียด</h3>
+                    <p className="mt-1 text-sm leading-6 text-zinc-500">กำหนดข้อมูลที่ใช้จัดหมวดหมู่และแสดงบนหน้าคอร์ส</p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="field-label">ราคา</span>
+                      <input
+                        className="field-input"
+                        type="number"
+                        min="0"
+                        value={draft.price}
+                        onChange={(event) => onDraftChange('price', event.target.value)}
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="field-label">ระยะเวลา</span>
+                      <input
+                        className="field-input"
+                        placeholder="6 ชม. 30 นาที"
+                        value={draft.duration}
+                        onChange={(event) => onDraftChange('duration', event.target.value)}
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="field-label">หมวดหมู่</span>
+                      <select
+                        className="field-input"
+                        value={draft.category}
+                        onChange={(event) => onDraftChange('category', event.target.value)}
+                      >
+                        <option>Technology</option>
+                        <option>Business</option>
+                        <option>Design</option>
+                        <option>Marketing</option>
+                        <option>Data</option>
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="field-label">ระดับ</span>
+                      <select
+                        className="field-input"
+                        value={draft.level}
+                        onChange={(event) => onDraftChange('level', event.target.value)}
+                      >
+                        <option>Beginner</option>
+                        <option>Intermediate</option>
+                        <option>Advanced</option>
+                      </select>
+                    </label>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
+                  <div className="mb-4">
+                    <h3 className="text-base font-semibold text-black">ผลลัพธ์และ AI</h3>
+                    <p className="mt-1 text-sm leading-6 text-zinc-500">เขียนเป็นบรรทัดสั้น ๆ เพื่อให้นำไปแสดงในหน้ารายละเอียดได้อ่านง่าย</p>
+                  </div>
+                  <div className="grid gap-4">
+                    <label className="block">
+                      <span className="field-label">ผลลัพธ์การเรียนรู้</span>
+                      <textarea
+                        className="field-input min-h-28 resize-y"
+                        placeholder="ใส่ 1 หัวข้อต่อ 1 บรรทัด"
+                        value={draft.outcomes}
+                        onChange={(event) => onDraftChange('outcomes', event.target.value)}
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="field-label">กลุ่มเป้าหมาย</span>
+                      <textarea
+                        className="field-input min-h-24 resize-y"
+                        placeholder="ใส่ 1 กลุ่มต่อ 1 บรรทัด เช่น ผู้เรียนระดับ Beginner"
+                        value={draft.targetAudience}
+                        onChange={(event) => onDraftChange('targetAudience', event.target.value)}
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="field-label">รายละเอียด AI ช่วย</span>
+                      <textarea
+                        className="field-input min-h-24 resize-y"
+                        placeholder="เช่น ช่วยสรุปบทเรียน ถามตอบเนื้อหา และทบทวนความเข้าใจระหว่างเรียน"
+                        value={draft.aiSupport}
+                        onChange={(event) => onDraftChange('aiSupport', event.target.value)}
+                      />
+                    </label>
+                  </div>
+                </section>
+              </div>
+
+              <aside className="lg:sticky lg:top-0">
+                <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-black">
+                      <ImagePlus size={16} />
+                      รูปปกคอร์ส
+                    </div>
+                    <span className="text-xs text-zinc-400">16:9</span>
+                  </div>
+                  {coverPreview ? (
+                    <img
+                      src={coverPreview}
+                      alt="ตัวอย่างรูปปกคอร์ส"
+                      className="mt-3 aspect-video w-full rounded-lg border border-zinc-200 bg-zinc-100 object-cover"
+                    />
+                  ) : (
+                    <div className="mt-3 flex aspect-video w-full flex-col items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-5 text-center text-zinc-500">
+                      <ImagePlus size={28} className="text-zinc-400" />
+                      <p className="mt-3 text-sm font-semibold text-zinc-700">พื้นที่รูปปกคอร์ส</p>
+                      <p className="mt-1 text-xs leading-5">อัปโหลดรูปหรือใส่ URL เพื่อแสดงตัวอย่างที่นี่</p>
+                    </div>
+                  )}
+                  <div className="mt-4 space-y-4">
+                    <label className="block">
+                      <span className="field-label">อัปโหลดรูปปก</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="field-input file:mr-3 file:rounded-md file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
+                        onChange={onCoverChange}
+                        disabled={saving}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="field-label">หรือใส่ URL รูปปก</span>
+                      <input
+                        className="field-input"
+                        placeholder="https://example.com/course-cover.jpg"
+                        value={draft.coverImageUrl}
+                        onChange={(event) => onDraftChange('coverImageUrl', event.target.value)}
+                      />
+                    </label>
+                    {coverFile ? <p className="truncate text-xs text-zinc-500">{coverFile.name}</p> : null}
+                    {coverUploadProgress !== null ? (
+                      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                        <div className="flex items-center justify-between gap-3 text-xs font-medium text-zinc-600">
+                          <span>กำลังอัปโหลดรูปปก</span>
+                          <span>{coverUploadProgress}%</span>
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200">
+                          <span
+                            className="block h-full rounded-full bg-black transition-all"
+                            style={{ width: `${coverUploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+              </aside>
+            </div>
           </div>
 
-          <div className="sticky bottom-0 -mx-5 mt-7 flex items-center justify-end gap-3 border-t border-zinc-200 bg-white/95 px-5 py-4 backdrop-blur sm:-mx-7 sm:px-7">
+          <div className="flex shrink-0 items-center justify-between gap-4 border-t border-zinc-200 bg-white px-5 py-4 sm:px-7">
+            <p className="hidden text-sm text-zinc-500 sm:block">บันทึกแล้วคอร์สจะถูกเก็บเป็นฉบับร่างเพื่อรอตรวจสอบ</p>
+            <div className="ml-auto flex items-center gap-3">
             <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
               ยกเลิก
             </button>
@@ -784,6 +819,7 @@ function CourseFormModal({
                 </>
               )}
             </button>
+            </div>
           </div>
         </form>
       </div>
@@ -1243,10 +1279,11 @@ function LessonManagerModal({
                         />
                       ) : (
                         <video
+                          key={videoPreviewSrc}
                           className="aspect-video max-h-[52vh] w-full bg-black object-contain"
                           controls
                           playsInline
-                          preload="metadata"
+                          preload="auto"
                           poster={videoPosterUrl ?? undefined}
                           src={videoPreviewSrc}
                           onError={() => setVideoPreviewError(true)}
@@ -1365,9 +1402,20 @@ export default function TeacherDashboard() {
   const [lessonVideoPosterUrl, setLessonVideoPosterUrl] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Course | null>(null)
   const [coverFile, setCoverFile] = useState<File | null>(null)
-  const [coverPreview, setCoverPreview] = useState<string>(defaultCover)
+  const [coverPreview, setCoverPreview] = useState<string>(emptyCoverPreview)
   const [coverUploadProgress, setCoverUploadProgress] = useState<number | null>(null)
   const [draft, setDraft] = useState<CourseDraft>(() => createEmptyDraft())
+
+  useEffect(() => {
+    if (!formOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [formOpen])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -1532,7 +1580,7 @@ export default function TeacherDashboard() {
   const resetDraft = () => {
     setDraft(createEmptyDraft())
     setCoverFile(null)
-    setCoverPreview(defaultCover)
+    setCoverPreview(emptyCoverPreview)
     setCoverUploadProgress(null)
     setEditingSlug(null)
   }
@@ -1690,7 +1738,7 @@ export default function TeacherDashboard() {
     setDraft((current) => ({ ...current, [key]: value }))
 
     if (key === 'coverImageUrl' && !coverFile) {
-      setCoverPreview(String(value) || editingCourse?.coverImage || defaultCover)
+      setCoverPreview(String(value) || editingCourse?.coverImage || emptyCoverPreview)
     }
   }
 
@@ -1700,7 +1748,7 @@ export default function TeacherDashboard() {
     if (file && file.size > maxCoverImageBytes) {
       event.target.value = ''
       setCoverFile(null)
-      setCoverPreview(draft.coverImageUrl || editingCourse?.coverImage || defaultCover)
+      setCoverPreview(draft.coverImageUrl || editingCourse?.coverImage || emptyCoverPreview)
       setMessage({
         tone: 'error',
         text: 'รูปปกต้องไม่เกิน 5MB กรุณาบีบอัดรูปหรือเลือกรูปใหม่',
@@ -1712,7 +1760,7 @@ export default function TeacherDashboard() {
     setCoverFile(file)
 
     if (!file) {
-      setCoverPreview(draft.coverImageUrl || editingCourse?.coverImage || defaultCover)
+      setCoverPreview(draft.coverImageUrl || editingCourse?.coverImage || emptyCoverPreview)
       return
     }
 
@@ -1930,12 +1978,20 @@ export default function TeacherDashboard() {
     setMessage(null)
 
     try {
-      let coverImage = draft.coverImageUrl.trim() || editingCourse?.coverImage || defaultCover
+      let coverImage = draft.coverImageUrl.trim() || editingCourse?.coverImage || ''
 
       if (coverFile) {
         setCoverUploadProgress(0)
         const uploadedCover = await api.uploadAsset({ kind: 'cover', file: coverFile, onProgress: setCoverUploadProgress })
         coverImage = uploadedCover.fileUrl
+      }
+
+      if (!coverImage) {
+        setMessage({
+          tone: 'error',
+          text: 'กรุณาอัปโหลดรูปปกคอร์สหรือใส่ URL รูปปกก่อนบันทึก',
+        })
+        return
       }
 
       const payload = {
