@@ -33,7 +33,6 @@ import type { Course, CourseStudent, Lesson } from '../types/course'
 
 const emptyCoverPreview = ''
 const directMuxVideoUploadEnabled = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
-const directR2VideoUploadEnabled = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD === 'true'
 const maxCoverImageBytes = 5 * 1024 * 1024
 
 const createEmptyDraft = () => ({
@@ -66,6 +65,7 @@ type LessonDraft = {
   summary: string
   preview: boolean
   videoUrl: string
+  posterUrl: string
 }
 type TeacherProfileDraft = Pick<StudentProfile, 'name' | 'headline' | 'bio' | 'phone' | 'avatarUrl'>
 
@@ -75,6 +75,7 @@ const emptyLessonDraft: LessonDraft = {
   summary: '',
   preview: true,
   videoUrl: '',
+  posterUrl: '',
 }
 const maxVideoUploadBytes = 1024 * 1024 * 1024
 
@@ -340,6 +341,7 @@ const draftFromLesson = (lesson: Lesson): LessonDraft => ({
   summary: lesson.summary,
   preview: lesson.preview,
   videoUrl: lesson.videoUrl ?? '',
+  posterUrl: lesson.posterUrl ?? '',
 })
 
 const emptyTeacherProfile: TeacherProfileDraft = {
@@ -926,14 +928,8 @@ function LessonManagerModal({
     ? uploadProgress !== null && uploadProgress >= 92
       ? 'อัปโหลดครบแล้ว กำลังรอ Mux ประมวลผลวิดีโอ...'
       : 'กำลังอัปโหลดวิดีโอไป Mux'
-    : directR2VideoUploadEnabled
-    ? uploadProgress !== null && uploadProgress >= 99
-      ? 'อัปโหลดครบแล้ว กำลังยืนยันไฟล์กับ Cloudflare R2...'
-      : uploadProgress !== null && uploadProgress >= 98
-        ? 'ส่งไฟล์ครบแล้ว กำลังรวมส่วนวิดีโอ...'
-      : 'กำลังอัปโหลดวิดีโอไป Cloudflare R2'
     : uploadProgress !== null && uploadProgress >= 92
-      ? 'อัปโหลดไฟล์ครบแล้ว กำลังตรวจวิดีโอ...'
+      ? 'อัปโหลดไฟล์ครบแล้ว กำลังเตรียมวิดีโอให้โหลดเร็วและสร้างภาพตัวอย่าง...'
       : 'กำลังอัปโหลดวิดีโอ'
 
   const controlsBusy = saving || uploading
@@ -1172,9 +1168,7 @@ function LessonManagerModal({
                     <p className="mt-2 text-xs leading-5 text-zinc-500">
                       {directMuxVideoUploadEnabled
                         ? 'อัปโหลดตรงไป Mux และรอประมวลผลวิดีโอให้อัตโนมัติ'
-                        : directR2VideoUploadEnabled
-                          ? 'อัปโหลดตรงไป Cloudflare R2 แบบ multipart เหมาะกับไฟล์ใหญ่'
-                          : 'อัปโหลดเข้า backend local และตรวจรูปแบบวิดีโอก่อนบันทึก'}
+                        : 'อัปโหลดเข้า backend เพื่อเตรียม MP4 ให้โหลดเร็ว สร้างภาพตัวอย่าง และเก็บไฟล์ในระบบ'}
                     </p>
                   </label>
 
@@ -1284,7 +1278,7 @@ function LessonManagerModal({
                           controls
                           playsInline
                           preload="auto"
-                          poster={videoPosterUrl ?? undefined}
+                          poster={(videoPosterUrl ?? draft.posterUrl) || undefined}
                           src={videoPreviewSrc}
                           onError={() => setVideoPreviewError(true)}
                           onLoadedMetadata={showFirstVideoFrame}
@@ -1816,7 +1810,7 @@ export default function TeacherDashboard() {
           const now = performance.now()
           const elapsedSeconds = (now - lastProgressSample.timestamp) / 1000
           const progressDelta = progress - lastProgressSample.progress
-          const uploadProgressMax = directMuxVideoUploadEnabled ? 90 : directR2VideoUploadEnabled ? 98 : 99
+          const uploadProgressMax = directMuxVideoUploadEnabled ? 90 : 99
 
           if (elapsedSeconds >= 0.4 && progressDelta > 0 && progress <= uploadProgressMax) {
             const uploadedByteDelta = (Math.min(progressDelta, uploadProgressMax) / uploadProgressMax) * file.size
@@ -1825,7 +1819,7 @@ export default function TeacherDashboard() {
           }
         },
       })
-      setLessonDraft((current) => ({ ...current, videoUrl: uploaded.fileUrl }))
+      setLessonDraft((current) => ({ ...current, videoUrl: uploaded.fileUrl, posterUrl: uploaded.posterUrl ?? '' }))
       setLessonVideoPreviewUrl((current) => {
         if (current) URL.revokeObjectURL(current)
         return null
@@ -1869,6 +1863,7 @@ export default function TeacherDashboard() {
         summary: lessonDraft.summary,
         preview: lessonDraft.preview,
         videoUrl: lessonDraft.videoUrl || undefined,
+        posterUrl: lessonDraft.posterUrl || undefined,
       })
       replaceCourse(nextCourse)
 

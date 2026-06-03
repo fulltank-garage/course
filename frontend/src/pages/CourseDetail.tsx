@@ -101,7 +101,7 @@ function PreviewModal({
                 className="aspect-video max-h-[72vh] w-full bg-black"
                 playbackId={videoSource.playbackId}
                 streamType="on-demand"
-                poster={course.coverImage}
+                poster={lesson.posterUrl ?? course.coverImage}
               />
             </Suspense>
           ) : videoSource?.kind === 'direct' ? (
@@ -110,7 +110,7 @@ function PreviewModal({
               controls
               playsInline
               preload="metadata"
-              poster={course.coverImage}
+              poster={lesson.posterUrl ?? course.coverImage}
               src={videoSource.src}
             />
           ) : (

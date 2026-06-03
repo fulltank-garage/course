@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS lessons (
   duration TEXT NOT NULL,
   preview BOOLEAN NOT NULL DEFAULT false,
   video_url TEXT,
+  poster_url TEXT,
   summary TEXT NOT NULL,
   ai_status TEXT NOT NULL DEFAULT 'idle' CHECK (ai_status IN ('idle', 'pending', 'processing', 'ready', 'failed')),
   ai_error TEXT,

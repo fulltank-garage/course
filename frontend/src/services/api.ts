@@ -6,7 +6,6 @@ import type { User, UserRole } from '../types/user'
 const productionApiBaseUrl = 'https://mycourse-backend-production.up.railway.app'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? productionApiBaseUrl : '')
 const DIRECT_MUX_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
-const DIRECT_R2_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_R2_VIDEO_UPLOAD === 'true'
 const configuredR2VideoUploadConcurrency = Number(import.meta.env.VITE_R2_VIDEO_UPLOAD_CONCURRENCY ?? 5)
 const R2_VIDEO_UPLOAD_CONCURRENCY = Math.min(
   8,
@@ -89,6 +88,7 @@ export interface CreateCoursePayload {
   lessonDuration?: string
   lessonPreview?: boolean
   videoUrl?: string
+  posterUrl?: string
 }
 
 export type UpdateCoursePayload = CreateCoursePayload
@@ -99,6 +99,7 @@ export interface LessonPayload {
   summary: string
   preview: boolean
   videoUrl?: string
+  posterUrl?: string
 }
 
 export interface EnrollCourseResponse {
@@ -122,6 +123,7 @@ export interface UploadAssetResponse {
   kind: 'cover' | 'video' | 'avatar' | 'sponsor'
   fileName: string
   fileUrl: string
+  posterUrl?: string
   storage?: 'local' | 'r2' | 'mux'
 }
 
@@ -778,6 +780,8 @@ const uploadVideoAssetToR2 = async (payload: UploadVideoAssetPayload): Promise<U
   }
 }
 
+void uploadVideoAssetToR2
+
 export const api = {
   login: (payload: LoginPayload) =>
     request<AuthSession>('/api/auth/login', {
@@ -836,19 +840,7 @@ export const api = {
       return uploadVideoAssetToMux(payload)
     }
 
-    if (!DIRECT_R2_VIDEO_UPLOAD) {
-      return uploadVideoRequest(payload)
-    }
-
-    try {
-      return await uploadVideoAssetToR2(payload)
-    } catch (error) {
-      if (error instanceof ApiRequestError && error.status === 501 && payload.file.size <= 100 * 1024 * 1024) {
-        return uploadVideoRequest(payload)
-      }
-
-      throw error
-    }
+    return uploadVideoRequest(payload)
   },
   inspectUploadedVideo: (fileUrl: string) =>
     request<UploadedVideoDiagnostics>(`/api/uploads/video/inspect?fileUrl=${encodeURIComponent(fileUrl)}`),

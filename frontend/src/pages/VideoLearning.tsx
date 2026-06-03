@@ -762,6 +762,7 @@ export default function VideoLearning() {
               <VideoPlayer
                 lesson={lesson}
                 courseTitle={course.title}
+                poster={lesson.posterUrl ?? course.coverImage}
                 compact
               />
             </div>

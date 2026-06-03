@@ -229,6 +229,7 @@ const ensureBaseSchema = async () => {
       duration TEXT NOT NULL,
       preview BOOLEAN NOT NULL DEFAULT false,
       video_url TEXT,
+      poster_url TEXT,
       summary TEXT NOT NULL,
       ai_status TEXT NOT NULL DEFAULT 'idle' CHECK (ai_status IN ('idle', 'pending', 'processing', 'ready', 'failed')),
       ai_error TEXT,
@@ -443,6 +444,11 @@ const ensureCourseSchema = async () => {
   await query(`
     ALTER TABLE lessons
     ADD COLUMN IF NOT EXISTS ai_error TEXT
+  `)
+
+  await query(`
+    ALTER TABLE lessons
+    ADD COLUMN IF NOT EXISTS poster_url TEXT
   `)
 
   await query(`
@@ -1321,6 +1327,91 @@ const transcodeVideoToMp4 = async (inputPath, outputPath) =>
     })
   })
 
+const remuxVideoForFastStart = async (inputPath, outputPath) =>
+  new Promise((resolve, reject) => {
+    const ffmpeg = spawn(
+      ffmpegBinary,
+      [
+        '-y',
+        '-i',
+        inputPath,
+        '-map',
+        '0',
+        '-c',
+        'copy',
+        '-movflags',
+        '+faststart',
+        outputPath,
+      ],
+      { stdio: ['ignore', 'ignore', 'pipe'] },
+    )
+
+    let errorOutput = ''
+    ffmpeg.stderr.on('data', (chunk) => {
+      errorOutput += String(chunk)
+    })
+
+    ffmpeg.on('error', (error) => {
+      if (error.message.includes('ENOENT')) {
+        const missingBinaryError = new Error('ไม่พบ ffmpeg สำหรับเตรียมวิดีโอให้โหลดเร็ว')
+        missingBinaryError.statusCode = 500
+        reject(missingBinaryError)
+        return
+      }
+
+      reject(error)
+    })
+
+    ffmpeg.on('close', (code) => {
+      if (code === 0) {
+        resolve(undefined)
+        return
+      }
+
+      const remuxError = new Error(
+        `ไม่สามารถเตรียมวิดีโอให้โหลดเร็วได้${errorOutput ? `: ${errorOutput.trim()}` : ''}`,
+      )
+      remuxError.statusCode = 400
+      reject(remuxError)
+    })
+  })
+
+const createVideoPosterImage = async (inputPath, outputPath) =>
+  new Promise((resolve, reject) => {
+    const ffmpeg = spawn(
+      ffmpegBinary,
+      [
+        '-y',
+        '-ss',
+        '0.1',
+        '-i',
+        inputPath,
+        '-frames:v',
+        '1',
+        '-vf',
+        'scale=1280:-1:force_original_aspect_ratio=decrease',
+        '-q:v',
+        '3',
+        outputPath,
+      ],
+      { stdio: ['ignore', 'ignore', 'pipe'] },
+    )
+
+    let errorOutput = ''
+    ffmpeg.stderr.on('data', (chunk) => {
+      errorOutput += String(chunk)
+    })
+    ffmpeg.on('error', reject)
+    ffmpeg.on('close', (code) => {
+      if (code === 0) {
+        resolve(undefined)
+        return
+      }
+
+      reject(new Error(`ไม่สามารถสร้างภาพตัวอย่างวิดีโอได้${errorOutput ? `: ${errorOutput.trim()}` : ''}`))
+    })
+  })
+
 const getMediaDurationSeconds = async (absolutePath) =>
   new Promise((resolve) => {
     const ffprobe = spawn(
@@ -2000,9 +2091,14 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
     .replace(/^-|-$/g, '')
   const extension = path.extname(safeBaseName) || '.mp4'
   const outputFileName = `video-${Date.now()}-${crypto.randomUUID()}.mp4`
+  const posterFileName = `poster-${Date.now()}-${crypto.randomUUID()}.jpg`
   const outputPath = path.join(r2StorageEnabled ? uploadsTempDir : uploadsDir, outputFileName)
+  const fastStartOutputPath = path.join(uploadsTempDir, `faststart-${crypto.randomUUID()}.mp4`)
+  const posterPath = path.join(r2StorageEnabled ? uploadsTempDir : uploadsDir, posterFileName)
   let tempInputPath = absolutePath
   let storedVideoPath = absolutePath
+  let finalPosterUrl = null
+  let posterCreated = false
 
   try {
     if (transcodeUploadedVideos) {
@@ -2022,6 +2118,14 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
       }
     }
 
+    if (storedVideoPath !== fastStartOutputPath) {
+      await remuxVideoForFastStart(storedVideoPath, fastStartOutputPath)
+      if (storedVideoPath !== tempInputPath && storedVideoPath !== outputPath) {
+        await unlink(storedVideoPath).catch(() => {})
+      }
+      storedVideoPath = fastStartOutputPath
+    }
+
     if (validateUploadedVideos) {
       try {
         const finalStreams = await probeVideoStreams(storedVideoPath)
@@ -2039,8 +2143,27 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
       }
     }
 
+    await createVideoPosterImage(storedVideoPath, posterPath)
+      .then(() => {
+        posterCreated = true
+      })
+      .catch((error) => {
+        console.warn('Could not create video poster', error)
+      })
+
     if (r2StorageEnabled) {
       try {
+        try {
+          if (!posterCreated) throw new Error('No poster was created')
+          finalPosterUrl = await putObjectToR2({
+            key: `posters/${posterFileName}`,
+            contentType: 'image/jpeg',
+            body: await readFile(posterPath),
+          })
+        } catch {
+          finalPosterUrl = null
+        }
+
         const uploadedUrl = await putObjectToR2({
           key: `videos/${outputFileName}`,
           contentType: 'video/mp4',
@@ -2054,12 +2177,14 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
               kind: 'video',
               fileName: outputFileName,
               fileUrl: uploadedUrl,
+              posterUrl: finalPosterUrl ?? undefined,
               storage: 'r2',
             },
           },
         }
       } finally {
         await unlink(storedVideoPath).catch(() => {})
+        await unlink(posterPath).catch(() => {})
       }
     }
 
@@ -2076,6 +2201,7 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
           kind: 'video',
           fileName: outputFileName,
           fileUrl: `/uploads/${outputFileName}`,
+          posterUrl: posterCreated ? `/uploads/${posterFileName}` : undefined,
           storage: 'local',
         },
       },
@@ -2086,6 +2212,9 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
     }
     if (storedVideoPath !== outputPath && storedVideoPath !== tempInputPath) {
       await unlink(storedVideoPath).catch(() => {})
+    }
+    if (r2StorageEnabled) {
+      await unlink(posterPath).catch(() => {})
     }
   }
 }
@@ -2131,8 +2260,13 @@ const persistUploadedFile = async ({ kind, fileName, mimeType, buffer }) => {
   if (kind === 'video') {
     let tempInputPath = path.join(uploadsTempDir, `input-${crypto.randomUUID()}${extension}`)
     const outputFileName = `${kind}-${Date.now()}-${crypto.randomUUID()}.mp4`
+    const posterFileName = `poster-${Date.now()}-${crypto.randomUUID()}.jpg`
     const outputPath = path.join(r2StorageEnabled ? uploadsTempDir : uploadsDir, outputFileName)
+    const fastStartOutputPath = path.join(uploadsTempDir, `faststart-${crypto.randomUUID()}.mp4`)
+    const posterPath = path.join(r2StorageEnabled ? uploadsTempDir : uploadsDir, posterFileName)
     let storedVideoPath = outputPath
+    let posterCreated = false
+    let finalPosterUrl = null
 
     await writeFile(tempInputPath, buffer)
 
@@ -2157,6 +2291,12 @@ const persistUploadedFile = async ({ kind, fileName, mimeType, buffer }) => {
       } else {
         await transcodeVideoToMp4(tempInputPath, outputPath)
       }
+
+      await remuxVideoForFastStart(storedVideoPath, fastStartOutputPath)
+      if (storedVideoPath !== tempInputPath && storedVideoPath !== outputPath) {
+        await unlink(storedVideoPath).catch(() => {})
+      }
+      storedVideoPath = fastStartOutputPath
     } finally {
       if (tempInputPath && storedVideoPath !== tempInputPath) {
         await unlink(tempInputPath).catch(() => {})
@@ -2179,8 +2319,24 @@ const persistUploadedFile = async ({ kind, fileName, mimeType, buffer }) => {
       throw invalidVideoError
     }
 
+    await createVideoPosterImage(storedVideoPath, posterPath)
+      .then(() => {
+        posterCreated = true
+      })
+      .catch((error) => {
+        console.warn('Could not create video poster', error)
+      })
+
     if (r2StorageEnabled) {
       try {
+        if (posterCreated) {
+          finalPosterUrl = await putObjectToR2({
+            key: `posters/${posterFileName}`,
+            contentType: 'image/jpeg',
+            body: await readFile(posterPath),
+          })
+        }
+
         const uploadedUrl = await putObjectToR2({
           key: `videos/${outputFileName}`,
           contentType: 'video/mp4',
@@ -2194,13 +2350,19 @@ const persistUploadedFile = async ({ kind, fileName, mimeType, buffer }) => {
               kind,
               fileName: outputFileName,
               fileUrl: uploadedUrl,
+              posterUrl: finalPosterUrl ?? undefined,
               storage: 'r2',
             },
           },
         }
       } finally {
         await unlink(storedVideoPath).catch(() => {})
+        await unlink(posterPath).catch(() => {})
       }
+    }
+
+    if (storedVideoPath !== outputPath) {
+      await rename(storedVideoPath, outputPath)
     }
 
     return {
@@ -2210,6 +2372,7 @@ const persistUploadedFile = async ({ kind, fileName, mimeType, buffer }) => {
           kind,
           fileName: outputFileName,
           fileUrl: `/uploads/${outputFileName}`,
+          posterUrl: posterCreated ? `/uploads/${posterFileName}` : undefined,
           storage: 'local',
         },
       },
@@ -3724,6 +3887,7 @@ const getCourseBySlug = async (slug) => {
         l.duration,
         l.preview,
         l.video_url,
+        l.poster_url,
         l.summary,
         l.ai_status,
         l.ai_error,
@@ -3762,6 +3926,7 @@ const getCourseBySlug = async (slug) => {
         duration: row.duration,
         preview: row.preview,
         videoUrl: row.video_url ?? undefined,
+        posterUrl: row.poster_url ?? undefined,
         summary: row.summary,
         aiStatus: row.ai_status ?? 'idle',
         aiError: row.ai_error ?? null,
@@ -3821,6 +3986,7 @@ const getTeacherDashboardCourses = async (teacherId) => {
         l.duration AS lesson_duration,
         l.preview AS lesson_preview,
         l.video_url AS lesson_video_url,
+        l.poster_url AS lesson_poster_url,
         l.summary AS lesson_summary,
         l.ai_status AS lesson_ai_status,
         l.ai_error AS lesson_ai_error,
@@ -3854,6 +4020,7 @@ const getTeacherDashboardCourses = async (teacherId) => {
       duration: row.lesson_duration,
       preview: row.lesson_preview,
       videoUrl: row.lesson_video_url ?? undefined,
+      posterUrl: row.lesson_poster_url ?? undefined,
       summary: row.lesson_summary,
       aiStatus: row.lesson_ai_status ?? 'idle',
       aiError: row.lesson_ai_error ?? null,
@@ -4687,8 +4854,8 @@ const createCourse = async (request) => {
     const lessonId = `lesson-${crypto.randomUUID()}`
     await query(
       `
-        INSERT INTO lessons (id, course_id, title, duration, preview, video_url, summary, ai_status, ai_error, sort_order)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, 1)
+        INSERT INTO lessons (id, course_id, title, duration, preview, video_url, poster_url, summary, ai_status, ai_error, sort_order)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, 1)
       `,
       [
         lessonId,
@@ -4697,6 +4864,7 @@ const createCourse = async (request) => {
         String(body.lessonDuration ?? '00:00'),
         Boolean(body.lessonPreview ?? true),
         body.videoUrl ? String(body.videoUrl) : null,
+        body.posterUrl ? String(body.posterUrl) : null,
         String(body.lessonSummary ?? 'บทเรียนแรกของคอร์สนี้'),
         body.videoUrl ? 'pending' : 'idle',
       ],
@@ -4780,6 +4948,7 @@ const saveCourseLesson = async (request, slug, lessonId) => {
   const summary = String(body.summary ?? '').trim()
   const preview = Boolean(body.preview)
   const videoUrl = String(body.videoUrl ?? '').trim()
+  const posterUrl = String(body.posterUrl ?? '').trim()
 
   if (!title) {
     return { statusCode: 400, payload: { message: 'กรุณากรอกชื่อบทเรียน' } }
@@ -4808,7 +4977,8 @@ const saveCourseLesson = async (request, slug, lessonId) => {
           duration = $2,
           preview = $3,
           video_url = $4,
-          summary = $5,
+          poster_url = $5,
+          summary = $6,
           ai_status = CASE
             WHEN $4::text IS NULL OR $4::text = '' THEN 'idle'
             WHEN COALESCE(video_url, '') IS DISTINCT FROM $4::text THEN 'pending'
@@ -4816,9 +4986,9 @@ const saveCourseLesson = async (request, slug, lessonId) => {
             ELSE ai_status
           END,
           ai_error = NULL
-        WHERE id = $6
+        WHERE id = $7
       `,
-      [title, duration, preview, videoUrl || null, summary, lessonId],
+      [title, duration, preview, videoUrl || null, posterUrl || null, summary, lessonId],
     )
 
     if (
@@ -4836,8 +5006,8 @@ const saveCourseLesson = async (request, slug, lessonId) => {
 
     await query(
       `
-        INSERT INTO lessons (id, course_id, title, duration, preview, video_url, summary, ai_status, ai_error, sort_order)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, $9)
+        INSERT INTO lessons (id, course_id, title, duration, preview, video_url, poster_url, summary, ai_status, ai_error, sort_order)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10)
       `,
       [
         nextLessonId,
@@ -4846,6 +5016,7 @@ const saveCourseLesson = async (request, slug, lessonId) => {
         duration,
         preview,
         videoUrl || null,
+        posterUrl || null,
         summary,
         videoUrl ? 'pending' : 'idle',
         Number(sortResult.rows[0].next_sort_order),

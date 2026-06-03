@@ -23,6 +23,7 @@ export interface Lesson {
   duration: string
   preview: boolean
   videoUrl?: string
+  posterUrl?: string
   summary: string
   aiStatus?: 'idle' | 'pending' | 'processing' | 'ready' | 'failed'
   aiError?: string | null
