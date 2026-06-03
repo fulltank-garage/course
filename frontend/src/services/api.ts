@@ -570,17 +570,24 @@ async function uploadVideoRequest(payload: UploadVideoAssetPayload): Promise<Upl
     xhr.send(payload.file)
   })
 
+  return pollVideoUploadStatus(startedUpload.uploadId, payload.onProgress)
+}
+
+const pollVideoUploadStatus = async (
+  uploadId: string,
+  onProgress?: (progress: number) => void,
+): Promise<UploadAssetResponse> => {
   const maxAttempts = 240
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const status = await request<VideoUploadStatusResponse>(
-      `/api/uploads/video/${encodeURIComponent(startedUpload.uploadId)}/status`,
+      `/api/uploads/video/${encodeURIComponent(uploadId)}/status`,
       undefined,
       aiRequestTimeoutMs,
     )
 
     if (status.status === 'ready' && status.file) {
-      payload.onProgress?.(100)
+      onProgress?.(100)
       return status.file
     }
 
@@ -588,7 +595,7 @@ async function uploadVideoRequest(payload: UploadVideoAssetPayload): Promise<Upl
       throw new Error(status.error ?? 'ประมวลผลวิดีโอไม่สำเร็จ')
     }
 
-    payload.onProgress?.(99)
+    onProgress?.(99)
     await wait(3000)
   }
 
@@ -803,8 +810,16 @@ const uploadVideoAssetToR2 = async (payload: UploadVideoAssetPayload): Promise<U
       }),
     })
 
-    payload.onProgress?.(100)
-    return completedUpload
+    const startedProcessing = await request<VideoUploadStartResponse>('/api/uploads/r2/process', {
+      method: 'POST',
+      body: JSON.stringify({
+        fileName: completedUpload.fileName || payload.file.name,
+        fileUrl: completedUpload.fileUrl,
+      }),
+    })
+
+    payload.onProgress?.(99)
+    return pollVideoUploadStatus(startedProcessing.uploadId, payload.onProgress)
   } catch (error) {
     await request<{ ok: boolean }>('/api/uploads/r2/multipart/abort', {
       method: 'POST',
@@ -817,8 +832,6 @@ const uploadVideoAssetToR2 = async (payload: UploadVideoAssetPayload): Promise<U
     throw error
   }
 }
-
-void uploadVideoAssetToR2
 
 export const api = {
   login: (payload: LoginPayload) =>
@@ -878,7 +891,15 @@ export const api = {
       return uploadVideoAssetToMux(payload)
     }
 
-    return uploadVideoRequest(payload)
+    try {
+      return await uploadVideoAssetToR2(payload)
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 501) {
+        return uploadVideoRequest(payload)
+      }
+
+      throw error
+    }
   },
   inspectUploadedVideo: (fileUrl: string) =>
     request<UploadedVideoDiagnostics>(`/api/uploads/video/inspect?fileUrl=${encodeURIComponent(fileUrl)}`),

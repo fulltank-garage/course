@@ -2374,6 +2374,71 @@ const createVideoUploadJob = ({ fileName, mimeType, absolutePath, size }) => {
   return uploadId
 }
 
+const createRemoteVideoUploadJob = ({ fileName, fileUrl }) => {
+  const uploadId = `video-upload-${crypto.randomUUID()}`
+  const now = new Date().toISOString()
+
+  videoUploadJobs.set(uploadId, {
+    createdAt: now,
+    data: null,
+    error: null,
+    status: 'processing',
+    updatedAt: now,
+  })
+
+  setTimeout(async () => {
+    let tempPath = null
+
+    try {
+      tempPath = await downloadRemoteFileStreamWithLimit(fileUrl, {
+        maxBytes: maxVideoUploadBytes,
+        extension: '.mp4',
+      })
+      const fileInfo = await stat(tempPath)
+      const result = await persistUploadedVideoPath({
+        fileName,
+        mimeType: 'video/mp4',
+        absolutePath: tempPath,
+        size: fileInfo.size,
+      })
+
+      tempPath = null
+
+      if (result.statusCode >= 200 && result.statusCode < 300 && result.payload?.data) {
+        videoUploadJobs.set(uploadId, {
+          createdAt: now,
+          data: result.payload.data,
+          error: null,
+          status: 'ready',
+          updatedAt: new Date().toISOString(),
+        })
+        return
+      }
+
+      videoUploadJobs.set(uploadId, {
+        createdAt: now,
+        data: null,
+        error: result.payload?.message ?? 'ประมวลผลวิดีโอไม่สำเร็จ',
+        status: 'failed',
+        updatedAt: new Date().toISOString(),
+      })
+    } catch (error) {
+      if (tempPath) {
+        await unlink(tempPath).catch(() => {})
+      }
+      videoUploadJobs.set(uploadId, {
+        createdAt: now,
+        data: null,
+        error: error instanceof Error ? error.message : 'ประมวลผลวิดีโอไม่สำเร็จ',
+        status: 'failed',
+        updatedAt: new Date().toISOString(),
+      })
+    }
+  }, 0)
+
+  return uploadId
+}
+
 const getVideoUploadJobStatus = async (request, uploadId) => {
   const authUser = await getAuthUser(request)
 
@@ -3025,6 +3090,54 @@ const finishR2MultipartVideoUpload = async (request) => {
         fileName: key.split('/').pop(),
         fileUrl: `${r2PublicBaseUrl}/${key}`,
         storage: 'r2',
+      },
+    },
+  }
+}
+
+const processR2UploadedVideo = async (request) => {
+  const { error } = await authorizeCourseAssetUpload(request)
+  if (error) return error
+
+  if (!r2StorageEnabled || !r2PublicBaseUrl) {
+    return { statusCode: 501, payload: { message: 'Cloudflare R2 ยังไม่พร้อมใช้งาน' } }
+  }
+
+  const body = await readBody(request)
+  const fileName = sanitizeFileName(String(body.fileName ?? 'lesson-video.mp4'))
+  const fileUrl = String(body.fileUrl ?? '').trim()
+
+  if (!fileUrl) {
+    return { statusCode: 400, payload: { message: 'fileUrl ไม่ถูกต้อง' } }
+  }
+
+  let parsedUrl
+
+  try {
+    parsedUrl = new URL(fileUrl)
+  } catch {
+    return { statusCode: 400, payload: { message: 'fileUrl ไม่ถูกต้อง' } }
+  }
+
+  const normalizedPublicBase = r2PublicBaseUrl.replace(/\/+$/, '')
+  const normalizedVideoBase = `${normalizedPublicBase}/videos/`
+
+  if (!fileUrl.startsWith(normalizedVideoBase) || !isSafeR2VideoKey(decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, '')))) {
+    return { statusCode: 400, payload: { message: 'ไฟล์วิดีโอ R2 ไม่ถูกต้อง' } }
+  }
+
+  const uploadId = createRemoteVideoUploadJob({
+    fileName,
+    fileUrl,
+  })
+
+  return {
+    statusCode: 202,
+    payload: {
+      data: {
+        kind: 'video',
+        uploadId,
+        status: 'processing',
       },
     },
   }
@@ -5694,6 +5807,12 @@ const routeRequest = async (request, response) => {
 
   if (url.pathname === '/api/uploads/r2/multipart/complete' && request.method === 'POST') {
     const result = await finishR2MultipartVideoUpload(request)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
+  if (url.pathname === '/api/uploads/r2/process' && request.method === 'POST') {
+    const result = await processR2UploadedVideo(request)
     sendJson(response, result.statusCode, result.payload)
     return
   }
