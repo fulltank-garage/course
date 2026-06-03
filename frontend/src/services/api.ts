@@ -533,46 +533,6 @@ async function uploadRequest<T>(
   })
 }
 
-async function uploadVideoRequest(payload: UploadVideoAssetPayload): Promise<UploadAssetResponse> {
-  const token = authStorage.getSession()?.token
-
-  const startedUpload = await new Promise<VideoUploadStartResponse>((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-
-    xhr.open('POST', `${API_BASE_URL}/api/uploads/video`)
-    xhr.setRequestHeader('Content-Type', payload.file.type || 'video/mp4')
-    xhr.setRequestHeader('X-File-Name', encodeURIComponent(payload.file.name))
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        payload.onProgress?.(Math.min(99, Math.round((event.loaded / event.total) * 100)))
-      }
-    }
-    xhr.onload = () => {
-      const responsePayload = (() => {
-        try {
-          return JSON.parse(xhr.responseText || '{}') as Partial<ApiResponse<VideoUploadStartResponse>> & { message?: string }
-        } catch {
-          return { message: 'Request failed' }
-        }
-      })()
-
-      if (xhr.status >= 200 && xhr.status < 300 && 'data' in responsePayload) {
-        payload.onProgress?.(99)
-        resolve(responsePayload.data as VideoUploadStartResponse)
-        return
-      }
-
-      reject(new ApiRequestError(responsePayload.message ?? 'Request failed', xhr.status || 500))
-    }
-    xhr.onerror = () => reject(new ApiRequestError('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ', 0))
-    xhr.onabort = () => reject(new ApiRequestError('ยกเลิกการอัปโหลดแล้ว', 0))
-    xhr.send(payload.file)
-  })
-
-  return pollVideoUploadStatus(startedUpload.uploadId, payload.onProgress)
-}
-
 const pollVideoUploadStatus = async (
   uploadId: string,
   onProgress?: (progress: number) => void,
@@ -891,15 +851,7 @@ export const api = {
       return uploadVideoAssetToMux(payload)
     }
 
-    try {
-      return await uploadVideoAssetToR2(payload)
-    } catch (error) {
-      if (error instanceof ApiRequestError && error.status === 501) {
-        return uploadVideoRequest(payload)
-      }
-
-      throw error
-    }
+    return uploadVideoAssetToR2(payload)
   },
   inspectUploadedVideo: (fileUrl: string) =>
     request<UploadedVideoDiagnostics>(`/api/uploads/video/inspect?fileUrl=${encodeURIComponent(fileUrl)}`),
