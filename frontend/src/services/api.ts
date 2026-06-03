@@ -127,6 +127,20 @@ export interface UploadAssetResponse {
   storage?: 'local' | 'r2' | 'mux'
 }
 
+interface VideoUploadStartResponse {
+  kind: 'video'
+  uploadId: string
+  status: 'processing'
+}
+
+interface VideoUploadStatusResponse {
+  uploadId: string
+  status: 'processing' | 'ready' | 'failed'
+  file?: UploadAssetResponse
+  error?: string | null
+  updatedAt?: string
+}
+
 export interface UploadVideoAssetPayload {
   file: File
   onProgress?: (progress: number) => void
@@ -522,7 +536,7 @@ async function uploadRequest<T>(
 async function uploadVideoRequest(payload: UploadVideoAssetPayload): Promise<UploadAssetResponse> {
   const token = authStorage.getSession()?.token
 
-  return new Promise<UploadAssetResponse>((resolve, reject) => {
+  const startedUpload = await new Promise<VideoUploadStartResponse>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
 
     xhr.open('POST', `${API_BASE_URL}/api/uploads/video`)
@@ -537,15 +551,15 @@ async function uploadVideoRequest(payload: UploadVideoAssetPayload): Promise<Upl
     xhr.onload = () => {
       const responsePayload = (() => {
         try {
-          return JSON.parse(xhr.responseText || '{}') as Partial<ApiResponse<UploadAssetResponse>> & { message?: string }
+          return JSON.parse(xhr.responseText || '{}') as Partial<ApiResponse<VideoUploadStartResponse>> & { message?: string }
         } catch {
           return { message: 'Request failed' }
         }
       })()
 
       if (xhr.status >= 200 && xhr.status < 300 && 'data' in responsePayload) {
-        payload.onProgress?.(100)
-        resolve(responsePayload.data as UploadAssetResponse)
+        payload.onProgress?.(99)
+        resolve(responsePayload.data as VideoUploadStartResponse)
         return
       }
 
@@ -555,6 +569,30 @@ async function uploadVideoRequest(payload: UploadVideoAssetPayload): Promise<Upl
     xhr.onabort = () => reject(new ApiRequestError('ยกเลิกการอัปโหลดแล้ว', 0))
     xhr.send(payload.file)
   })
+
+  const maxAttempts = 240
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const status = await request<VideoUploadStatusResponse>(
+      `/api/uploads/video/${encodeURIComponent(startedUpload.uploadId)}/status`,
+      undefined,
+      aiRequestTimeoutMs,
+    )
+
+    if (status.status === 'ready' && status.file) {
+      payload.onProgress?.(100)
+      return status.file
+    }
+
+    if (status.status === 'failed') {
+      throw new Error(status.error ?? 'ประมวลผลวิดีโอไม่สำเร็จ')
+    }
+
+    payload.onProgress?.(99)
+    await wait(3000)
+  }
+
+  throw new Error('ระบบยังประมวลผลวิดีโอไม่เสร็จ กรุณารอสักครู่แล้วลองตรวจสถานะอีกครั้ง')
 }
 
 const uploadBlobToSignedUrl = (

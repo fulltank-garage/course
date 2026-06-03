@@ -52,6 +52,10 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const uploadsDir = path.join(rootDir, 'uploads')
 const uploadsTempDir = path.join(uploadsDir, 'tmp')
 const maxVideoUploadBytes = Number(process.env.MAX_VIDEO_UPLOAD_MB ?? 1024) * 1024 * 1024
+const minCompressedVideoBytes = Number(process.env.MIN_COMPRESSED_VIDEO_MB ?? 300) * 1024 * 1024
+const maxCompressedVideoBytes = Number(process.env.MAX_COMPRESSED_VIDEO_MB ?? 500) * 1024 * 1024
+const minCompressedVideoBitrateKbps = Math.max(500, Number(process.env.MIN_COMPRESSED_VIDEO_BITRATE_KBPS ?? 900) || 900)
+const compressedVideoAudioBitrateKbps = Math.max(64, Number(process.env.COMPRESSED_VIDEO_AUDIO_BITRATE_KBPS ?? 128) || 128)
 const maxImageUploadBytes = Number(process.env.MAX_IMAGE_UPLOAD_MB ?? 5) * 1024 * 1024
 const maxRawUploadBytes = maxVideoUploadBytes + 50 * 1024 * 1024
 const r2Endpoint = (process.env.R2_ENDPOINT ?? '').replace(/\/+$/g, '')
@@ -89,6 +93,7 @@ const r2PresignExpiresSeconds = Math.min(
 )
 const geminiClient =
   aiProvider === 'gemini' && geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null
+const videoUploadJobs = new Map()
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
@@ -1376,6 +1381,95 @@ const remuxVideoForFastStart = async (inputPath, outputPath) =>
     })
   })
 
+const getCompressedVideoTarget = async (inputPath) => {
+  const fileInfo = await stat(inputPath)
+  if (fileInfo.size <= maxCompressedVideoBytes) return null
+
+  const durationSeconds = await getMediaDurationSeconds(inputPath)
+  if (!durationSeconds) {
+    return {
+      audioBitrateKbps: compressedVideoAudioBitrateKbps,
+      targetBytes: maxCompressedVideoBytes,
+      videoBitrateKbps: 2500,
+    }
+  }
+
+  const preferredTargetBytes = Math.min(
+    maxCompressedVideoBytes,
+    Math.max(minCompressedVideoBytes, Math.round(fileInfo.size * 0.6)),
+  )
+  const totalBitrateKbps = Math.floor((preferredTargetBytes * 8) / durationSeconds / 1000)
+  const videoBitrateKbps = Math.max(
+    minCompressedVideoBitrateKbps,
+    totalBitrateKbps - compressedVideoAudioBitrateKbps,
+  )
+
+  return {
+    audioBitrateKbps: compressedVideoAudioBitrateKbps,
+    targetBytes: preferredTargetBytes,
+    videoBitrateKbps,
+  }
+}
+
+const compressVideoToTargetSize = async (inputPath, outputPath, target) =>
+  new Promise((resolve, reject) => {
+    const maxRateKbps = Math.round(target.videoBitrateKbps * 1.4)
+    const bufferSizeKbps = Math.round(target.videoBitrateKbps * 2)
+    const ffmpeg = spawn(
+      ffmpegBinary,
+      [
+        '-y',
+        '-i',
+        inputPath,
+        '-map',
+        '0:v:0',
+        '-map',
+        '0:a:0?',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-b:v',
+        `${target.videoBitrateKbps}k`,
+        '-maxrate',
+        `${maxRateKbps}k`,
+        '-bufsize',
+        `${bufferSizeKbps}k`,
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'aac',
+        '-b:a',
+        `${target.audioBitrateKbps}k`,
+        '-threads',
+        String(ffmpegThreads),
+        '-movflags',
+        '+faststart',
+        outputPath,
+      ],
+      { stdio: ['ignore', 'ignore', 'pipe'] },
+    )
+
+    let errorOutput = ''
+    ffmpeg.stderr.on('data', (chunk) => {
+      errorOutput += String(chunk)
+    })
+
+    ffmpeg.on('error', reject)
+    ffmpeg.on('close', (code) => {
+      if (code === 0) {
+        resolve(undefined)
+        return
+      }
+
+      const compressError = new Error(
+        `ไม่สามารถบีบอัดวิดีโอได้${errorOutput ? `: ${errorOutput.trim()}` : ''}`,
+      )
+      compressError.statusCode = 400
+      reject(compressError)
+    })
+  })
+
 const createVideoPosterImage = async (inputPath, outputPath) =>
   new Promise((resolve, reject) => {
     const ffmpeg = spawn(
@@ -2093,6 +2187,7 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
   const outputFileName = `video-${Date.now()}-${crypto.randomUUID()}.mp4`
   const posterFileName = `poster-${Date.now()}-${crypto.randomUUID()}.jpg`
   const outputPath = path.join(r2StorageEnabled ? uploadsTempDir : uploadsDir, outputFileName)
+  const compressedOutputPath = path.join(uploadsTempDir, `compressed-${crypto.randomUUID()}.mp4`)
   const fastStartOutputPath = path.join(uploadsTempDir, `faststart-${crypto.randomUUID()}.mp4`)
   const posterPath = path.join(r2StorageEnabled ? uploadsTempDir : uploadsDir, posterFileName)
   let tempInputPath = absolutePath
@@ -2116,6 +2211,15 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
         await transcodeVideoToMp4(tempInputPath, outputPath)
         storedVideoPath = outputPath
       }
+    }
+
+    const compressionTarget = await getCompressedVideoTarget(storedVideoPath)
+    if (compressionTarget) {
+      await compressVideoToTargetSize(storedVideoPath, compressedOutputPath, compressionTarget)
+      if (storedVideoPath !== tempInputPath && storedVideoPath !== outputPath) {
+        await unlink(storedVideoPath).catch(() => {})
+      }
+      storedVideoPath = compressedOutputPath
     }
 
     if (storedVideoPath !== fastStartOutputPath) {
@@ -2184,6 +2288,7 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
         }
       } finally {
         await unlink(storedVideoPath).catch(() => {})
+        await unlink(compressedOutputPath).catch(() => {})
         await unlink(posterPath).catch(() => {})
       }
     }
@@ -2213,9 +2318,86 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
     if (storedVideoPath !== outputPath && storedVideoPath !== tempInputPath) {
       await unlink(storedVideoPath).catch(() => {})
     }
+    await unlink(compressedOutputPath).catch(() => {})
     if (r2StorageEnabled) {
       await unlink(posterPath).catch(() => {})
     }
+  }
+}
+
+const createVideoUploadJob = ({ fileName, mimeType, absolutePath, size }) => {
+  const uploadId = `video-upload-${crypto.randomUUID()}`
+  const now = new Date().toISOString()
+
+  videoUploadJobs.set(uploadId, {
+    createdAt: now,
+    data: null,
+    error: null,
+    status: 'processing',
+    updatedAt: now,
+  })
+
+  setTimeout(async () => {
+    try {
+      const result = await persistUploadedVideoPath({ fileName, mimeType, absolutePath, size })
+
+      if (result.statusCode >= 200 && result.statusCode < 300 && result.payload?.data) {
+        videoUploadJobs.set(uploadId, {
+          createdAt: now,
+          data: result.payload.data,
+          error: null,
+          status: 'ready',
+          updatedAt: new Date().toISOString(),
+        })
+        return
+      }
+
+      videoUploadJobs.set(uploadId, {
+        createdAt: now,
+        data: null,
+        error: result.payload?.message ?? 'ประมวลผลวิดีโอไม่สำเร็จ',
+        status: 'failed',
+        updatedAt: new Date().toISOString(),
+      })
+    } catch (error) {
+      await unlink(absolutePath).catch(() => {})
+      videoUploadJobs.set(uploadId, {
+        createdAt: now,
+        data: null,
+        error: error instanceof Error ? error.message : 'ประมวลผลวิดีโอไม่สำเร็จ',
+        status: 'failed',
+        updatedAt: new Date().toISOString(),
+      })
+    }
+  }, 0)
+
+  return uploadId
+}
+
+const getVideoUploadJobStatus = async (request, uploadId) => {
+  const authUser = await getAuthUser(request)
+
+  if (!authUser) {
+    return { statusCode: 401, payload: { message: 'กรุณาเข้าสู่ระบบก่อนตรวจสถานะอัปโหลด' } }
+  }
+
+  const job = videoUploadJobs.get(uploadId)
+
+  if (!job) {
+    return { statusCode: 404, payload: { message: 'ไม่พบงานอัปโหลดวิดีโอนี้' } }
+  }
+
+  return {
+    statusCode: 200,
+    payload: {
+      data: {
+        uploadId,
+        status: job.status,
+        file: job.data,
+        error: job.error,
+        updatedAt: job.updatedAt,
+      },
+    },
   }
 }
 
@@ -2262,6 +2444,7 @@ const persistUploadedFile = async ({ kind, fileName, mimeType, buffer }) => {
     const outputFileName = `${kind}-${Date.now()}-${crypto.randomUUID()}.mp4`
     const posterFileName = `poster-${Date.now()}-${crypto.randomUUID()}.jpg`
     const outputPath = path.join(r2StorageEnabled ? uploadsTempDir : uploadsDir, outputFileName)
+    const compressedOutputPath = path.join(uploadsTempDir, `compressed-${crypto.randomUUID()}.mp4`)
     const fastStartOutputPath = path.join(uploadsTempDir, `faststart-${crypto.randomUUID()}.mp4`)
     const posterPath = path.join(r2StorageEnabled ? uploadsTempDir : uploadsDir, posterFileName)
     let storedVideoPath = outputPath
@@ -2290,6 +2473,15 @@ const persistUploadedFile = async ({ kind, fileName, mimeType, buffer }) => {
         }
       } else {
         await transcodeVideoToMp4(tempInputPath, outputPath)
+      }
+
+      const compressionTarget = await getCompressedVideoTarget(storedVideoPath)
+      if (compressionTarget) {
+        await compressVideoToTargetSize(storedVideoPath, compressedOutputPath, compressionTarget)
+        if (storedVideoPath !== tempInputPath && storedVideoPath !== outputPath) {
+          await unlink(storedVideoPath).catch(() => {})
+        }
+        storedVideoPath = compressedOutputPath
       }
 
       await remuxVideoForFastStart(storedVideoPath, fastStartOutputPath)
@@ -2357,6 +2549,7 @@ const persistUploadedFile = async ({ kind, fileName, mimeType, buffer }) => {
         }
       } finally {
         await unlink(storedVideoPath).catch(() => {})
+        await unlink(compressedOutputPath).catch(() => {})
         await unlink(posterPath).catch(() => {})
       }
     }
@@ -2518,13 +2711,23 @@ const saveVideoUploadStream = async (request) => {
 
   try {
     const size = await writeRequestBodyToFile(request, tempPath, maxVideoUploadBytes)
-
-    return persistUploadedVideoPath({
+    const uploadId = createVideoUploadJob({
       fileName,
       mimeType: contentType,
       absolutePath: tempPath,
       size,
     })
+
+    return {
+      statusCode: 202,
+      payload: {
+        data: {
+          kind: 'video',
+          uploadId,
+          status: 'processing',
+        },
+      },
+    }
   } catch (error) {
     await unlink(tempPath).catch(() => {})
     throw error
@@ -5447,6 +5650,13 @@ const routeRequest = async (request, response) => {
 
   if (url.pathname === '/api/uploads/video' && request.method === 'POST') {
     const result = await saveVideoUploadStream(request)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
+  if (url.pathname.startsWith('/api/uploads/video/') && url.pathname.endsWith('/status') && request.method === 'GET') {
+    const uploadId = decodeURIComponent(url.pathname.replace('/api/uploads/video/', '').replace('/status', ''))
+    const result = await getVideoUploadJobStatus(request, uploadId)
     sendJson(response, result.statusCode, result.payload)
     return
   }
