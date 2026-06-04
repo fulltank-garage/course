@@ -224,7 +224,7 @@ export default function StudentCertificates() {
         active="certificates"
         profileName={profileName}
         profileAvatarUrl={data.profile.avatarUrl || data.user.avatarUrl}
-        profileLabel={data.profile.headline || 'บัญชีผู้เรียน'}
+        profileLabel={data.user.email}
         mobileOpen={mobileSidebarOpen}
         onMobileClose={() => setMobileSidebarOpen(false)}
       />

@@ -401,7 +401,7 @@ export default function StudentDashboard() {
         }
         profileName={currentProfile.name || data.user.name}
         profileAvatarUrl={currentProfile.avatarUrl || data.user.avatarUrl}
-        profileLabel={currentProfile.headline || 'บัญชีผู้เรียน'}
+        profileLabel={data.user.email}
         mobileOpen={mobileSidebarOpen}
         onMobileClose={() => setMobileSidebarOpen(false)}
       />

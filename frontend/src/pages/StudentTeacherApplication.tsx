@@ -22,7 +22,7 @@ import LearnProSidebar from '../components/LearnProSidebar'
 import { api, authStorage, type TeacherApplicationResponse } from '../services/api'
 
 const fieldBase =
-  'mt-2 w-full rounded-xl border border-zinc-200 bg-white px-4 text-sm text-black outline-none transition placeholder:text-zinc-400 hover:border-zinc-300 focus:border-black focus:ring-4 focus:ring-zinc-100'
+  'mt-2 w-full rounded-lg border border-zinc-200 bg-white px-4 text-sm text-black outline-none transition placeholder:text-zinc-400 hover:border-zinc-300 focus:border-black focus:ring-4 focus:ring-zinc-100'
 
 const inputClass = `${fieldBase} h-12`
 const textareaClass = `${fieldBase} min-h-[124px] resize-y py-3 leading-6`
@@ -137,13 +137,13 @@ export default function StudentTeacherApplication() {
             </div>
           </header>
 
-          <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-            <div className="grid lg:grid-cols-[0.86fr_1.14fr]">
-              <aside className="relative overflow-hidden bg-zinc-950 p-6 text-white sm:p-8 lg:p-10">
+          <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <div className="grid lg:grid-cols-[360px_minmax(0,1fr)]">
+              <aside className="relative overflow-hidden bg-zinc-950 p-6 text-white sm:p-8">
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-                <div className="relative flex h-full min-h-[420px] flex-col justify-between">
+                <div className="relative flex h-full min-h-[360px] flex-col justify-between">
                   <div>
-                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-black">
+                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white text-black">
                       <GraduationCap size={22} />
                     </span>
                     <h1 className="mt-7 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
@@ -156,7 +156,7 @@ export default function StudentTeacherApplication() {
 
                   <div className="mt-10 space-y-3">
                     {reviewSteps.map((step, index) => (
-                      <div key={step} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3">
+                      <div key={step} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.06] p-3">
                         <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-black">
                           {index + 1}
                         </span>
@@ -167,10 +167,10 @@ export default function StudentTeacherApplication() {
                 </div>
               </aside>
 
-              <form className="p-5 sm:p-7 lg:p-9" onSubmit={handleSubmit}>
+              <form className="p-5 sm:p-7 lg:p-8" onSubmit={handleSubmit}>
                 <div className="flex flex-col gap-4 border-b border-zinc-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Teacher Application</p>
+                    <p className="inline-flex rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">ใช้เวลาประมาณ 2 นาที</p>
                     <h2 className="mt-2 text-2xl font-semibold tracking-tight text-black">ข้อมูลสำหรับเริ่มสอน</h2>
                     <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-500">
                       กรอกเฉพาะข้อมูลที่จำเป็น เพื่อให้แอดมินเห็นตัวตน ความเชี่ยวชาญ และคอร์สแรกที่คุณอยากเปิดสอน
@@ -178,7 +178,7 @@ export default function StudentTeacherApplication() {
                   </div>
 
                   {currentStatus ? (
-                    <div className={`flex shrink-0 items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${currentStatus.className}`}>
+                    <div className={`flex shrink-0 items-start gap-3 rounded-lg border px-4 py-3 text-sm ${currentStatus.className}`}>
                       <StatusIcon size={18} className="mt-0.5 shrink-0" />
                       <div>
                         <p className="font-semibold">{currentStatus.label}</p>
@@ -188,8 +188,21 @@ export default function StudentTeacherApplication() {
                   ) : null}
                 </div>
 
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  {[
+                    { label: 'ข้อมูลส่วนตัว', text: 'ชื่อ เบอร์ และช่องทางติดต่อ' },
+                    { label: 'ความเชี่ยวชาญ', text: 'หัวข้อที่สอนได้จริง' },
+                    { label: 'คอร์สแรก', text: 'ไอเดียคอร์สที่อยากเปิด' },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                      <p className="text-sm font-semibold text-black">{item.label}</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">{item.text}</p>
+                    </div>
+                  ))}
+                </div>
+
                 {application?.reviewNote ? (
-                  <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-700">
+                  <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-700">
                     <span className="font-semibold">หมายเหตุจากแอดมิน: </span>
                     {application.reviewNote}
                   </div>
@@ -290,14 +303,14 @@ export default function StudentTeacherApplication() {
                 </div>
 
                 {error ? (
-                  <div className="mt-5 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-700">
+                  <div className="mt-5 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-700">
                     <AlertCircle size={17} className="mt-0.5 shrink-0" />
                     {error}
                   </div>
                 ) : null}
 
                 {success ? (
-                  <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-700">
+                  <div className="mt-5 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-700">
                     <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
                     ส่งคำขอเรียบร้อยแล้ว แอดมินจะตรวจสอบก่อนเปิดสิทธิ์คุณครู
                   </div>
@@ -310,7 +323,7 @@ export default function StudentTeacherApplication() {
                   </Link>
                   <button
                     type="submit"
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-black px-6 text-sm font-semibold text-white shadow-[0_16px_34px_rgba(0,0,0,0.16)] transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:shadow-none"
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-black px-6 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
                     disabled={submitting || loadingApplication || application?.status === 'approved'}
                   >
                     {submitting ? <LoaderCircle size={16} className="animate-spin" /> : <Send size={16} />}
@@ -330,7 +343,7 @@ export default function StudentTeacherApplication() {
               const Icon = item.icon
 
               return (
-                <article key={item.title} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                <article key={item.title} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
                   <Icon size={19} className="text-black" />
                   <h3 className="mt-4 text-sm font-semibold text-black">{item.title}</h3>
                   <p className="mt-1 text-sm leading-6 text-zinc-500">{item.text}</p>
