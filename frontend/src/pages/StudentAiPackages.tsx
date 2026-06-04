@@ -6,14 +6,12 @@ import {
   FileText,
   Menu,
   MessageSquareText,
-  ShieldCheck,
   Sparkles,
   UserRound,
 } from 'lucide-react'
 import LearnProSidebar from '../components/LearnProSidebar'
 import { authStorage } from '../services/api'
 
-type BillingCycle = 'monthly' | 'yearly'
 type PlanId = 'free' | 'plus' | 'pro'
 
 const plans: Array<{
@@ -60,21 +58,13 @@ const plans: Array<{
   },
 ]
 
-const usageItems = [
-  { label: 'ถาม AI', value: 6, max: 10, icon: MessageSquareText },
-  { label: 'สรุปบทเรียน', value: 1, max: 3, icon: FileText },
-  { label: 'แบบทดสอบ', value: 2, max: 3, icon: ClipboardCheck },
-]
-
-const formatPrice = (monthlyPrice: number, billingCycle: BillingCycle) => {
+const formatPrice = (monthlyPrice: number) => {
   if (monthlyPrice === 0) return 'ฟรี'
-  const price = billingCycle === 'yearly' ? Math.round(monthlyPrice * 10) : monthlyPrice
-  return `฿${price.toLocaleString('th-TH')}`
+  return `฿${monthlyPrice.toLocaleString('th-TH')}`
 }
 
 export default function StudentAiPackages() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [selectedPlanId, setSelectedPlanId] = useState<PlanId>('plus')
   const [confirmedPlanId, setConfirmedPlanId] = useState<PlanId | null>(null)
   const session = authStorage.getSession()
@@ -115,69 +105,6 @@ export default function StudentAiPackages() {
             </div>
           </header>
 
-          <section className="mb-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-7 shadow-sm">
-              <p className="text-sm font-semibold text-zinc-500">แพ็กเกจสำหรับนักเรียน</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-black sm:text-4xl">เลือกโควตา AI ให้พอดีกับการเรียน</h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-600">
-                ใช้สำหรับถามตอบจากบทเรียน สรุปเนื้อหา และสร้างแบบทดสอบ โดยแยกโควตาชัดเจน เข้าใจง่าย และควบคุมค่าใช้จ่ายได้
-              </p>
-              <div className="mt-6 inline-flex rounded-lg border border-zinc-200 bg-zinc-50 p-1">
-                {([
-                  ['monthly', 'รายเดือน'],
-                  ['yearly', 'รายปี ประหยัด 2 เดือน'],
-                ] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={[
-                      'h-10 rounded-md px-4 text-sm font-semibold transition',
-                      billingCycle === value ? 'bg-black text-white shadow-sm' : 'text-zinc-600 hover:text-black',
-                    ].join(' ')}
-                    onClick={() => setBillingCycle(value)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <Sparkles className="pointer-events-none absolute right-8 top-8 hidden text-black lg:block" size={64} strokeWidth={1.4} />
-            </div>
-
-            <aside className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-zinc-500">แพ็กเกจปัจจุบัน</p>
-                  <h2 className="mt-1 text-2xl font-semibold text-black">Free</h2>
-                </div>
-                <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-black text-white">
-                  <ShieldCheck size={22} />
-                </span>
-              </div>
-              <div className="mt-5 space-y-4">
-                {usageItems.map((item) => {
-                  const Icon = item.icon
-                  const percent = Math.min(100, Math.round((item.value / item.max) * 100))
-                  return (
-                    <div key={item.label}>
-                      <div className="mb-2 flex items-center justify-between text-sm">
-                        <span className="inline-flex items-center gap-2 font-medium text-black">
-                          <Icon size={16} />
-                          {item.label}
-                        </span>
-                        <span className="text-zinc-500">
-                          {item.value}/{item.max}
-                        </span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
-                        <div className="h-full rounded-full bg-black" style={{ width: `${percent}%` }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </aside>
-          </section>
-
           <section className="grid gap-5 lg:grid-cols-3">
             {plans.map((plan) => {
               const selected = selectedPlanId === plan.id
@@ -198,9 +125,9 @@ export default function StudentAiPackages() {
                   </div>
 
                   <div className="mt-6">
-                    <span className="text-4xl font-semibold tracking-tight text-black">{formatPrice(plan.monthlyPrice, billingCycle)}</span>
+                    <span className="text-4xl font-semibold tracking-tight text-black">{formatPrice(plan.monthlyPrice)}</span>
                     {plan.monthlyPrice > 0 ? (
-                      <span className="ml-2 text-sm text-zinc-500">{billingCycle === 'monthly' ? '/เดือน' : '/ปี'}</span>
+                      <span className="ml-2 text-sm text-zinc-500">/เดือน</span>
                     ) : null}
                   </div>
 
