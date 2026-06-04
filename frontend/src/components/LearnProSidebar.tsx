@@ -7,6 +7,7 @@ import {
   LogIn,
   LogOut,
   Mail,
+  Sparkles,
   Trophy,
   UserRound,
   Video,
@@ -19,6 +20,7 @@ type SidebarKey =
   | 'home'
   | 'all-courses'
   | 'my-courses'
+  | 'ai-packages'
   | 'certificates'
   | 'messages'
   | 'teacher-application'
@@ -54,6 +56,7 @@ export default function LearnProSidebar({
   const studentPath = role === 'student' ? '/student/messages' : '/login'
   const myCoursesPath = role === 'student' ? '/student?section=my-courses' : role === 'teacher' ? '/teacher' : '/login'
   const coursesPath = role === 'student' ? '/student/store' : '/'
+  const aiPackagesPath = role === 'student' ? '/student/ai-packages' : '/login'
   const certificatesPath = role === 'student' ? '/student/certificates' : studentPath
   const displayName = profileName ?? session?.user.name ?? 'ผู้เยี่ยมชม'
   const avatarUrl = profileAvatarUrl ?? session?.user.avatarUrl
@@ -90,6 +93,7 @@ export default function LearnProSidebar({
   const navItems = [
     { key: 'all-courses', to: coursesPath, label: 'ค้นหาคอร์ส', icon: LibraryBig },
     { key: 'my-courses', to: myCoursesPath, label: 'คอร์สของฉัน', icon: Video },
+    { key: 'ai-packages', to: aiPackagesPath, label: 'แพ็กเกจ AI', icon: Sparkles },
     { key: 'certificates', to: certificatesPath, label: 'ใบประกาศนียบัตร', icon: Trophy },
     { key: 'messages', to: studentPath, label: 'ข้อความ', icon: Mail },
   ] as const

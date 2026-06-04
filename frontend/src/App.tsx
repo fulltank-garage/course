@@ -7,6 +7,7 @@ import CourseDetail from './pages/CourseDetail'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import StudentAiPackages from './pages/StudentAiPackages'
 import StudentCertificates from './pages/StudentCertificates'
 import StudentCourseStore from './pages/StudentCourseStore'
 import StudentDashboard from './pages/StudentDashboard'
@@ -34,6 +35,7 @@ function App() {
         <Route element={<DashboardLayout role="student" />}>
           <Route path="student" element={<StudentDashboard />} />
           <Route path="student/store" element={<StudentCourseStore />} />
+          <Route path="student/ai-packages" element={<StudentAiPackages />} />
           <Route path="student/messages" element={<StudentMessages />} />
           <Route path="student/certificates" element={<StudentCertificates />} />
           <Route path="student/teacher-application" element={<StudentTeacherApplication />} />
