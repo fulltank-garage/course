@@ -3104,7 +3104,12 @@ const processR2UploadedVideo = async (request) => {
   }
 
   const body = await readBody(request)
-  const fileName = sanitizeFileName(String(body.fileName ?? 'lesson-video.mp4'))
+  const fileName =
+    path
+      .basename(String(body.fileName ?? 'lesson-video.mp4'))
+      .toLowerCase()
+      .replace(/[^a-z0-9.-]+/g, '-')
+      .replace(/^-|-$/g, '') || 'lesson-video.mp4'
   const fileUrl = String(body.fileUrl ?? '').trim()
 
   if (!fileUrl) {
