@@ -1099,134 +1099,141 @@ function LessonManagerModal({
               ) : null}
 
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-                <div className="space-y-5">
-                  <section className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-                    <div className="border-b border-zinc-100 pb-4">
-                      <p className="text-sm font-semibold text-black">ข้อมูลบทเรียน</p>
-                      <p className="mt-1 text-xs leading-5 text-zinc-500">ชื่อและสรุปที่ใช้แสดงในหน้าบทเรียน</p>
+                <div className="space-y-6">
+                  <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+                      <div>
+                        <p className="text-sm font-semibold text-black">ข้อมูลบทเรียน</p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">ชื่อและสรุปที่จะแสดงให้นักเรียนเห็น</p>
+                      </div>
+                      <span className="hidden rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-semibold text-zinc-600 md:inline-flex">
+                        ต้องมี
+                      </span>
                     </div>
-                    <label className="block">
-                      <span className="text-sm font-medium text-zinc-700">ชื่อบทเรียน</span>
-                      <input
-                        className="mt-2 h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
-                        value={draft.title}
-                        onChange={(event) => onDraftChange('title', event.target.value)}
-                        placeholder="บทเรียนที่ 1: เริ่มต้นคอร์ส"
-                        required
-                      />
-                    </label>
+                    <div className="mt-5 grid gap-5">
+                      <label className="block">
+                        <span className="text-sm font-medium text-zinc-700">ชื่อบทเรียน</span>
+                        <input
+                          className="mt-2 h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
+                          value={draft.title}
+                          onChange={(event) => onDraftChange('title', event.target.value)}
+                          placeholder="บทเรียนที่ 1: เริ่มต้นคอร์ส"
+                          required
+                        />
+                      </label>
 
-                    <label className="block">
-                      <span className="text-sm font-medium text-zinc-700">สรุปบทเรียน</span>
-                      <textarea
-                        className="mt-2 min-h-44 w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
-                        value={draft.summary}
-                        onChange={(event) => onDraftChange('summary', event.target.value)}
-                        placeholder="เขียนสรุปสั้น ๆ ของบทเรียน"
-                      />
-                    </label>
+                      <label className="block">
+                        <span className="text-sm font-medium text-zinc-700">สรุปบทเรียน</span>
+                        <textarea
+                          className="min-h-40 w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-3 text-sm leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
+                          value={draft.summary}
+                          onChange={(event) => onDraftChange('summary', event.target.value)}
+                          placeholder="เขียนสรุปสั้น ๆ ของบทเรียน"
+                        />
+                      </label>
+                    </div>
                   </section>
 
-                <section className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-5 shadow-sm shadow-cyan-100/70">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-cyan-950">พรีวิวหน้าขายคอร์ส</p>
-                      <p className="mt-1 text-xs leading-5 text-cyan-800/80">
-                        ใช้สำหรับให้ผู้สนใจทดลองดูบางบทเรียนก่อนสมัครเรียน
-                      </p>
-                    </div>
-                    <span
-                      className={[
-                        'inline-flex w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-semibold',
-                        draft.preview
-                          ? 'border-cyan-300 bg-white text-cyan-800'
-                          : 'border-zinc-200 bg-white/80 text-zinc-500',
-                      ].join(' ')}
-                    >
-                      {draft.preview ? 'เปิดพรีวิว' : 'ปิดพรีวิว'}
-                    </span>
-                  </div>
-
-                  <label className="mt-5 flex items-start gap-3 rounded-lg border border-white/80 bg-white px-4 py-3 text-sm text-cyan-900 shadow-sm shadow-cyan-100/70">
-                    <input
-                      type="checkbox"
-                      checked={draft.preview}
-                      onChange={(event) => onDraftChange('preview', event.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-cyan-300 accent-cyan-700"
-                    />
-                    <span>
-                      <span className="block font-semibold text-cyan-950">อนุญาตให้บทเรียนนี้ดูเป็นตัวอย่าง</span>
-                      <span className="mt-1 block text-xs leading-5 text-cyan-800/80">
-                        ระบบปัจจุบันใช้วิดีโอเรียนจริงไฟล์เดียวกันเป็นพรีวิว ถ้าปิดไว้ ผู้เรียนต้องสมัครคอร์สก่อนจึงจะดูวิดีโอนี้ได้
+                  <section className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-5 shadow-sm shadow-cyan-100/70">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-cyan-950">พรีวิวบทเรียน</p>
+                        <p className="mt-1 text-xs leading-5 text-cyan-800/80">เปิดให้ดูตัวอย่างก่อนสมัครเรียน</p>
+                      </div>
+                      <span
+                        className={[
+                          'inline-flex w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-semibold',
+                          draft.preview
+                            ? 'border-cyan-300 bg-white text-cyan-800'
+                            : 'border-zinc-200 bg-white/80 text-zinc-500',
+                        ].join(' ')}
+                      >
+                        {draft.preview ? 'เปิดพรีวิว' : 'ปิดพรีวิว'}
                       </span>
-                    </span>
-                  </label>
+                    </div>
+
+                    <label className="mt-4 flex items-start gap-3 rounded-lg border border-white/80 bg-white px-4 py-3 text-sm text-cyan-900 shadow-sm shadow-cyan-100/70">
+                      <input
+                        type="checkbox"
+                        checked={draft.preview}
+                        onChange={(event) => onDraftChange('preview', event.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-cyan-300 accent-cyan-700"
+                      />
+                      <span>
+                        <span className="block font-semibold text-cyan-950">อนุญาตให้บทเรียนนี้เป็นตัวอย่าง</span>
+                        <span className="mt-1 block text-xs leading-5 text-cyan-800/80">
+                          ระบบจะใช้วิดีโอเรียนจริงเป็นพรีวิว ถ้าปิดไว้ ผู้เรียนต้องสมัครคอร์สก่อนจึงจะดูได้
+                        </span>
+                      </span>
+                    </label>
                   </section>
                 </div>
 
-                <aside className="space-y-5 rounded-2xl border border-zinc-200 bg-[#faf9f7] p-5 shadow-sm">
-                  <div className="border-b border-zinc-200 pb-4">
-                    <p className="text-sm font-semibold text-black">วิดีโอเรียนจริง</p>
-                    <p className="mt-1 text-xs leading-5 text-zinc-500">ไฟล์หลักที่นักเรียนใช้เรียน และเป็นแหล่งข้อมูลให้ AI ถอดเสียง</p>
-                  </div>
-                  <label className="block">
-                    <span className="text-sm font-medium text-zinc-700">ความยาววิดีโอ</span>
-                    <input
-                      className="mt-2 h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
-                      value={draft.duration}
-                      onChange={(event) => onDraftChange('duration', event.target.value)}
-                      placeholder="12:30"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-zinc-700">อัปโหลดวิดีโอเรียนจริง</span>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      className="mt-2 w-full rounded-xl border border-dashed border-zinc-300 bg-white px-3 py-4 text-sm text-zinc-600 outline-none transition file:mr-3 file:rounded-lg file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-zinc-400 focus:border-black"
-                      onChange={onVideoChange}
-                      disabled={uploading}
-                    />
-                    <p className="mt-2 text-xs leading-5 text-zinc-500">
-                      {directMuxVideoUploadEnabled
-                        ? 'อัปโหลดตรงไป Mux และรอประมวลผลวิดีโอให้อัตโนมัติ'
-                        : 'อัปโหลดได้ไม่เกิน 1GB ระบบจะบีบอัดวิดีโอให้อยู่ราว 300-500MB ตามความยาวและคุณภาพ พร้อมเตรียมให้โหลดเร็วและสร้างภาพตัวอย่าง'}
-                    </p>
-                  </label>
-
-                  {uploading ? (
-                    <div className="rounded-lg border border-zinc-200 bg-white p-3">
-                      <div className="flex items-center justify-between gap-3 text-xs font-medium text-zinc-600">
-                        <span>{uploadStatusText}</span>
-                        <span>{uploadSpeedText ? `${uploadSpeedText} · ${uploadProgress ?? 0}%` : `${uploadProgress ?? 0}%`}</span>
-                      </div>
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200">
-                        <span className="block h-full rounded-full bg-black transition-all" style={{ width: `${uploadProgress ?? 0}%` }} />
-                      </div>
+                <aside className="space-y-5">
+                  <section className="rounded-2xl border border-zinc-200 bg-[#faf9f7] p-5 shadow-sm">
+                    <div className="border-b border-zinc-200 pb-4">
+                      <p className="text-sm font-semibold text-black">วิดีโอเรียนจริง</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">ไฟล์หลักที่ใช้สอนและเป็นต้นทางให้ AI</p>
                     </div>
-                  ) : null}
+                    <div className="mt-5 grid gap-5">
+                      <label className="block">
+                        <span className="text-sm font-medium text-zinc-700">ความยาววิดีโอ</span>
+                        <input
+                          className="mt-2 h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-black outline-none transition placeholder:text-zinc-400 focus:border-black"
+                          value={draft.duration}
+                          onChange={(event) => onDraftChange('duration', event.target.value)}
+                          placeholder="12:30"
+                        />
+                      </label>
 
-                  <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="p-4">
-                        <p className="text-sm font-semibold text-black">AI ทำงานเบื้องหลังอัตโนมัติ</p>
-                        <p className="mt-1 text-xs leading-5 text-zinc-500">
-                          หลังบันทึกวิดีโอแล้ว คุณครูปิดหน้านี้ได้ ระบบจะอัปเดตสถานะและแจ้งเมื่อพร้อม
+                      <label className="block">
+                        <span className="text-sm font-medium text-zinc-700">อัปโหลดวิดีโอ</span>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          className="mt-2 w-full rounded-xl border border-dashed border-zinc-300 bg-white px-3 py-4 text-sm text-zinc-600 outline-none transition file:mr-3 file:rounded-lg file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-zinc-400 focus:border-black"
+                          onChange={onVideoChange}
+                          disabled={uploading}
+                        />
+                        <p className="mt-2 text-xs leading-5 text-zinc-500">
+                          {directMuxVideoUploadEnabled
+                            ? 'อัปโหลดตรงไป Mux และรอประมวลผลอัตโนมัติ'
+                            : 'อัปโหลดได้ไม่เกิน 1GB ระบบจะบีบอัดให้อยู่ราว 300-500MB ตามความยาวและคุณภาพ'}
                         </p>
+                      </label>
+
+                      {uploading ? (
+                        <div className="rounded-lg border border-zinc-200 bg-white p-3">
+                          <div className="flex items-center justify-between gap-3 text-xs font-medium text-zinc-600">
+                            <span>{uploadStatusText}</span>
+                            <span>{uploadSpeedText ? `${uploadSpeedText} · ${uploadProgress ?? 0}%` : `${uploadProgress ?? 0}%`}</span>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200">
+                            <span className="block h-full rounded-full bg-black transition-all" style={{ width: `${uploadProgress ?? 0}%` }} />
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-black">สถานะ AI</p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">ระบบจะเตรียมเนื้อหาให้อัตโนมัติหลังบันทึก</p>
                       </div>
                       {editingLessonId ? (
-                        <span className={`mr-4 mt-4 shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${selectedLessonAi.className}`}>
+                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${selectedLessonAi.className}`}>
                           {selectedLessonAi.label}
                         </span>
                       ) : null}
                     </div>
 
-                    <ol className="space-y-2 border-t border-zinc-100 bg-zinc-50/70 p-3">
+                    <ol className="mt-4 space-y-2">
                       {aiSteps.map((step, index) => (
                         <li
                           key={step.key}
-                          className={`grid grid-cols-[32px_minmax(0,1fr)] gap-3 rounded-xl border p-3 ${aiStepTheme[step.key].shell}`}
+                          className={`grid grid-cols-[30px_minmax(0,1fr)] gap-3 rounded-xl border p-3 ${aiStepTheme[step.key].shell}`}
                         >
                           <div className="flex flex-col items-center pt-0.5">
                             <span
@@ -1259,7 +1266,7 @@ function LessonManagerModal({
                         </li>
                       ))}
                     </ol>
-                  </div>
+                  </section>
                 </aside>
               </div>
 
