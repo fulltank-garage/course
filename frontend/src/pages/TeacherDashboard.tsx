@@ -509,7 +509,7 @@ function TeacherShell({
 
       <main className="min-w-0">
         <div className="mx-auto max-w-[1560px] px-4 py-5 sm:px-6 lg:px-8">
-          <header className="mb-6 flex items-center gap-4">
+          <header className="mb-6 flex h-12 items-center gap-4">
             <Link to="/teacher" className="flex items-center gap-3 lg:hidden">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
                 <BrandMark className="h-10 w-10" />
@@ -520,16 +520,23 @@ function TeacherShell({
               <Link
                 to="/teacher?section=profile"
                 onClick={(event) => handleActiveLinkClick(event, activeSection === 'profile')}
-                className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white py-1 pl-1 pr-3"
+                className="flex h-11 items-center gap-2 rounded-full border border-zinc-200 bg-white py-1 pl-1 pr-3 shadow-sm shadow-zinc-200/70 transition hover:border-zinc-300 hover:shadow-md"
               >
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt={teacherName} className="h-9 w-9 rounded-full object-cover" />
+                  <span className="relative inline-flex h-9 w-9 shrink-0">
+                    <img src={avatarUrl} alt={teacherName} className="h-9 w-9 rounded-full object-cover ring-2 ring-white" />
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                  </span>
                 ) : (
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black text-white">
+                  <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white ring-2 ring-white">
                     <UserRound size={16} />
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                   </span>
                 )}
                 <span className="hidden max-w-36 truncate text-sm font-semibold sm:inline">{teacherName}</span>
+                <span className="hidden rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 md:inline-flex">
+                  คุณครู
+                </span>
               </Link>
             </div>
           </header>
