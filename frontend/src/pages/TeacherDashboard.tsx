@@ -509,13 +509,29 @@ function TeacherShell({
 
       <main className="min-w-0">
         <div className="mx-auto max-w-[1560px] px-4 py-5 sm:px-6 lg:px-8">
-          <header className="mb-8 flex items-center justify-between gap-4">
+          <header className="mb-6 flex items-center gap-4">
             <Link to="/teacher" className="flex items-center gap-3 lg:hidden">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
                 <BrandMark className="h-10 w-10" />
               </span>
               <span className="text-lg font-semibold">MyCourse</span>
             </Link>
+            <div className="ml-auto flex items-center gap-3">
+              <Link
+                to="/teacher?section=profile"
+                onClick={(event) => handleActiveLinkClick(event, activeSection === 'profile')}
+                className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white py-1 pl-1 pr-3"
+              >
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={teacherName} className="h-9 w-9 rounded-full object-cover" />
+                ) : (
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black text-white">
+                    <UserRound size={16} />
+                  </span>
+                )}
+                <span className="hidden max-w-36 truncate text-sm font-semibold sm:inline">{teacherName}</span>
+              </Link>
+            </div>
           </header>
           <nav className="mb-6 flex gap-2 overflow-x-auto pb-2 lg:hidden">
             {teacherMobileNavItems.map((item) => {
@@ -2107,20 +2123,6 @@ export default function TeacherDashboard() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-7 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-2xl flex-1">
-              <div className="skeleton-line h-5 w-32" />
-              <div className="mt-3 skeleton-line h-12 w-10/12" />
-              <div className="mt-4 space-y-2">
-                <div className="skeleton-line h-5 w-full" />
-                <div className="skeleton-line h-5 w-8/12" />
-              </div>
-            </div>
-            <div className="skeleton h-11 w-36 rounded-lg" />
-          </div>
-        </section>
-
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
             <section key={index} className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -2211,14 +2213,7 @@ export default function TeacherDashboard() {
         teacherEmail={data.user.email}
         avatarUrl={currentTeacherProfile.avatarUrl || data.user.avatarUrl}
       >
-        <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-950">โปรไฟล์คุณครู</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            แก้ไขชื่อ รูปโปรไฟล์ และข้อมูลติดต่อที่ใช้แสดงในระบบ
-          </p>
-        </section>
-
-        <section className="mt-6 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
           <form className="grid gap-0 lg:grid-cols-[280px_minmax(0,1fr)]" onSubmit={saveTeacherProfile}>
             <div className="border-b border-slate-200 bg-slate-50 p-5 lg:border-b-0 lg:border-r">
               <div className="flex flex-col items-start gap-4">
@@ -2315,59 +2310,6 @@ export default function TeacherDashboard() {
         teacherEmail={data.user.email}
         avatarUrl={currentTeacherProfile.avatarUrl || data.user.avatarUrl}
       >
-        {activeSection === 'home' ? null : (
-        <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-7 shadow-sm">
-          {activeSection === 'my-courses' ? (
-            <div className="max-w-2xl">
-              <p className="text-base font-medium text-zinc-700">คอร์สของฉัน</p>
-              <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">จัดการคอร์สและบทเรียนทั้งหมด</h1>
-              <p className="mt-3 text-base leading-7 text-zinc-600">
-                รวมรายการคอร์ส ตัวกรองหมวดหมู่ สถานะ และปุ่มสร้างคอร์สไว้ในหน้านี้ เพื่อให้จัดการคอร์สได้จากที่เดียว
-              </p>
-            </div>
-          ) : activeSection === 'students' ? (
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-base font-medium text-zinc-700">ผู้เรียน</p>
-                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ผู้เรียนที่ลงทะเบียนคอร์สของคุณ</h1>
-                <p className="mt-3 text-base leading-7 text-zinc-600">
-                  ดูรายชื่อคนที่ซื้อหรือลงทะเบียนคอร์ส โดยไม่เก็บข้อมูลติดตามการเรียนละเอียดให้หนักระบบ
-                </p>
-              </div>
-              <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-black text-white">
-                <UsersRound size={24} />
-              </span>
-            </div>
-          ) : activeSection === 'messages' ? (
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-base font-medium text-zinc-700">ข้อความ</p>
-                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ข้อความจากนักเรียนในคอร์สของคุณ</h1>
-                <p className="mt-3 text-base leading-7 text-zinc-600">
-                  รวมรายชื่อนักเรียนที่อยู่ในคอร์สของคุณครูไว้สำหรับติดตามการสนทนา โดยยังไม่เพิ่มระบบส่งข้อความใหม่
-                </p>
-              </div>
-              <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white">
-                <Mail size={24} />
-              </span>
-            </div>
-          ) : activeSection === 'reviews' ? (
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-2xl">
-                  <p className="text-base font-medium text-zinc-700">รีวิว</p>
-                  <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">ภาพรวมรีวิวจากคอร์สของคุณ</h1>
-                  <p className="mt-3 text-base leading-7 text-zinc-600">
-                    ดูคะแนนและจำนวนรีวิวของแต่ละคอร์สจากรีวิวบทเรียนที่นักเรียนส่งเข้ามาจริง
-                  </p>
-              </div>
-              <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-black text-white">
-                <Star size={24} />
-              </span>
-            </div>
-          ) : null}
-        </section>
-        )}
-
         {message ? (
           <section
             className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
