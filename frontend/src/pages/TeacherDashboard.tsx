@@ -986,7 +986,7 @@ function LessonManagerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 p-0 backdrop-blur-sm sm:p-5">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center overflow-hidden overscroll-none bg-black/40 p-0 backdrop-blur-sm sm:p-5">
       <div className="flex h-full w-full max-w-[1320px] flex-col overflow-hidden bg-white shadow-2xl sm:h-[calc(100vh-2.5rem)] sm:rounded-xl sm:border sm:border-zinc-200">
         <div className="flex items-start justify-between gap-4 border-b border-zinc-200 bg-white px-5 py-4 sm:px-6">
           <div className="min-w-0">
@@ -1012,7 +1012,7 @@ function LessonManagerModal({
               <p className="text-sm font-semibold text-black">บทเรียน</p>
               <p className="text-xs text-zinc-500">{course.lessons.length.toLocaleString('th-TH')} รายการ</p>
             </div>
-            <div className="flex max-h-48 gap-2 overflow-x-auto px-5 pb-4 lg:max-h-none lg:flex-col lg:overflow-y-auto lg:pb-5">
+            <div className="flex max-h-48 gap-2 overflow-x-auto overscroll-contain px-5 pb-4 lg:max-h-none lg:flex-col lg:overflow-y-auto lg:pb-5">
               {course.lessons.length ? (
                 course.lessons.map((lesson, index) => {
                   const active = editingLessonId === lesson.id
@@ -1057,7 +1057,7 @@ function LessonManagerModal({
             </div>
           </aside>
 
-          <form className="min-h-0 overflow-y-auto bg-white" onSubmit={onSubmit}>
+          <form className="min-h-0 overflow-y-auto overscroll-contain bg-white" onSubmit={onSubmit}>
             <div className="mx-auto max-w-5xl px-5 py-6 sm:px-7 lg:py-8">
               {message ? (
                 <div
@@ -1399,17 +1399,36 @@ export default function TeacherDashboard() {
   const [coverPreview, setCoverPreview] = useState<string>(emptyCoverPreview)
   const [coverUploadProgress, setCoverUploadProgress] = useState<number | null>(null)
   const [draft, setDraft] = useState<CourseDraft>(() => createEmptyDraft())
+  const lessonManagerOpen = Boolean(lessonCourse)
 
   useEffect(() => {
-    if (!formOpen) return
+    if (!formOpen && !lessonManagerOpen) return
 
+    const lockedScrollY = window.scrollY
     const previousOverflow = document.body.style.overflow
+    const previousHtmlOverflow = document.documentElement.style.overflow
+    const previousPosition = document.body.style.position
+    const previousTop = document.body.style.top
+    const previousWidth = document.body.style.width
+    const previousTouchAction = document.body.style.touchAction
+
+    document.documentElement.style.overflow = 'hidden'
     document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${lockedScrollY}px`
+    document.body.style.width = '100%'
+    document.body.style.touchAction = 'none'
 
     return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow
       document.body.style.overflow = previousOverflow
+      document.body.style.position = previousPosition
+      document.body.style.top = previousTop
+      document.body.style.width = previousWidth
+      document.body.style.touchAction = previousTouchAction
+      window.scrollTo(0, lockedScrollY)
     }
-  }, [formOpen])
+  }, [formOpen, lessonManagerOpen])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -2296,6 +2315,7 @@ export default function TeacherDashboard() {
         teacherEmail={data.user.email}
         avatarUrl={currentTeacherProfile.avatarUrl || data.user.avatarUrl}
       >
+        {activeSection === 'home' ? null : (
         <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-7 shadow-sm">
           {activeSection === 'my-courses' ? (
             <div className="max-w-2xl">
@@ -2344,16 +2364,9 @@ export default function TeacherDashboard() {
                 <Star size={24} />
               </span>
             </div>
-          ) : (
-            <>
-              <p className="text-base font-medium text-zinc-700">สวัสดีตอนเช้า</p>
-              <h1 className="mt-2 text-4xl font-semibold tracking-tight text-black">
-                ครู{currentTeacherProfile.name || data.user.name}
-              </h1>
-              <p className="mt-3 text-base text-zinc-600">ยินดีต้อนรับสู่แผงควบคุมของคุณ</p>
-            </>
-          )}
+          ) : null}
         </section>
+        )}
 
         {message ? (
           <section
@@ -2473,8 +2486,8 @@ export default function TeacherDashboard() {
                   label: 'นักเรียนทั้งหมด',
                   value: teacherStats.totalStudents.toLocaleString('th-TH'),
                   icon: UsersRound,
-                  note: 'เพิ่มขึ้นจากเดือนที่แล้ว',
-                  trend: true,
+                  note: 'นักเรียน',
+                  trend: false,
                 },
                 {
                   label: 'บทเรียนรวม',
@@ -2487,8 +2500,8 @@ export default function TeacherDashboard() {
                   label: 'รายได้รวม',
                   value: `${teacherStats.totalRevenue.toLocaleString('th-TH')} บาท`,
                   icon: CircleDollarSign,
-                  note: 'จากเดือนที่แล้ว',
-                  trend: true,
+                  note: 'รายได้ทั้งหมด',
+                  trend: false,
                 },
               ]).map((item, index) => {
             const Icon = item.icon
