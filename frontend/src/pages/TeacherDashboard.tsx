@@ -534,9 +534,6 @@ function TeacherShell({
                   </span>
                 )}
                 <span className="hidden max-w-36 truncate text-sm font-semibold sm:inline">{teacherName}</span>
-                <span className="hidden rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 md:inline-flex">
-                  คุณครู
-                </span>
               </Link>
             </div>
           </header>
