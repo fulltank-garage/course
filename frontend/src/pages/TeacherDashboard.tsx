@@ -1765,7 +1765,7 @@ export default function TeacherDashboard() {
       }
     }
 
-    const intervalId = window.setInterval(refreshLessonAiStatus, 7000)
+    const intervalId = window.setInterval(refreshLessonAiStatus, 3000)
     refreshLessonAiStatus()
 
     return () => {

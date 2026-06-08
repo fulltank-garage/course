@@ -1970,11 +1970,9 @@ const queueAutoTranscribeLesson = (lessonId, videoUrl) => {
     console.error(`Failed to mark transcript pending for lesson ${lessonId}`, error)
   })
 
-  setTimeout(() => {
-    autoTranscribeLesson(lessonId, videoUrl).catch((error) => {
-      console.error(`Failed to queue transcript for lesson ${lessonId}`, error)
-    })
-  }, 0)
+  autoTranscribeLesson(lessonId, videoUrl).catch((error) => {
+    console.error(`Failed to queue transcript for lesson ${lessonId}`, error)
+  })
 }
 
 const normalizeExistingUploadedVideos = async () => {
