@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -19,8 +19,6 @@ import {
 import { api, authStorage, cartStorage } from '../services/api'
 import type { Course, Lesson } from '../types/course'
 import { resolveVideoSource } from '../utils/video'
-
-const MuxPlayer = lazy(() => import('@mux/mux-player-react'))
 
 const formatPrice = (price: number) =>
   price === 0
@@ -89,21 +87,6 @@ function PreviewModal({
               referrerPolicy="strict-origin-when-cross-origin"
               allowFullScreen
             />
-          ) : videoSource?.kind === 'mux' ? (
-            <Suspense
-              fallback={
-                <div className="flex aspect-video max-h-[72vh] w-full items-center justify-center bg-black text-sm text-zinc-300">
-                  กำลังโหลดวิดีโอตัวอย่าง...
-                </div>
-              }
-            >
-              <MuxPlayer
-                className="aspect-video max-h-[72vh] w-full bg-black"
-                playbackId={videoSource.playbackId}
-                streamType="on-demand"
-                poster={lesson.posterUrl ?? course.coverImage}
-              />
-            </Suspense>
           ) : videoSource?.kind === 'direct' ? (
             <video
               className="aspect-video max-h-[72vh] w-full bg-black object-contain"

@@ -1928,10 +1928,7 @@ const autoTranscribeLesson = async (lessonId, videoUrl) => {
   try {
     await updateLessonAiStatus(lessonId, 'processing', null)
 
-    if (!absolutePath && isMuxVideoUrl(videoUrl)) {
-      absolutePath = await downloadMuxPlaybackForGemini(videoUrl)
-      shouldDeleteTempFile = Boolean(absolutePath)
-    } else if (!absolutePath && isRemoteHttpUrl(videoUrl)) {
+    if (!absolutePath && isRemoteHttpUrl(videoUrl)) {
       absolutePath = await downloadRemoteFileStreamWithLimit(videoUrl, {
         maxBytes: muxAudioDownloadMaxBytes,
         extension: path.extname(new URL(videoUrl).pathname) || '.mp4',
@@ -3319,74 +3316,6 @@ const getAiAccessibleLesson = async (request, lessonId) => {
   return { lesson, error: null }
 }
 
-const isMuxVideoUrl = (value) => {
-  try {
-    const hostname = new URL(String(value)).hostname.toLowerCase()
-    return hostname === 'player.mux.com' || hostname === 'stream.mux.com'
-  } catch {
-    return false
-  }
-}
-
-const getMuxPlaybackId = (value) => {
-  try {
-    const url = new URL(String(value))
-    const hostname = url.hostname.toLowerCase()
-
-    if (hostname === 'player.mux.com') {
-      return url.pathname.split('/').filter(Boolean)[0] ?? null
-    }
-
-    if (hostname === 'stream.mux.com') {
-      return (url.pathname.split('/').filter(Boolean)[0] ?? '').replace(/\.(m3u8|mp4)$/i, '') || null
-    }
-  } catch {
-    return null
-  }
-
-  return null
-}
-
-const downloadMuxPlaybackForGemini = async (videoUrl) => {
-  const playbackId = getMuxPlaybackId(videoUrl)
-  if (!playbackId) return null
-
-  const encodedPlaybackId = encodeURIComponent(playbackId)
-  const candidates = [
-    {
-      url: `https://stream.mux.com/${encodedPlaybackId}/audio.m4a`,
-      extension: '.m4a',
-      maxBytes: muxAudioDownloadMaxBytes,
-    },
-    {
-      url: `https://stream.mux.com/${encodedPlaybackId}/low.mp4`,
-      extension: '.mp4',
-      maxBytes: maxAutoTranscribeVideoBytes,
-    },
-  ]
-
-  const maxAttempts = Math.max(1, Math.ceil(muxAudioWaitSeconds / 10))
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    for (const candidate of candidates) {
-      try {
-        return await downloadRemoteFileStreamWithLimit(candidate.url, {
-          extension: candidate.extension,
-          maxBytes: candidate.maxBytes,
-        })
-      } catch {
-        // Try the next available Mux static rendition.
-      }
-    }
-
-    if (attempt < maxAttempts - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 10000))
-    }
-  }
-
-  return null
-}
-
 const transcribeLessonVideo = async (request, lessonId) => {
   if (aiProvider !== 'gemini') {
     return { statusCode: 400, payload: { message: 'AI transcription requires AI_PROVIDER=gemini' } }
@@ -3404,11 +3333,6 @@ const transcribeLessonVideo = async (request, lessonId) => {
   let shouldDeleteTempFile = false
 
   try {
-    if (!absolutePath && isMuxVideoUrl(videoUrl)) {
-      absolutePath = await downloadMuxPlaybackForGemini(videoUrl)
-      shouldDeleteTempFile = Boolean(absolutePath)
-    }
-
     if (!absolutePath) {
       return {
         statusCode: 400,

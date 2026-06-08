@@ -5,7 +5,6 @@ import type { User, UserRole } from '../types/user'
 
 const productionApiBaseUrl = 'https://mycourse-backend-production.up.railway.app'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? productionApiBaseUrl : '')
-const DIRECT_MUX_VIDEO_UPLOAD = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
 const configuredR2VideoUploadConcurrency = Number(import.meta.env.VITE_R2_VIDEO_UPLOAD_CONCURRENCY ?? 5)
 const R2_VIDEO_UPLOAD_CONCURRENCY = Math.min(
   8,
@@ -152,25 +151,6 @@ export interface UploadedVideoDiagnostics {
   isBrowserFriendly: boolean
   videoCodec: string | null
   audioCodec: string | null
-}
-
-interface MuxDirectUploadStartResponse {
-  provider: 'mux'
-  uploadId: string
-  uploadUrl: string
-  timeout: number
-  status: string
-}
-
-interface MuxDirectUploadStatusResponse {
-  provider: 'mux'
-  uploadId: string
-  status: string
-  assetId?: string
-  assetStatus?: string
-  playbackId?: string
-  playbackUrl?: string
-  error?: string
 }
 
 interface R2MultipartStartResponse {
@@ -594,113 +574,7 @@ const uploadBlobToSignedUrl = (
     xhr.send(blob)
   })
 
-const uploadBlobToMuxUrl = (url: string, file: File, onProgress?: (progress: number) => void) =>
-  new Promise<void>(async (resolve, reject) => {
-    const chunkSize = 20 * 1024 * 1024
-    const totalSize = file.size
-
-    const uploadChunk = (start: number) =>
-      new Promise<void>((chunkResolve, chunkReject) => {
-        const end = Math.min(start + chunkSize, totalSize)
-        const chunk = file.slice(start, end, file.type || 'video/mp4')
-        const xhr = new XMLHttpRequest()
-
-        xhr.open('PUT', url)
-        if (file.type) xhr.setRequestHeader('Content-Type', file.type)
-        if (totalSize > chunkSize) {
-          xhr.setRequestHeader('Content-Range', `bytes ${start}-${end - 1}/${totalSize}`)
-        }
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const loadedBytes = start + event.loaded
-            onProgress?.(Math.min(90, Math.round((loadedBytes / totalSize) * 90)))
-          }
-        }
-        xhr.onload = () => {
-          if ((xhr.status >= 200 && xhr.status < 300) || xhr.status === 308) {
-            onProgress?.(Math.min(90, Math.round((end / totalSize) * 90)))
-            chunkResolve()
-            return
-          }
-
-          chunkReject(new Error(`อัปโหลดวิดีโอไป Mux ไม่สำเร็จ (${xhr.status})`))
-        }
-        xhr.onerror = () => chunkReject(new Error('เชื่อมต่อ Mux direct upload ไม่สำเร็จ'))
-        xhr.onabort = () => chunkReject(new Error('ยกเลิกการอัปโหลดวิดีโอไป Mux แล้ว'))
-        xhr.send(chunk)
-      })
-
-    try {
-      for (let start = 0; start < totalSize; start += chunkSize) {
-        await uploadChunk(start)
-      }
-
-      onProgress?.(92)
-      resolve()
-    } catch (error) {
-      reject(error)
-    }
-  })
-
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
-
-const pollMuxDirectUpload = async (
-  uploadId: string,
-  onProgress?: (progress: number) => void,
-): Promise<MuxDirectUploadStatusResponse> => {
-  const maxAttempts = 360
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const status = await request<MuxDirectUploadStatusResponse>(
-      `/api/uploads/mux/direct-upload/${encodeURIComponent(uploadId)}`,
-    )
-
-    if (
-      status.error ||
-      ['errored', 'cancelled', 'timed_out'].includes(status.status) ||
-      status.assetStatus === 'errored'
-    ) {
-      throw new Error(status.error ?? `Mux upload ${status.assetStatus === 'errored' ? 'asset errored' : status.status}`)
-    }
-
-    if (status.playbackUrl && status.assetStatus === 'ready') {
-      onProgress?.(100)
-      return status
-    }
-
-    onProgress?.(Math.min(99, 92 + Math.floor((attempt / maxAttempts) * 7)))
-    await wait(5000)
-  }
-
-  throw new Error('Mux ยังประมวลผลวิดีโอไม่เสร็จ กรุณารอสักครู่แล้วลองตรวจสถานะอีกครั้ง')
-}
-
-const uploadVideoAssetToMux = async (payload: UploadVideoAssetPayload): Promise<UploadAssetResponse> => {
-  payload.onProgress?.(0)
-
-  const directUpload = await request<MuxDirectUploadStartResponse>('/api/uploads/mux/direct-upload', {
-    method: 'POST',
-    body: JSON.stringify({
-      fileName: payload.file.name,
-      mimeType: payload.file.type || 'application/octet-stream',
-      fileSize: payload.file.size,
-    }),
-  })
-
-  await uploadBlobToMuxUrl(directUpload.uploadUrl, payload.file, payload.onProgress)
-  const muxVideo = await pollMuxDirectUpload(directUpload.uploadId, payload.onProgress)
-
-  if (!muxVideo.playbackUrl) {
-    throw new Error('Mux ยังไม่ส่ง playback URL กลับมา')
-  }
-
-  return {
-    kind: 'video',
-    fileName: payload.file.name,
-    fileUrl: muxVideo.playbackUrl,
-    storage: 'mux',
-  }
-}
 
 const uploadVideoAssetToR2 = async (payload: UploadVideoAssetPayload): Promise<UploadAssetResponse> => {
   const start = await request<R2MultipartStartResponse>('/api/uploads/r2/multipart/start', {
@@ -847,10 +721,6 @@ export const api = {
     return uploadRequest<UploadAssetResponse>('/api/uploads', formData, payload.onProgress)
   },
   uploadVideoAsset: async (payload: UploadVideoAssetPayload) => {
-    if (DIRECT_MUX_VIDEO_UPLOAD) {
-      return uploadVideoAssetToMux(payload)
-    }
-
     return uploadVideoAssetToR2(payload)
   },
   inspectUploadedVideo: (fileUrl: string) =>
@@ -959,3 +829,4 @@ export const api = {
       method: 'POST',
     }),
 }
+

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, PlayCircle } from 'lucide-react'
 import type { Lesson } from '../types/course'
 import {
@@ -10,8 +10,6 @@ import {
   savePlaybackTime,
 } from '../utils/playback'
 import { resolveVideoSource } from '../utils/video'
-
-const MuxPlayer = lazy(() => import('@mux/mux-player-react'))
 
 interface VideoPlayerProps {
   lesson: Lesson
@@ -70,14 +68,6 @@ export default function VideoPlayer({ lesson, poster, courseTitle, compact = fal
     }
   }
 
-  const showFirstVideoFrame = (event: React.SyntheticEvent<HTMLVideoElement>) => {
-    restorePlaybackPosition(event.currentTarget)
-  }
-
-  const restoreMuxPlaybackPosition = (event: Event) => {
-    restorePlaybackPosition(event.currentTarget as unknown as PlaybackTarget)
-  }
-
   const rememberPlaybackTargetTime = (target: PlaybackTarget) => {
     const currentSecond = Math.floor(target.currentTime)
 
@@ -95,14 +85,6 @@ export default function VideoPlayer({ lesson, poster, courseTitle, compact = fal
 
     lastSavedSecondRef.current = currentSecond
     savePlaybackTime(lesson.id, target.currentTime, target.duration)
-  }
-
-  const rememberPlaybackTime = (event: React.SyntheticEvent<HTMLVideoElement>) => {
-    rememberPlaybackTargetTime(event.currentTarget)
-  }
-
-  const rememberMuxPlaybackTime = (event: Event) => {
-    rememberPlaybackTargetTime(event.currentTarget as unknown as PlaybackTarget)
   }
 
   const clearFinishedPlayback = (target?: PlaybackTarget) => {
@@ -129,28 +111,6 @@ export default function VideoPlayer({ lesson, poster, courseTitle, compact = fal
               referrerPolicy="strict-origin-when-cross-origin"
               allowFullScreen
             />
-          ) : videoSource.kind === 'mux' ? (
-            <Suspense
-              fallback={
-                <div className="flex aspect-video max-h-[68vh] w-full items-center justify-center bg-slate-950 text-sm text-slate-300">
-                  กำลังโหลดวิดีโอ...
-                </div>
-              }
-            >
-              <MuxPlayer
-                className="aspect-video max-h-[68vh] w-full bg-slate-950"
-                playbackId={videoSource.playbackId}
-                streamType="on-demand"
-                poster={poster}
-                onLoadedMetadata={restoreMuxPlaybackPosition}
-                onLoadedData={() => setPlaybackError(null)}
-                onTimeUpdate={rememberMuxPlaybackTime}
-                onPause={rememberMuxPlaybackTime}
-                onSeeked={rememberMuxPlaybackTime}
-                onEnded={(event) => clearFinishedPlayback(event.currentTarget as unknown as PlaybackTarget)}
-                onError={() => setPlaybackError('วิดีโอนี้เปิดไม่ได้ในเบราว์เซอร์ กรุณาตรวจสอบ Mux playback ID หรือสถานะวิดีโอ')}
-              />
-            </Suspense>
           ) : (
             <video
               key={videoSource.src}
@@ -160,11 +120,11 @@ export default function VideoPlayer({ lesson, poster, courseTitle, compact = fal
               preload="auto"
               poster={poster}
               src={videoSource.src}
-              onLoadedMetadata={showFirstVideoFrame}
+              onLoadedMetadata={(event) => restorePlaybackPosition(event.currentTarget)}
               onLoadedData={() => setPlaybackError(null)}
-              onTimeUpdate={rememberPlaybackTime}
-              onPause={rememberPlaybackTime}
-              onSeeked={rememberPlaybackTime}
+              onTimeUpdate={(event) => rememberPlaybackTargetTime(event.currentTarget)}
+              onPause={(event) => rememberPlaybackTargetTime(event.currentTarget)}
+              onSeeked={(event) => rememberPlaybackTargetTime(event.currentTarget)}
               onEnded={(event) => clearFinishedPlayback(event.currentTarget)}
               onError={() =>
                 setPlaybackError('วิดีโอนี้เปิดไม่ได้ในเบราว์เซอร์ กรุณาตรวจสอบ URL หรือใช้ลิงก์ MP4 ที่เข้าถึงได้โดยตรง')
@@ -181,7 +141,7 @@ export default function VideoPlayer({ lesson, poster, courseTitle, compact = fal
               </div>
             </div>
           ) : null}
-          {(videoSource.kind === 'direct' || videoSource.kind === 'mux') && savedPlaybackTime > 3 && !playbackError ? (
+          {videoSource.kind === 'direct' && savedPlaybackTime > 3 && !playbackError ? (
             <div className="border-t border-white/10 bg-slate-950 px-4 py-2 text-xs text-slate-300">
               เรียนค้างไว้ที่ {formatPlaybackTime(savedPlaybackTime)}
             </div>

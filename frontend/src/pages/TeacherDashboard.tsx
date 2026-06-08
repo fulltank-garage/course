@@ -32,7 +32,6 @@ import { api, authStorage, type StudentProfile } from '../services/api'
 import type { Course, CourseStudent, Lesson } from '../types/course'
 
 const emptyCoverPreview = ''
-const directMuxVideoUploadEnabled = import.meta.env.VITE_DIRECT_MUX_VIDEO_UPLOAD === 'true'
 const maxCoverImageBytes = 5 * 1024 * 1024
 
 const createEmptyDraft = () => ({
@@ -175,20 +174,6 @@ const formatUploadSpeed = (bytesPerSecond: number) => {
   if (bytesPerSecond >= 1024 * 1024) return `${(bytesPerSecond / 1024 / 1024).toFixed(1)} MB/s`
   if (bytesPerSecond >= 1024) return `${Math.round(bytesPerSecond / 1024)} KB/s`
   return `${Math.round(bytesPerSecond)} B/s`
-}
-
-const getMuxPlayerEmbedUrl = (value: string | null | undefined) => {
-  if (!value) return null
-
-  try {
-    const url = new URL(value)
-    if (url.hostname.toLowerCase() !== 'player.mux.com') return null
-
-    const playbackId = url.pathname.split('/').filter(Boolean)[0]
-    return playbackId ? `https://player.mux.com/${playbackId}` : null
-  } catch {
-    return null
-  }
 }
 
 const formatVideoDuration = (durationSeconds: number) => {
@@ -941,14 +926,10 @@ function LessonManagerModal({
   onDelete: (lessonId: string) => void
 }) {
   const videoPreviewSrc = videoPreviewUrl || draft.videoUrl
-  const muxEmbedUrl = videoPreviewUrl ? null : getMuxPlayerEmbedUrl(draft.videoUrl)
   const [videoPreviewError, setVideoPreviewError] = useState(false)
   const [showVideoPreview, setShowVideoPreview] = useState(false)
-  const uploadStatusText = directMuxVideoUploadEnabled
-    ? uploadProgress !== null && uploadProgress >= 92
-      ? 'อัปโหลดครบแล้ว กำลังรอ Mux ประมวลผลวิดีโอ...'
-      : 'กำลังอัปโหลดวิดีโอไป Mux'
-    : uploadProgress !== null && uploadProgress >= 92
+  const uploadStatusText =
+    uploadProgress !== null && uploadProgress >= 92
       ? 'อัปโหลดไฟล์ครบแล้ว กำลังประมวลผลวิดีโอเบื้องหลัง...'
       : 'กำลังอัปโหลดวิดีโอ'
 
@@ -1193,9 +1174,7 @@ function LessonManagerModal({
                           disabled={uploading}
                         />
                         <p className="mt-2 text-xs leading-5 text-zinc-500">
-                          {directMuxVideoUploadEnabled
-                            ? 'อัปโหลดตรงไป Mux และรอประมวลผลอัตโนมัติ'
-                            : 'อัปโหลดได้ไม่เกิน 1GB ระบบจะบีบอัดให้อยู่ราว 300-500MB ตามความยาวและคุณภาพ'}
+                          อัปโหลดได้ไม่เกิน 1GB ระบบจะบีบอัดให้อยู่ราว 300-500MB ตามความยาวและคุณภาพ
                         </p>
                       </label>
 
@@ -1290,29 +1269,19 @@ function LessonManagerModal({
 
                   {showVideoPreview ? (
                     <div className="border-t border-zinc-200 bg-black">
-                      {muxEmbedUrl ? (
-                        <iframe
-                          className="aspect-video max-h-[52vh] w-full bg-black"
-                          src={muxEmbedUrl}
-                          title="ตัวอย่างวิดีโอจาก Mux"
-                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                          allowFullScreen
-                        />
-                      ) : (
-                        <video
-                          key={videoPreviewSrc}
-                          className="aspect-video max-h-[52vh] w-full bg-black object-contain"
-                          controls
-                          playsInline
-                          preload="auto"
-                          poster={(videoPosterUrl ?? draft.posterUrl) || undefined}
-                          src={videoPreviewSrc}
-                          onError={() => setVideoPreviewError(true)}
-                          onLoadedMetadata={showFirstVideoFrame}
-                          onLoadedData={() => setVideoPreviewError(false)}
-                        />
-                      )}
-                      {videoPreviewError && !muxEmbedUrl ? (
+                      <video
+                        key={videoPreviewSrc}
+                        className="aspect-video max-h-[52vh] w-full bg-black object-contain"
+                        controls
+                        playsInline
+                        preload="auto"
+                        poster={(videoPosterUrl ?? draft.posterUrl) || undefined}
+                        src={videoPreviewSrc}
+                        onError={() => setVideoPreviewError(true)}
+                        onLoadedMetadata={showFirstVideoFrame}
+                        onLoadedData={() => setVideoPreviewError(false)}
+                      />
+                      {videoPreviewError ? (
                         <p className="border-t border-rose-400/20 bg-rose-950/40 px-4 py-2 text-xs text-rose-100">
                           แสดงตัวอย่างวิดีโอไม่ได้ อาจเป็นไฟล์ที่ browser ไม่รองรับ หรือเป็นลิงก์ที่ไม่ใช่ไฟล์วิดีโอโดยตรง
                         </p>
@@ -1856,7 +1825,7 @@ export default function TeacherDashboard() {
           const now = performance.now()
           const elapsedSeconds = (now - lastProgressSample.timestamp) / 1000
           const progressDelta = progress - lastProgressSample.progress
-          const uploadProgressMax = directMuxVideoUploadEnabled ? 90 : 99
+          const uploadProgressMax = 99
 
           if (elapsedSeconds >= 0.4 && progressDelta > 0 && progress <= uploadProgressMax) {
             const uploadedByteDelta = (Math.min(progressDelta, uploadProgressMax) / uploadProgressMax) * file.size
@@ -1874,11 +1843,9 @@ export default function TeacherDashboard() {
       setLessonMessage({
         tone: 'success',
         text:
-          uploaded.storage === 'mux'
-            ? 'อัปโหลดวิดีโอไป Mux สำเร็จ ได้ลิงก์สำหรับเล่นวิดีโอแล้ว'
-            : uploaded.storage === 'r2'
-              ? 'อัปโหลดวิดีโอไป Cloudflare R2 สำเร็จ'
-              : 'อัปโหลดวิดีโอสำเร็จ ระบบตรวจและแปลงเป็นไฟล์ที่ browser เล่นได้แล้ว',
+          uploaded.storage === 'r2'
+            ? 'อัปโหลดวิดีโอไป Cloudflare R2 สำเร็จ'
+            : 'อัปโหลดวิดีโอสำเร็จ ระบบตรวจและแปลงเป็นไฟล์ที่ browser เล่นได้แล้ว',
       })
     } catch (currentError) {
       setLessonMessage({
