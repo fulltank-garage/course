@@ -39,3 +39,5 @@ backend/uploads/*
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+.codex/
+hatch-pet-runs/
