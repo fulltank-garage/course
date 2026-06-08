@@ -308,8 +308,19 @@ const ensureAuthSchema = async () => {
       bio TEXT NOT NULL DEFAULT '',
       learning_goal TEXT NOT NULL DEFAULT '',
       phone TEXT NOT NULL DEFAULT '',
+      bank_name TEXT NOT NULL DEFAULT '',
+      bank_account_name TEXT NOT NULL DEFAULT '',
+      bank_account_number TEXT NOT NULL DEFAULT '',
+      payment_qr_url TEXT NOT NULL DEFAULT '',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `)
+  await query(`
+    ALTER TABLE user_profiles
+    ADD COLUMN IF NOT EXISTS bank_name TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS bank_account_name TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS bank_account_number TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS payment_qr_url TEXT NOT NULL DEFAULT ''
   `)
   await query(`
     CREATE TABLE IF NOT EXISTS teacher_applications (
@@ -2720,7 +2731,7 @@ const saveUploadAsset = async (request) => {
     const { fields, filePart } = parseMultipartFormData(contentType, rawBody)
     const kind = String(fields.kind ?? '').trim()
 
-    if (!['cover', 'video', 'avatar', 'sponsor'].includes(kind) || !filePart) {
+    if (!['cover', 'video', 'avatar', 'sponsor', 'paymentQr'].includes(kind) || !filePart) {
       return { statusCode: 400, payload: { message: 'ข้อมูลไฟล์ไม่ครบ' } }
     }
 
@@ -2745,7 +2756,7 @@ const saveUploadAsset = async (request) => {
   const fileName = String(body.fileName ?? '').trim()
   const dataUrl = String(body.dataUrl ?? '')
 
-  if (!['cover', 'video', 'avatar', 'sponsor'].includes(kind) || !fileName || !dataUrl) {
+  if (!['cover', 'video', 'avatar', 'sponsor', 'paymentQr'].includes(kind) || !fileName || !dataUrl) {
     return { statusCode: 400, payload: { message: 'ข้อมูลไฟล์ไม่ครบ' } }
   }
 
@@ -4574,7 +4585,18 @@ const getStudentDashboard = async (studentId) => {
 const getUserProfile = async (userId) => {
   const result = await query(
     `
-      SELECT u.name, p.headline, p.bio, p.learning_goal, p.phone, p.updated_at, u.avatar_url
+      SELECT
+        u.name,
+        p.headline,
+        p.bio,
+        p.learning_goal,
+        p.phone,
+        p.bank_name,
+        p.bank_account_name,
+        p.bank_account_number,
+        p.payment_qr_url,
+        p.updated_at,
+        u.avatar_url
       FROM users u
       LEFT JOIN user_profiles p ON p.user_id = u.id
       WHERE u.id = $1
@@ -4592,6 +4614,10 @@ const getUserProfile = async (userId) => {
       learningGoal: '',
       phone: '',
       avatarUrl: '',
+      bankName: '',
+      bankAccountName: '',
+      bankAccountNumber: '',
+      paymentQrUrl: '',
       updatedAt: null,
     }
   }
@@ -4603,6 +4629,10 @@ const getUserProfile = async (userId) => {
     learningGoal: profile.learning_goal ?? '',
     phone: profile.phone ?? '',
     avatarUrl: profile.avatar_url ?? '',
+    bankName: profile.bank_name ?? '',
+    bankAccountName: profile.bank_account_name ?? '',
+    bankAccountNumber: profile.bank_account_number ?? '',
+    paymentQrUrl: profile.payment_qr_url ?? '',
     updatedAt: profile.updated_at,
   }
 }
@@ -4621,6 +4651,10 @@ const updateStudentProfile = async (request) => {
   const learningGoal = String(body.learningGoal ?? '').trim()
   const phone = String(body.phone ?? '').trim()
   const avatarUrl = String(body.avatarUrl ?? '').trim()
+  const bankName = String(body.bankName ?? '').trim()
+  const bankAccountName = String(body.bankAccountName ?? '').trim()
+  const bankAccountNumber = String(body.bankAccountNumber ?? '').trim()
+  const paymentQrUrl = String(body.paymentQrUrl ?? '').trim()
 
   if (!name) {
     return { statusCode: 400, payload: { message: 'กรุณากรอกชื่อ' } }
@@ -4628,17 +4662,32 @@ const updateStudentProfile = async (request) => {
 
   await query(
     `
-      INSERT INTO user_profiles (user_id, headline, bio, learning_goal, phone, updated_at)
-      VALUES ($1, $2, $3, $4, $5, NOW())
+      INSERT INTO user_profiles (
+        user_id,
+        headline,
+        bio,
+        learning_goal,
+        phone,
+        bank_name,
+        bank_account_name,
+        bank_account_number,
+        payment_qr_url,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
       ON CONFLICT (user_id)
       DO UPDATE SET
         headline = EXCLUDED.headline,
         bio = EXCLUDED.bio,
         learning_goal = EXCLUDED.learning_goal,
         phone = EXCLUDED.phone,
+        bank_name = EXCLUDED.bank_name,
+        bank_account_name = EXCLUDED.bank_account_name,
+        bank_account_number = EXCLUDED.bank_account_number,
+        payment_qr_url = EXCLUDED.payment_qr_url,
         updated_at = NOW()
     `,
-    [authUser.id, headline, bio, learningGoal, phone],
+    [authUser.id, headline, bio, learningGoal, phone, bankName, bankAccountName, bankAccountNumber, paymentQrUrl],
   )
 
   await query('UPDATE users SET name = $1, avatar_url = $2 WHERE id = $3', [
@@ -4871,6 +4920,10 @@ const updateTeacherProfile = async (request) => {
   const learningGoal = String(body.learningGoal ?? '').trim()
   const phone = String(body.phone ?? '').trim()
   const avatarUrl = String(body.avatarUrl ?? '').trim()
+  const bankName = String(body.bankName ?? '').trim()
+  const bankAccountName = String(body.bankAccountName ?? '').trim()
+  const bankAccountNumber = String(body.bankAccountNumber ?? '').trim()
+  const paymentQrUrl = String(body.paymentQrUrl ?? '').trim()
 
   if (!name) {
     return { statusCode: 400, payload: { message: 'กรุณากรอกชื่อ' } }
@@ -4878,17 +4931,32 @@ const updateTeacherProfile = async (request) => {
 
   await query(
     `
-      INSERT INTO user_profiles (user_id, headline, bio, learning_goal, phone, updated_at)
-      VALUES ($1, $2, $3, $4, $5, NOW())
+      INSERT INTO user_profiles (
+        user_id,
+        headline,
+        bio,
+        learning_goal,
+        phone,
+        bank_name,
+        bank_account_name,
+        bank_account_number,
+        payment_qr_url,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
       ON CONFLICT (user_id)
       DO UPDATE SET
         headline = EXCLUDED.headline,
         bio = EXCLUDED.bio,
         learning_goal = EXCLUDED.learning_goal,
         phone = EXCLUDED.phone,
+        bank_name = EXCLUDED.bank_name,
+        bank_account_name = EXCLUDED.bank_account_name,
+        bank_account_number = EXCLUDED.bank_account_number,
+        payment_qr_url = EXCLUDED.payment_qr_url,
         updated_at = NOW()
     `,
-    [authUser.id, headline, bio, learningGoal, phone],
+    [authUser.id, headline, bio, learningGoal, phone, bankName, bankAccountName, bankAccountNumber, paymentQrUrl],
   )
 
   await query('UPDATE users SET name = $1, avatar_url = $2 WHERE id = $3', [

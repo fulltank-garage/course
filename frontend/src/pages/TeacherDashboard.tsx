@@ -11,16 +11,19 @@ import {
   EyeOff,
   Home,
   ImagePlus,
+  Landmark,
   LibraryBig,
   LoaderCircle,
   LogOut,
   Mail,
   Plus,
+  QrCode,
   Search,
   Settings,
   Star,
   TextSearch,
   Trash2,
+  Upload,
   UserRound,
   UsersRound,
   Video,
@@ -66,7 +69,10 @@ type LessonDraft = {
   videoUrl: string
   posterUrl: string
 }
-type TeacherProfileDraft = Pick<StudentProfile, 'name' | 'headline' | 'bio' | 'phone' | 'avatarUrl'>
+type TeacherProfileDraft = Pick<
+  StudentProfile,
+  'name' | 'headline' | 'bio' | 'phone' | 'avatarUrl' | 'bankName' | 'bankAccountName' | 'bankAccountNumber' | 'paymentQrUrl'
+>
 
 const emptyLessonDraft: LessonDraft = {
   title: '',
@@ -335,6 +341,10 @@ const emptyTeacherProfile: TeacherProfileDraft = {
   bio: '',
   phone: '',
   avatarUrl: '',
+  bankName: '',
+  bankAccountName: '',
+  bankAccountNumber: '',
+  paymentQrUrl: '',
 }
 
 const draftFromCourse = (course: Course): CourseDraft => {
@@ -1441,6 +1451,10 @@ export default function TeacherDashboard() {
         learningGoal: '',
         phone: '',
         avatarUrl: data.user.avatarUrl ?? '',
+        bankName: '',
+        bankAccountName: '',
+        bankAccountNumber: '',
+        paymentQrUrl: '',
         updatedAt: null,
       }
     : null
@@ -1454,13 +1468,21 @@ export default function TeacherDashboard() {
       bio: currentTeacherProfile.bio,
       phone: currentTeacherProfile.phone,
       avatarUrl: currentTeacherProfile.avatarUrl || data.user.avatarUrl || '',
+      bankName: currentTeacherProfile.bankName,
+      bankAccountName: currentTeacherProfile.bankAccountName,
+      bankAccountNumber: currentTeacherProfile.bankAccountNumber,
+      paymentQrUrl: currentTeacherProfile.paymentQrUrl,
     })
   }, [
     currentTeacherProfile?.avatarUrl,
     currentTeacherProfile?.bio,
+    currentTeacherProfile?.bankAccountName,
+    currentTeacherProfile?.bankAccountNumber,
+    currentTeacherProfile?.bankName,
     currentTeacherProfile?.headline,
     currentTeacherProfile?.name,
     currentTeacherProfile?.phone,
+    currentTeacherProfile?.paymentQrUrl,
     currentTeacherProfile?.updatedAt,
     data?.user.avatarUrl,
     data?.user.id,
@@ -1943,6 +1965,19 @@ export default function TeacherDashboard() {
     }
   }
 
+  const handlePaymentQrChange = async (file: File | undefined) => {
+    if (!file) return
+
+    setProfileError(null)
+
+    try {
+      const uploaded = await api.uploadAsset({ kind: 'paymentQr', file })
+      setProfileDraft((current) => ({ ...current, paymentQrUrl: uploaded.fileUrl }))
+    } catch (currentError) {
+      setProfileError(currentError instanceof Error ? currentError.message : 'อัปโหลด QR code ไม่สำเร็จ')
+    }
+  }
+
   const saveTeacherProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -1958,6 +1993,10 @@ export default function TeacherDashboard() {
         bio: profileDraft.bio,
         phone: profileDraft.phone,
         avatarUrl: profileDraft.avatarUrl,
+        bankName: profileDraft.bankName,
+        bankAccountName: profileDraft.bankAccountName,
+        bankAccountNumber: profileDraft.bankAccountNumber,
+        paymentQrUrl: profileDraft.paymentQrUrl,
         learningGoal: currentTeacherProfile.learningGoal,
       })
       setTeacherProfile(nextProfile)
@@ -2192,59 +2231,104 @@ export default function TeacherDashboard() {
         avatarUrl={currentTeacherProfile.avatarUrl || data.user.avatarUrl}
       >
         <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-          <form className="grid gap-0 lg:grid-cols-[280px_minmax(0,1fr)]" onSubmit={saveTeacherProfile}>
-            <div className="border-b border-slate-200 bg-slate-50 p-5 lg:border-b-0 lg:border-r">
-              <div className="flex flex-col items-start gap-4">
-                <label className="group relative block h-32 w-32 cursor-pointer overflow-hidden rounded-lg bg-slate-950 text-white">
-                  {profileDraft.avatarUrl ? (
-                    <img src={profileDraft.avatarUrl} alt="รูปโปรไฟล์" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="inline-flex h-full w-full items-center justify-center bg-slate-950 text-white">
-                      <UserRound size={40} />
+          <form className="grid gap-0 lg:grid-cols-[320px_minmax(0,1fr)]" onSubmit={saveTeacherProfile}>
+            <aside className="border-b border-slate-200 bg-slate-50 p-5 lg:border-b-0 lg:border-r">
+              <div className="space-y-6">
+                <div>
+                  <p className="text-sm font-semibold text-slate-950">รูปโปรไฟล์</p>
+                  <label className="group mt-3 block h-40 w-40 cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 text-white">
+                    {profileDraft.avatarUrl ? (
+                      <img src={profileDraft.avatarUrl} alt="รูปโปรไฟล์" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="inline-flex h-full w-full items-center justify-center bg-slate-950 text-white">
+                        <UserRound size={48} />
+                      </span>
+                    )}
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100">
+                      <Camera size={26} />
                     </span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={uploadingAvatar}
+                      onChange={(event) => handleProfileAvatarChange(event.target.files?.[0])}
+                    />
+                  </label>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    {uploadingAvatar ? 'กำลังอัปโหลดรูป...' : 'คลิกเพื่อเปลี่ยนรูป รองรับ JPG, PNG, WEBP ไม่เกิน 5MB'}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 text-white">
+                      <QrCode size={18} />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">QR รับเงิน</p>
+                      <p className="text-xs text-slate-500">อัปโหลดรูปคิวอาร์โค้ดสำหรับนักเรียนจ่ายเงิน</p>
+                    </div>
+                  </div>
+
+                  <label className="mt-4 block">
+                    <span className="field-label">อัปโหลด QR code</span>
+                    <div className="mt-2 flex items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+                        <Upload size={16} />
+                        เลือกไฟล์
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(event) => handlePaymentQrChange(event.target.files?.[0])}
+                        />
+                      </label>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-slate-700">
+                          {profileDraft.paymentQrUrl ? 'อัปโหลดเรียบร้อย' : 'ยังไม่ได้อัปโหลดไฟล์'}
+                        </p>
+                        <p className="text-xs text-slate-500">แนะนำ PNG พื้นหลังโปร่งใสหรือ JPG คมชัด</p>
+                      </div>
+                    </div>
+                  </label>
+
+                  {profileDraft.paymentQrUrl ? (
+                    <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                      <img src={profileDraft.paymentQrUrl} alt="QR รับเงิน" className="aspect-square w-full object-contain p-3" />
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex aspect-square items-center justify-center rounded-xl border border-slate-200 bg-white text-sm text-slate-400">
+                      ยังไม่มี QR code
+                    </div>
                   )}
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100">
-                    <Camera size={26} />
-                  </span>
+                </div>
+              </div>
+            </aside>
+
+            <div className="space-y-5 p-5">
+              <div className="grid gap-5 md:grid-cols-2">
+                <label className="block">
+                  <span className="field-label">ชื่อที่แสดง</span>
                   <input
-                    type="file"
-                    className="hidden"
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={uploadingAvatar}
-                    onChange={(event) => handleProfileAvatarChange(event.target.files?.[0])}
+                    className="field-input"
+                    value={profileDraft.name}
+                    onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="ชื่อคุณครู"
+                    required
                   />
                 </label>
 
-                <div>
-                  <p className="text-sm font-semibold text-slate-950">รูปโปรไฟล์</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    {uploadingAvatar ? 'กำลังอัปโหลดรูป...' : 'คลิกที่รูปเพื่อเปลี่ยน รองรับ JPG, PNG, WEBP ไม่เกิน 5MB'}
-                  </p>
-                </div>
+                <label className="block">
+                  <span className="field-label">ตำแหน่ง / ความเชี่ยวชาญ</span>
+                  <input
+                    className="field-input"
+                    value={profileDraft.headline}
+                    onChange={(event) => setProfileDraft((current) => ({ ...current, headline: event.target.value }))}
+                    placeholder="เช่น Frontend Instructor"
+                  />
+                </label>
               </div>
-            </div>
-
-            <div className="space-y-4 p-5">
-              <label className="block">
-                <span className="field-label">ชื่อที่แสดง</span>
-                <input
-                  className="field-input"
-                  value={profileDraft.name}
-                  onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="ชื่อคุณครู"
-                  required
-                />
-              </label>
-
-              <label className="block">
-                <span className="field-label">ตำแหน่ง / ความเชี่ยวชาญ</span>
-                <input
-                  className="field-input"
-                  value={profileDraft.headline}
-                  onChange={(event) => setProfileDraft((current) => ({ ...current, headline: event.target.value }))}
-                  placeholder="เช่น Frontend Instructor"
-                />
-              </label>
 
               <label className="block">
                 <span className="field-label">เกี่ยวกับคุณครู</span>
@@ -2256,15 +2340,71 @@ export default function TeacherDashboard() {
                 />
               </label>
 
-              <label className="block">
-                <span className="field-label">เบอร์ติดต่อ</span>
-                <input
-                  className="field-input"
-                  value={profileDraft.phone}
-                  onChange={(event) => setProfileDraft((current) => ({ ...current, phone: event.target.value }))}
-                  placeholder="เบอร์ติดต่อ"
-                />
-              </label>
+              <div className="grid gap-5 md:grid-cols-2">
+                <label className="block">
+                  <span className="field-label">เบอร์ติดต่อ</span>
+                  <input
+                    className="field-input"
+                    value={profileDraft.phone}
+                    onChange={(event) => setProfileDraft((current) => ({ ...current, phone: event.target.value }))}
+                    placeholder="เบอร์ติดต่อ"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="field-label">ธนาคาร</span>
+                  <input
+                    className="field-input"
+                    value={profileDraft.bankName}
+                    onChange={(event) => setProfileDraft((current) => ({ ...current, bankName: event.target.value }))}
+                    placeholder="เช่น กสิกรไทย"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <label className="block">
+                  <span className="field-label">ชื่อบัญชี</span>
+                  <input
+                    className="field-input"
+                    value={profileDraft.bankAccountName}
+                    onChange={(event) => setProfileDraft((current) => ({ ...current, bankAccountName: event.target.value }))}
+                    placeholder="ชื่อบัญชีให้ตรงหน้าธนาคาร"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="field-label">เลขบัญชี</span>
+                  <input
+                    className="field-input"
+                    value={profileDraft.bankAccountNumber}
+                    onChange={(event) => setProfileDraft((current) => ({ ...current, bankAccountNumber: event.target.value }))}
+                    placeholder="เลขบัญชีรับเงิน"
+                  />
+                </label>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                  <Landmark size={16} />
+                  ข้อมูลรับเงินที่จะแสดงให้นักเรียนเห็น
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  ครูควรใส่ชื่อบัญชีให้ชัดเจนและอัปโหลด QR code ที่สแกนจ่ายได้ทันที เพื่อให้นักเรียนโอนเงินได้ง่ายขึ้น
+                </p>
+                {profileDraft.bankAccountName || profileDraft.bankAccountNumber ? (
+                  <div className="mt-4 grid gap-3 rounded-xl bg-white p-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-slate-500">ชื่อบัญชี</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-950">{profileDraft.bankAccountName || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">เลขบัญชี</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-950">{profileDraft.bankAccountNumber || '-'}</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
 
               {profileError ? <p className="rounded-md bg-rose-50 p-3 text-sm text-rose-700">{profileError}</p> : null}
 

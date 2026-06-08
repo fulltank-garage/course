@@ -38,7 +38,27 @@ export interface StudentProfile {
   learningGoal: string
   phone: string
   avatarUrl: string
+  bankName: string
+  bankAccountName: string
+  bankAccountNumber: string
+  paymentQrUrl: string
   updatedAt: string | null
+}
+
+export interface ProfileBasePayload {
+  name: string
+  headline: string
+  bio: string
+  learningGoal: string
+  phone: string
+  avatarUrl: string
+}
+
+export interface TeacherProfilePayload extends ProfileBasePayload {
+  bankName: string
+  bankAccountName: string
+  bankAccountNumber: string
+  paymentQrUrl: string
 }
 
 export interface TeacherDashboardData {
@@ -113,13 +133,13 @@ export interface AuthSession {
 }
 
 export interface UploadAssetPayload {
-  kind: 'cover' | 'video' | 'avatar' | 'sponsor'
+  kind: 'cover' | 'video' | 'avatar' | 'sponsor' | 'paymentQr'
   file: File
   onProgress?: (progress: number) => void
 }
 
 export interface UploadAssetResponse {
-  kind: 'cover' | 'video' | 'avatar' | 'sponsor'
+  kind: 'cover' | 'video' | 'avatar' | 'sponsor' | 'paymentQr'
   fileName: string
   fileUrl: string
   posterUrl?: string
@@ -791,7 +811,7 @@ export const api = {
     studentDashboardStorage.set(dashboard)
     return dashboard
   },
-  updateStudentProfile: (payload: Omit<StudentProfile, 'updatedAt'>) =>
+  updateStudentProfile: (payload: ProfileBasePayload) =>
     request<StudentProfile>('/api/student/profile', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -803,7 +823,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   getTeacherDashboard: () => request<TeacherDashboardData>('/api/teacher/dashboard'),
-  updateTeacherProfile: (payload: Omit<StudentProfile, 'updatedAt'>) =>
+  updateTeacherProfile: (payload: TeacherProfilePayload) =>
     request<StudentProfile>('/api/teacher/profile', {
       method: 'POST',
       body: JSON.stringify(payload),
