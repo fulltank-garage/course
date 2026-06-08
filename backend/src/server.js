@@ -13,13 +13,20 @@ import { pool, query } from './db.js'
 const port = Number(process.env.PORT ?? 4000)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const aiProvider = process.env.AI_PROVIDER ?? 'none'
-const aiModel = process.env.AI_MODEL ?? 'not-configured'
+const normalizeGeminiModel = (model) => {
+  const normalizedModel = String(model ?? '').trim()
+  if (!normalizedModel || normalizedModel === 'not-configured') return 'gemini-2.5-flash'
+  if (normalizedModel === 'gemini-2.0-flash') return 'gemini-2.5-flash'
+
+  return normalizedModel
+}
+const aiModel = normalizeGeminiModel(process.env.AI_MODEL)
 const aiRequestTimeoutSeconds = Math.max(30, Number(process.env.AI_REQUEST_TIMEOUT_SECONDS ?? 300) || 300)
 const aiPromptTranscriptMaxChars = Math.max(12000, Number(process.env.AI_PROMPT_TRANSCRIPT_MAX_CHARS ?? 28000) || 28000)
 const aiQuestionContextMaxChars = Math.max(8000, Number(process.env.AI_QUESTION_CONTEXT_MAX_CHARS ?? 18000) || 18000)
 const aiSummaryChunkChars = Math.max(8000, Number(process.env.AI_SUMMARY_CHUNK_CHARS ?? 14000) || 14000)
 const aiSummaryMaxChunks = Math.max(3, Number(process.env.AI_SUMMARY_MAX_CHUNKS ?? 4) || 4)
-const transcribeModel = process.env.TRANSCRIBE_MODEL ?? aiModel
+const transcribeModel = normalizeGeminiModel(process.env.TRANSCRIBE_MODEL ?? aiModel)
 const geminiApiKey = process.env.GEMINI_API_KEY ?? ''
 const ffmpegBinary = process.env.FFMPEG_PATH ?? 'ffmpeg'
 const transcodeUploadedVideos = process.env.TRANSCODE_UPLOADED_VIDEOS === 'true'
@@ -1915,6 +1922,25 @@ const updateLessonAiStatus = async (lessonId, status, errorMessage = null) => {
   )
 }
 
+const prepareLessonVideoForTranscription = async (videoUrl) => {
+  const localPath = getLocalUploadPath(videoUrl)
+  if (localPath) {
+    return { absolutePath: localPath, shouldDeleteTempFile: false }
+  }
+
+  if (isRemoteHttpUrl(videoUrl)) {
+    return {
+      absolutePath: await downloadRemoteFileStreamWithLimit(videoUrl, {
+        maxBytes: muxAudioDownloadMaxBytes,
+        extension: path.extname(new URL(videoUrl).pathname) || '.mp4',
+      }),
+      shouldDeleteTempFile: true,
+    }
+  }
+
+  return { absolutePath: null, shouldDeleteTempFile: false }
+}
+
 const autoTranscribeLesson = async (lessonId, videoUrl) => {
   if (aiProvider !== 'gemini') {
     console.warn(`Skip transcript for lesson ${lessonId}: AI_PROVIDER is not gemini`)
@@ -1922,19 +1948,15 @@ const autoTranscribeLesson = async (lessonId, videoUrl) => {
     return
   }
 
-  let absolutePath = getLocalUploadPath(videoUrl)
+  let absolutePath = null
   let shouldDeleteTempFile = false
 
   try {
     await updateLessonAiStatus(lessonId, 'processing', null)
 
-    if (!absolutePath && isRemoteHttpUrl(videoUrl)) {
-      absolutePath = await downloadRemoteFileStreamWithLimit(videoUrl, {
-        maxBytes: muxAudioDownloadMaxBytes,
-        extension: path.extname(new URL(videoUrl).pathname) || '.mp4',
-      })
-      shouldDeleteTempFile = true
-    }
+    const preparedMedia = await prepareLessonVideoForTranscription(videoUrl)
+    absolutePath = preparedMedia.absolutePath
+    shouldDeleteTempFile = preparedMedia.shouldDeleteTempFile
 
     if (!absolutePath) {
       await updateLessonAiStatus(lessonId, 'failed', 'ไม่พบไฟล์วิดีโอสำหรับถอดสคริปต์')
@@ -3329,10 +3351,14 @@ const transcribeLessonVideo = async (request, lessonId) => {
     return { statusCode: 400, payload: { message: 'Lesson video is required before transcription' } }
   }
 
-  let absolutePath = getLocalUploadPath(videoUrl)
+  let absolutePath = null
   let shouldDeleteTempFile = false
 
   try {
+    const preparedMedia = await prepareLessonVideoForTranscription(videoUrl)
+    absolutePath = preparedMedia.absolutePath
+    shouldDeleteTempFile = preparedMedia.shouldDeleteTempFile
+
     if (!absolutePath) {
       return {
         statusCode: 400,
