@@ -311,6 +311,7 @@ const ensureAuthSchema = async () => {
       bank_name TEXT NOT NULL DEFAULT '',
       bank_account_name TEXT NOT NULL DEFAULT '',
       bank_account_number TEXT NOT NULL DEFAULT '',
+      promptpay_id TEXT NOT NULL DEFAULT '',
       payment_qr_url TEXT NOT NULL DEFAULT '',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
@@ -320,6 +321,7 @@ const ensureAuthSchema = async () => {
     ADD COLUMN IF NOT EXISTS bank_name TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS bank_account_name TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS bank_account_number TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS promptpay_id TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS payment_qr_url TEXT NOT NULL DEFAULT ''
   `)
   await query(`
@@ -4051,6 +4053,7 @@ const toInstructor = (row) => ({
   bankName: row.instructor_bank_name ?? '',
   bankAccountName: row.instructor_bank_account_name ?? '',
   bankAccountNumber: row.instructor_bank_account_number ?? '',
+  promptPayId: row.instructor_promptpay_id ?? '',
   paymentQrUrl: row.instructor_payment_qr_url ?? '',
 })
 
@@ -4091,6 +4094,7 @@ const courseSelect = `
     p.bank_name AS instructor_bank_name,
     p.bank_account_name AS instructor_bank_account_name,
     p.bank_account_number AS instructor_bank_account_number,
+    p.promptpay_id AS instructor_promptpay_id,
     p.payment_qr_url AS instructor_payment_qr_url
   FROM courses c
   JOIN users u ON u.id = c.teacher_id
@@ -4603,6 +4607,7 @@ const getUserProfile = async (userId) => {
         p.bank_name,
         p.bank_account_name,
         p.bank_account_number,
+        p.promptpay_id,
         p.payment_qr_url,
         p.updated_at,
         u.avatar_url
@@ -4626,6 +4631,7 @@ const getUserProfile = async (userId) => {
       bankName: '',
       bankAccountName: '',
       bankAccountNumber: '',
+      promptPayId: '',
       paymentQrUrl: '',
       updatedAt: null,
     }
@@ -4641,6 +4647,7 @@ const getUserProfile = async (userId) => {
     bankName: profile.bank_name ?? '',
     bankAccountName: profile.bank_account_name ?? '',
     bankAccountNumber: profile.bank_account_number ?? '',
+    promptPayId: profile.promptpay_id ?? '',
     paymentQrUrl: profile.payment_qr_url ?? '',
     updatedAt: profile.updated_at,
   }
@@ -4663,6 +4670,7 @@ const updateStudentProfile = async (request) => {
   const bankName = String(body.bankName ?? '').trim()
   const bankAccountName = String(body.bankAccountName ?? '').trim()
   const bankAccountNumber = String(body.bankAccountNumber ?? '').trim()
+  const promptPayId = String(body.promptPayId ?? '').trim()
   const paymentQrUrl = String(body.paymentQrUrl ?? '').trim()
 
   if (!name) {
@@ -4680,10 +4688,11 @@ const updateStudentProfile = async (request) => {
         bank_name,
         bank_account_name,
         bank_account_number,
+        promptpay_id,
         payment_qr_url,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
       ON CONFLICT (user_id)
       DO UPDATE SET
         headline = EXCLUDED.headline,
@@ -4693,10 +4702,11 @@ const updateStudentProfile = async (request) => {
         bank_name = EXCLUDED.bank_name,
         bank_account_name = EXCLUDED.bank_account_name,
         bank_account_number = EXCLUDED.bank_account_number,
+        promptpay_id = EXCLUDED.promptpay_id,
         payment_qr_url = EXCLUDED.payment_qr_url,
         updated_at = NOW()
     `,
-    [authUser.id, headline, bio, learningGoal, phone, bankName, bankAccountName, bankAccountNumber, paymentQrUrl],
+    [authUser.id, headline, bio, learningGoal, phone, bankName, bankAccountName, bankAccountNumber, promptPayId, paymentQrUrl],
   )
 
   await query('UPDATE users SET name = $1, avatar_url = $2 WHERE id = $3', [
@@ -4932,6 +4942,7 @@ const updateTeacherProfile = async (request) => {
   const bankName = String(body.bankName ?? '').trim()
   const bankAccountName = String(body.bankAccountName ?? '').trim()
   const bankAccountNumber = String(body.bankAccountNumber ?? '').trim()
+  const promptPayId = String(body.promptPayId ?? '').trim()
   const paymentQrUrl = String(body.paymentQrUrl ?? '').trim()
 
   if (!name) {
@@ -4949,10 +4960,11 @@ const updateTeacherProfile = async (request) => {
         bank_name,
         bank_account_name,
         bank_account_number,
+        promptpay_id,
         payment_qr_url,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
       ON CONFLICT (user_id)
       DO UPDATE SET
         headline = EXCLUDED.headline,
@@ -4962,10 +4974,11 @@ const updateTeacherProfile = async (request) => {
         bank_name = EXCLUDED.bank_name,
         bank_account_name = EXCLUDED.bank_account_name,
         bank_account_number = EXCLUDED.bank_account_number,
+        promptpay_id = EXCLUDED.promptpay_id,
         payment_qr_url = EXCLUDED.payment_qr_url,
         updated_at = NOW()
     `,
-    [authUser.id, headline, bio, learningGoal, phone, bankName, bankAccountName, bankAccountNumber, paymentQrUrl],
+    [authUser.id, headline, bio, learningGoal, phone, bankName, bankAccountName, bankAccountNumber, promptPayId, paymentQrUrl],
   )
 
   await query('UPDATE users SET name = $1, avatar_url = $2 WHERE id = $3', [

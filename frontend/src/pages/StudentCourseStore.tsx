@@ -78,6 +78,15 @@ const formatPrice = (price: number) =>
 const formatCartTotal = (price: number) =>
   `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(price)} บาท`
 
+const normalizePromptPayId = (value?: string) => (value ?? '').replace(/[^0-9]/g, '')
+const getPromptPayQrUrl = (promptPayId: string | undefined, amount: number) => {
+  const normalizedId = normalizePromptPayId(promptPayId)
+
+  if (!normalizedId || amount <= 0) return ''
+
+  return `https://promptpay.io/${normalizedId}/${amount.toFixed(2)}.png`
+}
+
 const minimalSecondaryButtonClass =
   'inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black disabled:cursor-not-allowed disabled:text-zinc-400'
 const minimalPrimaryButtonClass =
@@ -1172,7 +1181,7 @@ export default function StudentCourseStore() {
             </div>
           </div>
 
-          <section className="mt-4 rounded-xl border border-zinc-200 bg-white p-4">
+          <section className="hidden">
             <div className="flex items-start gap-3">
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-black">
                 <Landmark size={18} />
@@ -1189,7 +1198,12 @@ export default function StudentCourseStore() {
           </section>
 
           <section className="mt-4 space-y-3">
-            {paymentGroups.map((group) => (
+            {paymentGroups.map((group) => {
+              const promptPayQrUrl = getPromptPayQrUrl(group.instructor.promptPayId, group.totalPrice)
+              const qrUrl = promptPayQrUrl || group.instructor.paymentQrUrl
+              const hasDynamicPromptPay = Boolean(promptPayQrUrl)
+
+              return (
               <div key={group.instructor.id} className="rounded-xl border border-zinc-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -1206,9 +1220,9 @@ export default function StudentCourseStore() {
 
                 <div className="mt-4 grid gap-4 md:grid-cols-[160px_minmax(0,1fr)]">
                   <div className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50">
-                    {group.instructor.paymentQrUrl ? (
+                    {qrUrl ? (
                       <img
-                        src={group.instructor.paymentQrUrl}
+                        src={qrUrl}
                         alt={`QR รับเงินของ ${group.instructor.name}`}
                         className="aspect-square w-full object-contain p-2"
                       />
@@ -1220,6 +1234,19 @@ export default function StudentCourseStore() {
                   </div>
 
                   <div className="space-y-3">
+                    <div
+                      className={[
+                        'rounded-xl border p-3 text-sm',
+                        hasDynamicPromptPay
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-amber-200 bg-amber-50 text-amber-700',
+                      ].join(' ')}
+                    >
+                      {hasDynamicPromptPay
+                        ? 'QR นี้สร้างจาก PromptPay ของครูพร้อมยอดชำระแล้ว เมื่อสแกนแอปธนาคารจะแสดงยอดให้อัตโนมัติ'
+                        : 'ยังไม่ได้กรอก PromptPay ระบบจึงแสดง QR สำรองที่ไม่ฝังยอดชำระอัตโนมัติ'}
+                    </div>
+
                     <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                       <p className="text-xs text-zinc-500">คอร์สในชุดนี้</p>
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -1251,7 +1278,8 @@ export default function StudentCourseStore() {
                   </div>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </section>
 
           <section className="mt-4 rounded-xl border border-zinc-200 bg-white p-4">

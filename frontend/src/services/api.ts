@@ -41,6 +41,7 @@ export interface StudentProfile {
   bankName: string
   bankAccountName: string
   bankAccountNumber: string
+  promptPayId: string
   paymentQrUrl: string
   updatedAt: string | null
 }
@@ -58,6 +59,7 @@ export interface TeacherProfilePayload extends ProfileBasePayload {
   bankName: string
   bankAccountName: string
   bankAccountNumber: string
+  promptPayId: string
   paymentQrUrl: string
 }
 

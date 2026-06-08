@@ -70,7 +70,16 @@ type LessonDraft = {
 }
 type TeacherProfileDraft = Pick<
   StudentProfile,
-  'name' | 'headline' | 'bio' | 'phone' | 'avatarUrl' | 'bankName' | 'bankAccountName' | 'bankAccountNumber' | 'paymentQrUrl'
+  | 'name'
+  | 'headline'
+  | 'bio'
+  | 'phone'
+  | 'avatarUrl'
+  | 'bankName'
+  | 'bankAccountName'
+  | 'bankAccountNumber'
+  | 'promptPayId'
+  | 'paymentQrUrl'
 >
 
 const emptyLessonDraft: LessonDraft = {
@@ -343,6 +352,7 @@ const emptyTeacherProfile: TeacherProfileDraft = {
   bankName: '',
   bankAccountName: '',
   bankAccountNumber: '',
+  promptPayId: '',
   paymentQrUrl: '',
 }
 
@@ -1453,6 +1463,7 @@ export default function TeacherDashboard() {
         bankName: '',
         bankAccountName: '',
         bankAccountNumber: '',
+        promptPayId: '',
         paymentQrUrl: '',
         updatedAt: null,
       }
@@ -1470,6 +1481,7 @@ export default function TeacherDashboard() {
       bankName: currentTeacherProfile.bankName,
       bankAccountName: currentTeacherProfile.bankAccountName,
       bankAccountNumber: currentTeacherProfile.bankAccountNumber,
+      promptPayId: currentTeacherProfile.promptPayId,
       paymentQrUrl: currentTeacherProfile.paymentQrUrl,
     })
   }, [
@@ -1478,6 +1490,7 @@ export default function TeacherDashboard() {
     currentTeacherProfile?.bankAccountName,
     currentTeacherProfile?.bankAccountNumber,
     currentTeacherProfile?.bankName,
+    currentTeacherProfile?.promptPayId,
     currentTeacherProfile?.headline,
     currentTeacherProfile?.name,
     currentTeacherProfile?.phone,
@@ -1995,6 +2008,7 @@ export default function TeacherDashboard() {
         bankName: profileDraft.bankName,
         bankAccountName: profileDraft.bankAccountName,
         bankAccountNumber: profileDraft.bankAccountNumber,
+        promptPayId: profileDraft.promptPayId,
         paymentQrUrl: profileDraft.paymentQrUrl,
         learningGoal: currentTeacherProfile.learningGoal,
       })
@@ -2333,7 +2347,7 @@ export default function TeacherDashboard() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-slate-950">ข้อมูลรับเงิน</p>
-                  <p className="mt-1 text-sm text-slate-500">ใส่ชื่อบัญชี เลขบัญชี และ QR ให้ครบ นักเรียนจะเห็นข้อมูลชุดนี้ตอนจ่ายเงิน</p>
+                  <p className="mt-1 text-sm text-slate-500">ใส่ PromptPay เพื่อให้ระบบสร้าง QR ตามยอดคอร์สให้นักเรียนสแกนจ่ายได้ทันที</p>
                 </div>
               </div>
             </div>
@@ -2362,13 +2376,26 @@ export default function TeacherDashboard() {
                   </label>
                 </div>
 
+                <label className="block">
+                  <span className="field-label">เลข PromptPay สำหรับสร้าง QR อัตโนมัติ</span>
+                  <input
+                    className="field-input"
+                    value={profileDraft.promptPayId}
+                    onChange={(event) => setProfileDraft((current) => ({ ...current, promptPayId: event.target.value }))}
+                    placeholder="เช่น เบอร์โทร 08xxxxxxxx หรือเลขบัตรประชาชน"
+                  />
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    ระบบจะใช้เลขนี้สร้าง QR ใหม่ตามยอดคอร์ส เงินยังเข้าบัญชี PromptPay ของคุณครู
+                  </p>
+                </label>
+
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
                     <Landmark size={16} />
-                    QR รับเงิน
+                    QR สำรอง
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    อัปโหลดไฟล์ QR ให้ชัดที่สุด เพื่อให้สแกนจ่ายได้เร็วขึ้นและลดปัญหาภาพเบลอ
+                    ถ้ายังไม่กรอก PromptPay ระบบจะแสดงรูป QR สำรองนี้แทน แต่จะไม่ฝังยอดเงินอัตโนมัติ
                   </p>
                   <label className="mt-4 block">
                     <span className="field-label">อัปโหลด QR code</span>
@@ -2415,6 +2442,8 @@ export default function TeacherDashboard() {
                     <p className="mt-1 text-sm font-semibold text-slate-950">{profileDraft.bankAccountName || '-'}</p>
                     <p className="mt-3 text-xs text-slate-500">เลขบัญชี</p>
                     <p className="mt-1 text-sm font-semibold text-slate-950">{profileDraft.bankAccountNumber || '-'}</p>
+                    <p className="mt-3 text-xs text-slate-500">PromptPay</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-950">{profileDraft.promptPayId || '-'}</p>
                   </div>
                 </div>
               </aside>

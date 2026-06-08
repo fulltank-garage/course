@@ -18,6 +18,7 @@ export interface Instructor {
   bankName?: string
   bankAccountName?: string
   bankAccountNumber?: string
+  promptPayId?: string
   paymentQrUrl?: string
 }
 
