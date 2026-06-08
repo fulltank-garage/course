@@ -4048,6 +4048,10 @@ const toInstructor = (row) => ({
   avatarUrl: row.instructor_avatar_url,
   rating: Number(row.instructor_rating),
   totalStudents: Number(row.instructor_total_students),
+  bankName: row.instructor_bank_name ?? '',
+  bankAccountName: row.instructor_bank_account_name ?? '',
+  bankAccountNumber: row.instructor_bank_account_number ?? '',
+  paymentQrUrl: row.instructor_payment_qr_url ?? '',
 })
 
 const toCourseSummary = (row) => ({
@@ -4083,9 +4087,14 @@ const courseSelect = `
     u.bio AS instructor_bio,
     u.avatar_url AS instructor_avatar_url,
     u.rating AS instructor_rating,
-    u.total_students AS instructor_total_students
+    u.total_students AS instructor_total_students,
+    p.bank_name AS instructor_bank_name,
+    p.bank_account_name AS instructor_bank_account_name,
+    p.bank_account_number AS instructor_bank_account_number,
+    p.payment_qr_url AS instructor_payment_qr_url
   FROM courses c
   JOIN users u ON u.id = c.teacher_id
+  LEFT JOIN user_profiles p ON p.user_id = u.id
 `
 
 const getCourses = async ({ popular, teacherId, includeUnpublished = false, viewer = null } = {}) => {

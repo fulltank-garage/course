@@ -520,6 +520,35 @@ export default function StudentCourseStore() {
       : cartCourses
   const paymentTotalPrice = paymentCourses.reduce((sum, course) => sum + course.price, 0)
   const paymentTotalLabel = formatCartTotal(paymentTotalPrice)
+  const paymentGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        instructor: Course['instructor']
+        courses: Course[]
+        totalPrice: number
+      }
+    >()
+
+    for (const course of paymentCourses) {
+      const key = course.instructor.id
+      const existing = groups.get(key)
+
+      if (existing) {
+        existing.courses.push(course)
+        existing.totalPrice += course.price
+        continue
+      }
+
+      groups.set(key, {
+        instructor: course.instructor,
+        courses: [course],
+        totalPrice: course.price,
+      })
+    }
+
+    return Array.from(groups.values())
+  }, [paymentCourses])
 
   return (
     <section className="student-page-shell">
@@ -1157,6 +1186,72 @@ export default function StudentCourseStore() {
                 </div>
               </div>
             </div>
+          </section>
+
+          <section className="mt-4 space-y-3">
+            {paymentGroups.map((group) => (
+              <div key={group.instructor.id} className="rounded-xl border border-zinc-200 bg-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-black">{group.instructor.name}</h3>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {group.instructor.bankName || 'บัญชีผู้รับเงิน'} · {group.instructor.bankAccountName || 'ชื่อบัญชี'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-zinc-500">ยอดชำระ</p>
+                    <p className="text-lg font-semibold text-black">{formatCartTotal(group.totalPrice)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-[160px_minmax(0,1fr)]">
+                  <div className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50">
+                    {group.instructor.paymentQrUrl ? (
+                      <img
+                        src={group.instructor.paymentQrUrl}
+                        alt={`QR รับเงินของ ${group.instructor.name}`}
+                        className="aspect-square w-full object-contain p-2"
+                      />
+                    ) : (
+                      <div className="flex aspect-square items-center justify-center px-3 text-center text-sm text-zinc-400">
+                        ยังไม่มี QR ของครูคนนี้
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                      <p className="text-xs text-zinc-500">คอร์สในชุดนี้</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {group.courses.map((course) => (
+                          <span
+                            key={course.slug}
+                            className="rounded-full bg-white px-3 py-1 text-xs font-medium text-black ring-1 ring-zinc-200"
+                          >
+                            {course.title}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                        <p className="text-xs text-zinc-500">เลขบัญชี</p>
+                        <p className="mt-1 text-sm font-semibold text-black">
+                          {group.instructor.bankAccountNumber || '-'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                        <p className="text-xs text-zinc-500">ชื่อบัญชี</p>
+                        <p className="mt-1 text-sm font-semibold text-black">
+                          {group.instructor.bankAccountName || '-'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </section>
 
           <section className="mt-4 rounded-xl border border-zinc-200 bg-white p-4">

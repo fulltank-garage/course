@@ -15,6 +15,10 @@ export interface Instructor {
   avatarUrl: string
   rating: number
   totalStudents: number
+  bankName?: string
+  bankAccountName?: string
+  bankAccountNumber?: string
+  paymentQrUrl?: string
 }
 
 export interface Lesson {
