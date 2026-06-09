@@ -1209,7 +1209,7 @@ export default function StudentCourseStore() {
                   <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-black">{group.instructor.name}</h3>
                     <p className="mt-1 text-xs text-zinc-500">
-                      {group.instructor.bankName || 'บัญชีผู้รับเงิน'} · {group.instructor.bankAccountName || 'ชื่อบัญชี'}
+                      {group.courses.length.toLocaleString('th-TH')} คอร์สในคำสั่งซื้อนี้
                     </p>
                   </div>
                   <div className="text-right">
@@ -1218,63 +1218,47 @@ export default function StudentCourseStore() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-[160px_minmax(0,1fr)]">
-                  <div className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50">
+                <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
+                  <div className="flex items-center justify-center bg-white p-4">
                     {qrUrl ? (
                       <img
                         src={qrUrl}
                         alt={`QR รับเงินของ ${group.instructor.name}`}
-                        className="aspect-square w-full object-contain p-2"
+                        className="aspect-square w-full max-w-[260px] object-contain"
                       />
                     ) : (
-                      <div className="flex aspect-square items-center justify-center px-3 text-center text-sm text-zinc-400">
+                      <div className="flex aspect-square w-full max-w-[260px] items-center justify-center px-3 text-center text-sm text-zinc-400">
                         ยังไม่มี QR ของครูคนนี้
                       </div>
                     )}
                   </div>
 
-                  <div className="space-y-3">
-                    <div
-                      className={[
-                        'rounded-xl border p-3 text-sm',
-                        hasDynamicPromptPay
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                          : 'border-amber-200 bg-amber-50 text-amber-700',
-                      ].join(' ')}
-                    >
-                      {hasDynamicPromptPay
-                        ? 'QR นี้สร้างจาก PromptPay ของครูพร้อมยอดชำระแล้ว เมื่อสแกนแอปธนาคารจะแสดงยอดให้อัตโนมัติ'
-                        : 'ยังไม่ได้กรอก PromptPay ระบบจึงแสดง QR สำรองที่ไม่ฝังยอดชำระอัตโนมัติ'}
-                    </div>
+                  <div
+                    className={[
+                      'border-t border-zinc-200 px-3 py-2 text-xs leading-5',
+                      hasDynamicPromptPay
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-amber-50 text-amber-700',
+                    ].join(' ')}
+                  >
+                    {hasDynamicPromptPay
+                      ? 'QR นี้มีเลข PromptPay และยอดชำระพร้อมแล้ว'
+                      : 'QR สำรองนี้ไม่ฝังยอดเงิน กรุณาตรวจยอดก่อนโอน'}
+                  </div>
 
-                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                      <p className="text-xs text-zinc-500">คอร์สในชุดนี้</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {group.courses.map((course) => (
-                          <span
-                            key={course.slug}
-                            className="rounded-full bg-white px-3 py-1 text-xs font-medium text-black ring-1 ring-zinc-200"
-                          >
-                            {course.title}
-                          </span>
-                        ))}
-                      </div>
+                  <div className="border-t border-zinc-200 bg-white p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-zinc-500">ผู้รับเงิน</span>
+                      <span className="min-w-0 truncate font-semibold text-black">
+                        {group.instructor.bankAccountName || group.instructor.name}
+                      </span>
                     </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                        <p className="text-xs text-zinc-500">เลขบัญชี</p>
-                        <p className="mt-1 text-sm font-semibold text-black">
-                          {group.instructor.bankAccountNumber || '-'}
-                        </p>
+                    {group.instructor.bankAccountNumber ? (
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <span className="text-zinc-500">เลขบัญชี</span>
+                        <span className="font-semibold text-black">{group.instructor.bankAccountNumber}</span>
                       </div>
-                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                        <p className="text-xs text-zinc-500">ชื่อบัญชี</p>
-                        <p className="mt-1 text-sm font-semibold text-black">
-                          {group.instructor.bankAccountName || '-'}
-                        </p>
-                      </div>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
