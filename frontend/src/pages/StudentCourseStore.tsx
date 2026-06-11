@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import generatePromptPayPayload from 'promptpay-qr'
+import QRCode from 'qrcode'
 import {
   ArrowRight,
   Check,
@@ -79,12 +81,61 @@ const formatCartTotal = (price: number) =>
   `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(price)} บาท`
 
 const normalizePromptPayId = (value?: string) => (value ?? '').replace(/[^0-9]/g, '')
-const getPromptPayQrUrl = (promptPayId: string | undefined, amount: number) => {
-  const normalizedId = normalizePromptPayId(promptPayId)
+function PromptPayQr({
+  promptPayId,
+  amount,
+  fallbackUrl,
+  instructorName,
+}: {
+  promptPayId?: string
+  amount: number
+  fallbackUrl?: string
+  instructorName: string
+}) {
+  const [qrUrl, setQrUrl] = useState(fallbackUrl ?? '')
 
-  if (!normalizedId || amount <= 0) return ''
+  useEffect(() => {
+    const normalizedId = normalizePromptPayId(promptPayId)
+    let active = true
 
-  return `https://promptpay.io/${normalizedId}/${amount.toFixed(2)}.png`
+    if (!normalizedId || amount <= 0) {
+      return () => {
+        active = false
+      }
+    }
+
+    QRCode.toDataURL(generatePromptPayPayload(normalizedId, { amount }), {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 640,
+    })
+      .then((dataUrl) => {
+        if (active) setQrUrl(dataUrl)
+      })
+      .catch(() => {
+        if (active) setQrUrl(fallbackUrl ?? '')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [amount, fallbackUrl, promptPayId])
+
+  if (!qrUrl) {
+    return (
+      <div className="flex aspect-square w-full max-w-[240px] items-center justify-center px-4 text-center text-sm text-zinc-400">
+        ยังไม่มี QR รับเงินของคุณครู
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={qrUrl}
+      alt={`QR รับเงินของ ${instructorName}`}
+      className="aspect-square w-full max-w-[240px] object-contain"
+    />
+  )
 }
 
 const minimalSecondaryButtonClass =
@@ -1235,12 +1286,9 @@ export default function StudentCourseStore() {
 
           <section className="mt-4 space-y-3">
             {paymentGroups.map((group) => {
-              const promptPayQrUrl = getPromptPayQrUrl(group.instructor.promptPayId, group.totalPrice)
-              const qrUrl = promptPayQrUrl || group.instructor.paymentQrUrl
-
               return (
-              <div key={group.instructor.id} className="rounded-xl border border-zinc-200 bg-white p-4">
-                <div className="flex items-start justify-between gap-3">
+              <div key={group.instructor.id} className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+                <div className="flex items-start justify-between gap-3 border-b border-zinc-200 px-4 py-4">
                   <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-black">{group.instructor.name}</h3>
                     <p className="mt-1 text-xs text-zinc-500">
@@ -1253,34 +1301,31 @@ export default function StudentCourseStore() {
                   </div>
                 </div>
 
-                <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
-                  <div className="flex items-center justify-center bg-white p-4">
-                    {qrUrl ? (
-                      <img
-                        src={qrUrl}
-                        alt={`QR รับเงินของ ${group.instructor.name}`}
-                        className="aspect-square w-full max-w-[260px] object-contain"
-                      />
-                    ) : (
-                      <div className="flex aspect-square w-full max-w-[260px] items-center justify-center px-3 text-center text-sm text-zinc-400">
-                        ยังไม่มี QR ของครูคนนี้
-                      </div>
-                    )}
+                <div className="flex justify-center bg-zinc-50 p-5">
+                  <div className="flex w-full max-w-[280px] items-center justify-center rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
+                    <PromptPayQr
+                      promptPayId={group.instructor.promptPayId}
+                      amount={group.totalPrice}
+                      fallbackUrl={group.instructor.paymentQrUrl}
+                      instructorName={group.instructor.name}
+                    />
                   </div>
+                </div>
 
-                  <div className="border-t border-zinc-200 bg-white p-3 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-zinc-500">ผู้รับเงิน</span>
-                      <span className="min-w-0 truncate font-semibold text-black">
-                        {group.instructor.bankAccountName || group.instructor.name}
-                      </span>
-                    </div>
-                    {group.instructor.bankAccountNumber ? (
-                      <div className="mt-2 flex items-center justify-between gap-3">
-                        <span className="text-zinc-500">เลขบัญชี</span>
-                        <span className="font-semibold text-black">{group.instructor.bankAccountNumber}</span>
-                      </div>
-                    ) : null}
+                <div className="grid gap-px border-t border-zinc-200 bg-zinc-200 sm:grid-cols-2">
+                  <div className="min-w-0 bg-white px-4 py-3">
+                    <p className="text-xs text-zinc-500">ชื่อบัญชี</p>
+                    <p className="mt-1 break-words text-sm font-semibold text-black">
+                      {group.instructor.bankAccountName || group.instructor.name}
+                    </p>
+                  </div>
+                  <div className="min-w-0 bg-white px-4 py-3">
+                    <p className="text-xs text-zinc-500">
+                      {group.instructor.bankAccountNumber ? 'เลขบัญชี' : 'เลข PromptPay'}
+                    </p>
+                    <p className="mt-1 break-all text-sm font-semibold tracking-wide text-black">
+                      {group.instructor.bankAccountNumber || group.instructor.promptPayId || '-'}
+                    </p>
                   </div>
                 </div>
               </div>
