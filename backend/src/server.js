@@ -90,6 +90,17 @@ const r2PresignExpiresSeconds = Math.min(
 const geminiClient =
   aiProvider === 'gemini' && geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null
 const videoUploadJobs = new Map()
+let videoWorkerRunning = false
+const supportedVideoExtensions = new Set(['.mp4', '.mov', '.m4v', '.mkv', '.webm', '.avi'])
+const supportedVideoMimeTypes = new Set([
+  'video/mp4',
+  'video/quicktime',
+  'video/x-m4v',
+  'video/x-matroska',
+  'video/webm',
+  'video/x-msvideo',
+  'application/octet-stream',
+])
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
@@ -236,6 +247,30 @@ const ensureBaseSchema = async () => {
       ai_error TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0
     )
+  `)
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS video_jobs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      original_file_name TEXT NOT NULL,
+      source_url TEXT NOT NULL,
+      result_url TEXT,
+      poster_url TEXT,
+      status TEXT NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'processing', 'ready', 'failed')),
+      progress INTEGER NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_video_jobs_queue
+    ON video_jobs (created_at)
+    WHERE status = 'queued'
   `)
 
   await query(`
@@ -1176,7 +1211,9 @@ const transcodeVideoToMp4 = async (inputPath, outputPath) =>
         '-preset',
         'veryfast',
         '-crf',
-        '23',
+        '26',
+        '-vf',
+        'scale=-2:min(1080\\,ih)',
         '-pix_fmt',
         'yuv420p',
         '-c:a',
@@ -1325,6 +1362,8 @@ const compressVideoToTargetSize = async (inputPath, outputPath, target) =>
         `${maxRateKbps}k`,
         '-bufsize',
         `${bufferSizeKbps}k`,
+        '-vf',
+        'scale=-2:min(1080\\,ih)',
         '-pix_fmt',
         'yuv420p',
         '-c:a',
@@ -2060,10 +2099,11 @@ const writeRequestBodyToFile = async (request, absolutePath, maxBytes = maxVideo
     })
   })
 
-const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size }) => {
-  if (mimeType !== 'video/mp4') {
+const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size, forceTranscode = false }) => {
+  const inputExtension = path.extname(fileName).toLowerCase()
+  if (!supportedVideoExtensions.has(inputExtension) || !supportedVideoMimeTypes.has(mimeType)) {
     await unlink(absolutePath).catch(() => {})
-    return { statusCode: 400, payload: { message: 'รองรับวิดีโอ MP4 เท่านั้น' } }
+    return { statusCode: 400, payload: { message: 'รองรับวิดีโอ MP4, MOV, M4V, MKV, WebM และ AVI เท่านั้น' } }
   }
 
   if (size > maxVideoUploadBytes) {
@@ -2092,7 +2132,7 @@ const persistUploadedVideoPath = async ({ fileName, mimeType, absolutePath, size
   let posterCreated = false
 
   try {
-    if (transcodeUploadedVideos) {
+    if (forceTranscode || transcodeUploadedVideos || inputExtension !== '.mp4') {
       let canReuseOriginal = false
 
       try {
@@ -2286,6 +2326,23 @@ const createRemoteVideoUploadJob = ({ fileName, fileUrl }) => {
     let tempPath = null
 
     try {
+      const remoteStreams = await probeVideoStreams(fileUrl).catch(() => [])
+      if (isBrowserFriendlyMp4(remoteStreams) && !transcodeUploadedVideos) {
+        videoUploadJobs.set(uploadId, {
+          createdAt: now,
+          data: {
+            kind: 'video',
+            fileName,
+            fileUrl,
+            storage: 'r2',
+          },
+          error: null,
+          status: 'ready',
+          updatedAt: new Date().toISOString(),
+        })
+        return
+      }
+
       tempPath = await downloadRemoteFileStreamWithLimit(fileUrl, {
         maxBytes: maxVideoUploadBytes,
         extension: '.mp4',
@@ -2335,11 +2392,174 @@ const createRemoteVideoUploadJob = ({ fileName, fileUrl }) => {
   return uploadId
 }
 
+const createPersistedRemoteVideoJob = async ({ fileName, fileUrl, userId }) => {
+  const uploadId = `video-upload-${crypto.randomUUID()}`
+  await query(
+    `INSERT INTO video_jobs (id, user_id, original_file_name, source_url)
+     VALUES ($1, $2, $3, $4)`,
+    [uploadId, userId, fileName, fileUrl],
+  )
+  return uploadId
+}
+
+const updateVideoJob = async (uploadId, fields) => {
+  const entries = Object.entries(fields)
+  if (!entries.length) return
+
+  const values = entries.map(([, value]) => value)
+  const assignments = entries.map(([key], index) => `${key} = $${index + 2}`)
+  await query(
+    `UPDATE video_jobs SET ${assignments.join(', ')}, updated_at = NOW() WHERE id = $1`,
+    [uploadId, ...values],
+  )
+}
+
+const claimNextVideoJob = async () => {
+  const result = await query(`
+    WITH next_job AS (
+      SELECT id
+      FROM video_jobs
+      WHERE status = 'queued'
+      ORDER BY created_at
+      FOR UPDATE SKIP LOCKED
+      LIMIT 1
+    )
+    UPDATE video_jobs AS job
+    SET status = 'processing',
+        progress = 5,
+        attempts = attempts + 1,
+        error = NULL,
+        updated_at = NOW()
+    FROM next_job
+    WHERE job.id = next_job.id
+    RETURNING job.*
+  `)
+  return result.rows[0] ?? null
+}
+
+const processPersistedVideoJob = async (job) => {
+  let tempPath = null
+
+  try {
+    const remoteStreams = await probeVideoStreams(job.source_url)
+    if (isBrowserFriendlyMp4(remoteStreams) && !transcodeUploadedVideos) {
+      await updateVideoJob(job.id, {
+        status: 'ready',
+        progress: 100,
+        result_url: job.source_url,
+      })
+      return
+    }
+
+    await updateVideoJob(job.id, { progress: 15 })
+    tempPath = await downloadRemoteFileStreamWithLimit(job.source_url, {
+      maxBytes: maxVideoUploadBytes,
+      extension: path.extname(new URL(job.source_url).pathname) || '.mp4',
+    })
+    await updateVideoJob(job.id, { progress: 35 })
+
+    const fileInfo = await stat(tempPath)
+    const result = await persistUploadedVideoPath({
+      fileName: job.original_file_name,
+      mimeType:
+        path.extname(job.original_file_name).toLowerCase() === '.mov'
+          ? 'video/quicktime'
+          : path.extname(job.original_file_name).toLowerCase() === '.mp4'
+            ? 'video/mp4'
+            : 'application/octet-stream',
+      absolutePath: tempPath,
+      size: fileInfo.size,
+      forceTranscode: true,
+    })
+    tempPath = null
+
+    if (result.statusCode < 200 || result.statusCode >= 300 || !result.payload?.data) {
+      throw new Error(result.payload?.message ?? 'Video processing failed')
+    }
+
+    await updateVideoJob(job.id, {
+      status: 'ready',
+      progress: 100,
+      result_url: result.payload.data.fileUrl,
+      poster_url: result.payload.data.posterUrl ?? null,
+    })
+  } catch (error) {
+    if (tempPath) await unlink(tempPath).catch(() => {})
+    const canRetry = Number(job.attempts) < 3
+    await updateVideoJob(job.id, {
+      status: canRetry ? 'queued' : 'failed',
+      progress: canRetry ? 0 : 100,
+      error: error instanceof Error ? error.message : 'Video processing failed',
+    })
+  }
+}
+
+const runVideoWorker = async () => {
+  if (videoWorkerRunning) return
+  videoWorkerRunning = true
+
+  try {
+    while (true) {
+      const job = await claimNextVideoJob()
+      if (!job) break
+      await processPersistedVideoJob(job)
+    }
+  } catch (error) {
+    console.error('Video worker failed', error)
+  } finally {
+    videoWorkerRunning = false
+  }
+}
+
+const startVideoWorker = () => {
+  query(`
+    UPDATE video_jobs
+    SET status = 'queued', progress = 0, updated_at = NOW()
+    WHERE status = 'processing'
+  `)
+    .then(runVideoWorker)
+    .catch((error) => console.error('Could not recover video jobs', error))
+
+  const timer = setInterval(runVideoWorker, 3000)
+  timer.unref()
+}
+
 const getVideoUploadJobStatus = async (request, uploadId) => {
   const authUser = await getAuthUser(request)
 
   if (!authUser) {
     return { statusCode: 401, payload: { message: 'กรุณาเข้าสู่ระบบก่อนตรวจสถานะอัปโหลด' } }
+  }
+
+  const persistedJob = await query(
+    `SELECT * FROM video_jobs WHERE id = $1 AND (user_id = $2 OR $3 = 'admin')`,
+    [uploadId, authUser.id, authUser.role],
+  )
+  const row = persistedJob.rows[0]
+
+  if (row) {
+    return {
+      statusCode: 200,
+      payload: {
+        data: {
+          uploadId,
+          status: row.status,
+          progress: Number(row.progress),
+          file:
+            row.status === 'ready'
+              ? {
+                  kind: 'video',
+                  fileName: row.original_file_name,
+                  fileUrl: row.result_url,
+                  posterUrl: row.poster_url ?? undefined,
+                  storage: 'r2',
+                }
+              : null,
+          error: row.error,
+          updatedAt: row.updated_at,
+        },
+      },
+    }
   }
 
   const job = videoUploadJobs.get(uploadId)
@@ -2848,7 +3068,8 @@ const getMuxDirectUploadStatus = async (request, uploadId) => {
   }
 }
 
-const isSafeR2VideoKey = (key) => /^videos\/video-\d+-[0-9a-f-]+\.mp4$/i.test(key)
+const isSafeR2VideoKey = (key) =>
+  /^videos\/video-\d+-[0-9a-f-]+\.(mp4|mov|m4v|mkv|webm|avi)$/i.test(key)
 
 const normalizeR2MultipartParts = (parts) => {
   if (!Array.isArray(parts) || parts.length === 0) return null
@@ -2891,7 +3112,10 @@ const startR2MultipartVideoUpload = async (request) => {
   const fileName = String(body.fileName ?? '').trim()
   const mimeType = String(body.mimeType ?? '').trim().toLowerCase()
   const fileSize = Number(body.fileSize ?? 0)
-  const isMp4 = mimeType === 'video/mp4' || fileName.toLowerCase().endsWith('.mp4')
+  const extension = path.extname(fileName).toLowerCase()
+  const isMp4 =
+    supportedVideoExtensions.has(extension) &&
+    (supportedVideoMimeTypes.has(mimeType) || mimeType.startsWith('video/'))
 
   if (String(body.kind ?? 'video') !== 'video' || !fileName || !Number.isFinite(fileSize) || fileSize <= 0) {
     return { statusCode: 400, payload: { message: 'ข้อมูลวิดีโอไม่ครบ' } }
@@ -2908,9 +3132,12 @@ const startR2MultipartVideoUpload = async (request) => {
     }
   }
 
-  const outputFileName = `video-${Date.now()}-${crypto.randomUUID()}.mp4`
+  const outputFileName = `video-${Date.now()}-${crypto.randomUUID()}${extension}`
   const key = `videos/${outputFileName}`
-  const uploadId = await getR2MultipartUploadId({ key, contentType: 'video/mp4' })
+  const uploadId = await getR2MultipartUploadId({
+    key,
+    contentType: mimeType.startsWith('video/') ? mimeType : 'application/octet-stream',
+  })
 
   return {
     statusCode: 201,
@@ -2992,7 +3219,7 @@ const finishR2MultipartVideoUpload = async (request) => {
 }
 
 const processR2UploadedVideo = async (request) => {
-  const { error } = await authorizeCourseAssetUpload(request)
+  const { authUser, error } = await authorizeCourseAssetUpload(request)
   if (error) return error
 
   if (!r2StorageEnabled || !r2PublicBaseUrl) {
@@ -3027,10 +3254,12 @@ const processR2UploadedVideo = async (request) => {
     return { statusCode: 400, payload: { message: 'ไฟล์วิดีโอ R2 ไม่ถูกต้อง' } }
   }
 
-  const uploadId = createRemoteVideoUploadJob({
+  const uploadId = await createPersistedRemoteVideoJob({
     fileName,
     fileUrl,
+    userId: authUser.id,
   })
+  void runVideoWorker()
 
   return {
     statusCode: 202,
@@ -5755,6 +5984,7 @@ ensureBaseSchema()
   .then(seedDefaultSponsors)
   .then(() => (normalizeExistingUploads ? normalizeExistingUploadedVideos() : undefined))
   .then(() => {
+    startVideoWorker()
     server.listen(port, () => {
       console.log(`Backend API listening on port ${port}`)
     })

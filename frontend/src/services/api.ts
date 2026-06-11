@@ -156,7 +156,8 @@ interface VideoUploadStartResponse {
 
 interface VideoUploadStatusResponse {
   uploadId: string
-  status: 'processing' | 'ready' | 'failed'
+  status: 'queued' | 'processing' | 'ready' | 'failed'
+  progress?: number
   file?: UploadAssetResponse
   error?: string | null
   updatedAt?: string
@@ -544,7 +545,7 @@ const pollVideoUploadStatus = async (
   uploadId: string,
   onProgress?: (progress: number) => void,
 ): Promise<UploadAssetResponse> => {
-  const maxAttempts = 240
+  const maxAttempts = 1200
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const status = await request<VideoUploadStatusResponse>(
@@ -562,7 +563,7 @@ const pollVideoUploadStatus = async (
       throw new Error(status.error ?? 'ประมวลผลวิดีโอไม่สำเร็จ')
     }
 
-    onProgress?.(99)
+    onProgress?.(Math.min(99, Math.max(1, status.progress ?? 99)))
     await wait(3000)
   }
 
@@ -609,7 +610,7 @@ const uploadVideoAssetToR2 = async (payload: UploadVideoAssetPayload): Promise<U
     body: JSON.stringify({
       kind: 'video',
       fileName: payload.file.name,
-      mimeType: payload.file.type || 'video/mp4',
+      mimeType: payload.file.type || 'application/octet-stream',
       fileSize: payload.file.size,
     }),
   })

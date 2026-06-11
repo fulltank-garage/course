@@ -114,7 +114,7 @@ const emptyLessonDraft: LessonDraft = {
   videoUrl: '',
   posterUrl: '',
 }
-const maxVideoUploadBytes = 1024 * 1024 * 1024
+const maxVideoUploadBytes = 6 * 1024 * 1024 * 1024
 
 const getLessonAiDisplay = (lesson?: Lesson | null) => {
   if (!lesson?.videoUrl) {
@@ -1211,13 +1211,14 @@ function LessonManagerModal({
                         <span className="text-sm font-medium text-zinc-700">อัปโหลดวิดีโอ</span>
                         <input
                           type="file"
-                          accept="video/*"
+                          accept=".mp4,.mov,.m4v,.mkv,.webm,.avi,video/*"
                           className="mt-2 w-full rounded-xl border border-dashed border-zinc-300 bg-white px-3 py-4 text-sm text-zinc-600 outline-none transition file:mr-3 file:rounded-lg file:border-0 file:bg-black file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-zinc-400 focus:border-black"
                           onChange={onVideoChange}
                           disabled={uploading}
                         />
                         <p className="mt-2 text-xs leading-5 text-zinc-500">
-                          อัปโหลดได้ไม่เกิน 1GB ระบบจะบีบอัดให้อยู่ราว 300-500MB ตามความยาวและคุณภาพ
+                          รองรับ MP4, MOV จาก iPhone, M4V, MKV, WebM และ AVI ไม่เกิน 6GB
+                          ระบบจะแปลงเป็น H.264/AAC ความละเอียดสูงสุด 1080p อัตโนมัติ
                         </p>
                       </label>
 
@@ -1847,7 +1848,7 @@ export default function TeacherDashboard() {
     if (file.size > maxVideoUploadBytes) {
       setLessonMessage({
         tone: 'error',
-        text: 'วิดีโอต้องไม่เกิน 1GB',
+        text: 'วิดีโอต้องไม่เกิน 6GB',
       })
       event.target.value = ''
       return

@@ -37,7 +37,8 @@ services:
       MUX_AUDIO_WAIT_SECONDS: "1800"
       MUX_AUDIO_DOWNLOAD_MAX_MB: "1024"
       TRANSCRIPTION_CHUNK_SECONDS: "600"
-      FFMPEG_THREADS: "2"
+      FFMPEG_THREADS: "4"
+      MAX_VIDEO_UPLOAD_MB: "6144"
     ports:
       - "4001:4000"
     volumes:
