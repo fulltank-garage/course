@@ -584,8 +584,22 @@ export default function StudentCourseStore() {
             <div className="flex justify-end">
               <button
                 type="button"
+                onClick={() => setMobileFiltersOpen((current) => !current)}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 sm:hidden"
+                aria-expanded={mobileFiltersOpen}
+              >
+                <SlidersHorizontal size={17} />
+                ตัวกรอง
+                {activeFilterCount > 0 ? (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[11px] font-semibold text-black">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </button>
+              <button
+                type="button"
                 onClick={() => setCartOpen(true)}
-                className="relative inline-flex h-12 w-full items-center justify-center rounded-lg bg-black text-white transition hover:bg-zinc-800 sm:w-12"
+                className="relative hidden h-12 w-12 items-center justify-center rounded-lg bg-black text-white transition hover:bg-zinc-800 sm:inline-flex"
                 aria-label="ตะกร้าสินค้า"
                 title="ตะกร้าสินค้า"
               >
@@ -599,55 +613,75 @@ export default function StudentCourseStore() {
             </div>
           </header>
 
-          <div className="mt-5 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm lg:hidden">
-            <div className="flex items-center justify-between gap-3">
+          <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm lg:hidden">
+            <div className="grid grid-cols-[minmax(0,1fr)_48px] gap-2">
               <button
                 type="button"
-                className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white"
-                onClick={() => setMobileFiltersOpen((current) => !current)}
-                aria-expanded={mobileFiltersOpen}
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black"
+                onClick={resetFilters}
               >
-                <SlidersHorizontal size={17} />
-                ตัวกรอง
-                {activeFilterCount > 0 ? (
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[11px] font-semibold text-black">
-                    {activeFilterCount}
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="relative inline-flex h-11 w-12 items-center justify-center rounded-lg bg-black text-white"
+                onClick={() => setCartOpen(true)}
+                aria-label="ตะกร้าสินค้า"
+                title="ตะกร้าสินค้า"
+              >
+                <ShoppingCart size={18} />
+                {cartItems.length > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-semibold text-black shadow-sm">
+                    {cartItems.length}
                   </span>
                 ) : null}
               </button>
-              <button
-                type="button"
-                className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black"
-                onClick={resetFilters}
-              >
-                ล้าง
-              </button>
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+            <div className="mt-3 border-t border-zinc-100 pt-3 text-xs leading-5 text-zinc-500">
               {activeFilterLabels.length > 0 ? (
-                activeFilterLabels.map((label) => (
-                  <span key={label} className="rounded-full bg-zinc-100 px-3 py-1 font-semibold text-black">
-                    {label}
-                  </span>
-                ))
+                <div className="flex flex-wrap gap-2">
+                  {activeFilterLabels.map((label) => (
+                    <span key={label} className="rounded-full bg-zinc-100 px-3 py-1 font-semibold text-black">
+                      {label}
+                    </span>
+                  ))}
+                </div>
               ) : (
                 <span>แสดงทุกหมวดหมู่และทุกระดับ</span>
               )}
             </div>
           </div>
 
+          <div
+            className={[
+              'fixed inset-0 z-[80] bg-black/35 transition-opacity lg:hidden',
+              mobileFiltersOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
+            ].join(' ')}
+            onClick={() => setMobileFiltersOpen(false)}
+          />
+
           <div className="grid gap-8 pt-8 lg:grid-cols-[300px_minmax(0,1fr)]">
             <aside
               className={[
-                'responsive-filter-panel h-fit rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6 lg:sticky lg:top-6 lg:block lg:max-h-none lg:overflow-visible',
-                mobileFiltersOpen ? 'block' : 'hidden',
+                'responsive-filter-panel fixed inset-y-0 right-0 z-[90] max-h-[100svh] w-[min(88vw,360px)] overflow-y-auto border-l border-zinc-200 bg-white p-5 shadow-2xl transition-transform duration-300 lg:sticky lg:top-6 lg:z-auto lg:block lg:h-fit lg:max-h-none lg:w-auto lg:translate-x-0 lg:overflow-visible lg:rounded-xl lg:border lg:p-6 lg:shadow-sm',
+                mobileFiltersOpen ? 'translate-x-0' : 'translate-x-full',
               ].join(' ')}
             >
-              <div className="flex items-center justify-between gap-4">
+              <div className="sticky top-0 z-10 -mx-5 -mt-5 flex items-center justify-between gap-4 border-b border-zinc-200 bg-white px-5 py-4 lg:static lg:mx-0 lg:mt-0 lg:border-0 lg:p-0">
                 <h2 className="text-lg font-semibold text-black">ตัวกรอง</h2>
-                <button type="button" className="text-sm text-zinc-500 transition hover:text-black" onClick={resetFilters}>
-                  ล้างทั้งหมด
-                </button>
+                <div className="flex items-center gap-2">
+                  <button type="button" className="text-sm text-zinc-500 transition hover:text-black" onClick={resetFilters}>
+                    ล้างทั้งหมด
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-black lg:hidden"
+                    onClick={() => setMobileFiltersOpen(false)}
+                    aria-label="ปิดตัวกรอง"
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
               </div>
 
               <div className="mt-7 border-b border-zinc-200 pb-6">
@@ -681,33 +715,35 @@ export default function StudentCourseStore() {
               </div>
 
               <div className="pt-6">
-                <h3 className="mb-4 text-sm font-semibold text-black">ราคา</h3>
                 <div className="space-y-3 text-sm text-zinc-700">
-                  <button type="button" className="flex items-center gap-3" onClick={() => setSortBy('popular')}>
-                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-black">
-                      <span className="h-2 w-2 rounded-full bg-black" />
-                    </span>
-                    ทั้งหมด
-                  </button>
-                  <button type="button" className="flex items-center gap-3" onClick={() => setSortBy('price-low')}>
-                    <span className="h-4 w-4 rounded-full border border-zinc-300" />
-                    ราคาต่ำก่อน
-                  </button>
-                  <button type="button" className="flex items-center gap-3" onClick={() => setSortBy('price-high')}>
-                    <span className="h-4 w-4 rounded-full border border-zinc-300" />
-                    ราคาสูงก่อน
-                  </button>
+                  {([
+                    ['popular', 'ทั้งหมด'],
+                    ['price-low', 'ราคาต่ำก่อน'],
+                    ['price-high', 'ราคาสูงก่อน'],
+                  ] as Array<[SortOption, string]>).map(([value, label]) => (
+                    <label key={value} className="flex cursor-pointer items-center gap-3">
+                      <input
+                        type="radio"
+                        name="course-price-sort"
+                        value={value}
+                        checked={sortBy === value}
+                        onChange={() => setSortBy(value)}
+                        className="h-4 w-4 accent-black"
+                      />
+                      {label}
+                    </label>
+                  ))}
                 </div>
               </div>
             </aside>
 
             <section className="min-w-0">
-              <div className="mb-7 flex flex-col gap-4 border-b border-zinc-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
-                <div className="inline-flex w-full overflow-hidden rounded-lg border border-zinc-200 bg-white p-1 sm:w-fit">
+              <div className="mb-6 border-b border-zinc-200 pb-5 sm:flex sm:items-center sm:justify-between">
+                <div className="grid w-full grid-cols-2 overflow-hidden rounded-lg border border-zinc-200 bg-white p-1 sm:inline-flex sm:w-fit">
                   <button
                     type="button"
                     className={[
-                      'h-9 flex-1 rounded-md px-3 text-sm font-semibold transition sm:flex-none sm:px-4',
+                      'min-h-10 min-w-0 rounded-md px-2 text-center text-sm font-semibold leading-5 transition sm:h-9 sm:min-h-0 sm:px-4',
                       !showPurchasedOnly ? 'bg-black text-white' : 'text-zinc-500 hover:text-black',
                     ].join(' ')}
                     onClick={() => setShowPurchasedOnly(false)}
@@ -717,7 +753,7 @@ export default function StudentCourseStore() {
                   <button
                     type="button"
                     className={[
-                      'h-9 flex-1 rounded-md px-3 text-sm font-semibold transition sm:flex-none sm:px-4',
+                      'min-h-10 min-w-0 rounded-md px-2 text-center text-sm font-semibold leading-5 transition sm:h-9 sm:min-h-0 sm:px-4',
                       showPurchasedOnly ? 'bg-black text-white' : 'text-zinc-500 hover:text-black',
                     ].join(' ')}
                     onClick={() => setShowPurchasedOnly(true)}
@@ -1026,7 +1062,7 @@ export default function StudentCourseStore() {
       />
       <aside
         className={[
-          'fixed inset-y-0 right-0 z-[90] flex w-full max-w-[440px] flex-col border-l border-zinc-200 bg-white text-black shadow-2xl transition-transform duration-300 ease-out',
+          'fixed inset-0 z-[90] flex h-[100svh] w-screen max-w-none flex-col bg-white text-black shadow-2xl transition-transform duration-300 ease-out sm:inset-y-0 sm:left-auto sm:right-0 sm:w-full sm:max-w-[440px] sm:border-l sm:border-zinc-200',
           cartOpen ? 'translate-x-0' : 'translate-x-full',
         ].join(' ')}
         aria-hidden={!cartOpen}
@@ -1152,7 +1188,7 @@ export default function StudentCourseStore() {
         aria-hidden={!checkoutModal}
         aria-label="ชำระเงิน"
       >
-        <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-5">
+        <header className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-4 py-4 sm:px-5 sm:py-5">
           <div className="flex items-center gap-3">
             <span className="inline-flex h-11 w-11 items-center justify-center rounded-md bg-black text-white">
               <Landmark size={20} />
@@ -1173,7 +1209,7 @@ export default function StudentCourseStore() {
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
           <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm text-zinc-500">ยอดที่ต้องโอน</span>
@@ -1201,7 +1237,6 @@ export default function StudentCourseStore() {
             {paymentGroups.map((group) => {
               const promptPayQrUrl = getPromptPayQrUrl(group.instructor.promptPayId, group.totalPrice)
               const qrUrl = promptPayQrUrl || group.instructor.paymentQrUrl
-              const hasDynamicPromptPay = Boolean(promptPayQrUrl)
 
               return (
               <div key={group.instructor.id} className="rounded-xl border border-zinc-200 bg-white p-4">
@@ -1231,19 +1266,6 @@ export default function StudentCourseStore() {
                         ยังไม่มี QR ของครูคนนี้
                       </div>
                     )}
-                  </div>
-
-                  <div
-                    className={[
-                      'border-t border-zinc-200 px-3 py-2 text-xs leading-5',
-                      hasDynamicPromptPay
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-amber-50 text-amber-700',
-                    ].join(' ')}
-                  >
-                    {hasDynamicPromptPay
-                      ? 'QR นี้มีเลข PromptPay และยอดชำระพร้อมแล้ว'
-                      : 'QR สำรองนี้ไม่ฝังยอดเงิน กรุณาตรวจยอดก่อนโอน'}
                   </div>
 
                   <div className="border-t border-zinc-200 bg-white p-3 text-sm">
@@ -1291,7 +1313,7 @@ export default function StudentCourseStore() {
           </section>
         </div>
 
-        <footer className="border-t border-zinc-200 bg-white p-4">
+        <footer className="shrink-0 border-t border-zinc-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"

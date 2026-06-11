@@ -1,0 +1,109 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mycourse-postgres
+    environment:
+      POSTGRES_DB: mycourse
+      POSTGRES_USER: mycourse
+      POSTGRES_PASSWORD: mycourse_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mycourse -d mycourse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: mycourse-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      FRONTEND_ORIGIN: http://localhost:8080
+      DATABASE_URL: postgres://mycourse:mycourse_password@postgres:5432/mycourse
+      TRANSCODE_UPLOADED_VIDEOS: "false"
+      VALIDATE_UPLOADED_VIDEOS: "true"
+      R2_MULTIPART_PART_MB: "32"
+      NORMALIZE_EXISTING_UPLOADS: "false"
+      AUTO_TRANSCRIBE_LESSONS: "true"
+      MAX_AUTO_TRANSCRIBE_VIDEO_MB: "100"
+      MUX_AUDIO_WAIT_SECONDS: "1800"
+      MUX_AUDIO_DOWNLOAD_MAX_MB: "1024"
+      TRANSCRIPTION_CHUNK_SECONDS: "600"
+      FFMPEG_THREADS: "2"
+    ports:
+      - "4001:4000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:4000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: mycourse-frontend
+    environment:
+      BACKEND_URL: http://backend:4000
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+  minio:
+    image: minio/minio:latest
+    container_name: mycourse-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:8080,http://localhost:5173
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: mycourse-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done
+        until mc mb --ignore-existing local/mycourse-videos; do sleep 1; done
+        until mc anonymous set download local/mycourse-videos; do sleep 1; done
+        exit 0
+
+volumes:
+  postgres-data:
+  minio-data:

@@ -8,4 +8,8 @@ export const pool = new Pool({
   connectionString: databaseUrl,
 })
 
+pool.on('error', (error) => {
+  console.error('Unexpected PostgreSQL pool error', error.message)
+})
+
 export const query = (text, params = []) => pool.query(text, params)

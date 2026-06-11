@@ -38,6 +38,20 @@ const maxCoverImageBytes = 5 * 1024 * 1024
 const promptPayPreviewAmount = 1
 
 const normalizePromptPayId = (value?: string) => (value ?? '').replace(/[^0-9]/g, '')
+const courseLevelLabels: Record<string, string> = {
+  Beginner: 'เริ่มต้น',
+  Intermediate: 'ระดับกลาง',
+  Advanced: 'ระดับสูง',
+}
+const courseCategoryLabels: Record<string, string> = {
+  Technology: 'เทคโนโลยี',
+  Business: 'ธุรกิจ',
+  Design: 'ออกแบบ',
+  Marketing: 'การตลาด',
+  Data: 'ข้อมูล',
+}
+const getCourseLevelLabel = (level: string) => courseLevelLabels[level] ?? level
+const getCourseCategoryLabel = (category: string) => courseCategoryLabels[category] ?? category
 const getPromptPayQrUrl = (promptPayId: string | undefined, amount = promptPayPreviewAmount) => {
   const normalizedId = normalizePromptPayId(promptPayId)
 
@@ -551,13 +565,13 @@ function TeacherShell({
               </Link>
             </div>
           </header>
-          <nav className="mb-6 flex gap-2 overflow-x-auto pb-2 lg:hidden">
+          <nav className="mb-6 grid grid-cols-3 gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm sm:grid-cols-6 lg:hidden">
             {teacherMobileNavItems.map((item) => {
               const Icon = item.icon
               const active = item.key === activeSection
               const mobileClassName = [
-                'inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition',
-                active ? 'border-black bg-black text-white' : 'border-zinc-200 bg-white text-black hover:border-black',
+                'inline-flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-xs font-semibold leading-4 transition sm:min-h-12 sm:flex-row sm:gap-2 sm:text-sm',
+                active ? 'border-black bg-black text-white' : 'border-zinc-200 bg-white text-black hover:border-black hover:bg-zinc-50',
               ].join(' ')
 
               return (
@@ -706,11 +720,11 @@ function CourseFormModal({
                         value={draft.category}
                         onChange={(event) => onDraftChange('category', event.target.value)}
                       >
-                        <option>Technology</option>
-                        <option>Business</option>
-                        <option>Design</option>
-                        <option>Marketing</option>
-                        <option>Data</option>
+                        <option value="Technology">เทคโนโลยี</option>
+                        <option value="Business">ธุรกิจ</option>
+                        <option value="Design">ออกแบบ</option>
+                        <option value="Marketing">การตลาด</option>
+                        <option value="Data">ข้อมูล</option>
                       </select>
                     </label>
 
@@ -721,9 +735,9 @@ function CourseFormModal({
                         value={draft.level}
                         onChange={(event) => onDraftChange('level', event.target.value)}
                       >
-                        <option>Beginner</option>
-                        <option>Intermediate</option>
-                        <option>Advanced</option>
+                        <option value="Beginner">เริ่มต้น</option>
+                        <option value="Intermediate">ระดับกลาง</option>
+                        <option value="Advanced">ระดับสูง</option>
                       </select>
                     </label>
                   </div>
@@ -749,7 +763,7 @@ function CourseFormModal({
                       <span className="field-label">กลุ่มเป้าหมาย</span>
                       <textarea
                         className="field-input min-h-24 resize-y"
-                        placeholder="ใส่ 1 กลุ่มต่อ 1 บรรทัด เช่น ผู้เรียนระดับ Beginner"
+                        placeholder="ใส่ 1 กลุ่มต่อ 1 บรรทัด เช่น ผู้เรียนระดับเริ่มต้น"
                         value={draft.targetAudience}
                         onChange={(event) => onDraftChange('targetAudience', event.target.value)}
                       />
@@ -1520,9 +1534,6 @@ export default function TeacherDashboard() {
     [profileDraft.promptPayId],
   )
   const paymentPreviewQrUrl = promptPayPreviewQrUrl || profileDraft.paymentQrUrl
-  const hasPromptPayPreview = Boolean(promptPayPreviewQrUrl)
-  const hasUnsavedPromptPay =
-    normalizePromptPayId(profileDraft.promptPayId) !== normalizePromptPayId(currentTeacherProfile?.promptPayId)
   const teacherStats = useMemo(() => {
     const published = courses.filter((course) => (course.status ?? 'published') === 'published').length
     const draft = courses.filter((course) => (course.status ?? 'published') === 'draft').length
@@ -2229,6 +2240,7 @@ export default function TeacherDashboard() {
       description: draftCourses[0]?.title ?? 'ไม่มีคอร์สร่างค้างอยู่',
       icon: Clock3,
       to: '/teacher?section=my-courses',
+      color: 'border-slate-800 bg-slate-900',
     },
     {
       label: 'คอร์สที่ยังไม่มีบทเรียน',
@@ -2236,6 +2248,7 @@ export default function TeacherDashboard() {
       description: coursesMissingLessons[0]?.title ?? 'ทุกคอร์สมีบทเรียนแล้ว',
       icon: AlertTriangle,
       to: '/teacher?section=my-courses',
+      color: 'border-amber-700 bg-amber-800',
     },
     {
       label: 'บทเรียนที่ยังไม่มีวิดีโอ',
@@ -2243,6 +2256,7 @@ export default function TeacherDashboard() {
       description: coursesMissingVideo[0]?.title ?? 'วิดีโอพร้อมใช้งาน',
       icon: Video,
       to: '/teacher?section=my-courses',
+      color: 'border-indigo-800 bg-indigo-900',
     },
     {
       label: 'นักเรียนล่าสุด',
@@ -2250,6 +2264,7 @@ export default function TeacherDashboard() {
       description: latestStudent ? `${latestStudent.name} · ${latestStudent.courseTitle}` : 'ยังไม่มีนักเรียนใหม่',
       icon: UserRound,
       to: '/teacher?section=students',
+      color: 'border-emerald-800 bg-emerald-900',
     },
   ]
 
@@ -2381,9 +2396,6 @@ export default function TeacherDashboard() {
                     placeholder="เช่น เบอร์โทร 08xxxxxxxx หรือเลขบัตรประชาชน"
                     inputMode="numeric"
                   />
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    เมื่อกรอกเลขนี้ ระบบจะสร้าง QR ตามยอดคอร์สให้นักเรียนทันที เงินเข้าบัญชี PromptPay ของคุณครู
-                  </p>
                 </label>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -2391,9 +2403,6 @@ export default function TeacherDashboard() {
                     <Landmark size={16} />
                     QR สำรอง
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    ใช้เฉพาะกรณีที่ยังไม่กรอก PromptPay หรืออยากมีรูปสำรองไว้แสดง แต่ QR สำรองจะไม่ฝังยอดเงินอัตโนมัติ
-                  </p>
                   <label className="mt-4 block">
                     <span className="field-label">อัปโหลด QR code</span>
                     <div className="mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-3">
@@ -2420,7 +2429,6 @@ export default function TeacherDashboard() {
 
               <aside className="border-t border-slate-200 bg-slate-50 p-5 lg:border-t-0 lg:border-l">
                 <div className="space-y-4">
-                  <p className="text-sm font-semibold text-slate-950">ตัวอย่างข้อมูลที่จะแสดง</p>
                   {paymentPreviewQrUrl ? (
                     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                       <img
@@ -2434,29 +2442,6 @@ export default function TeacherDashboard() {
                       ยังไม่มี QR code
                     </div>
                   )}
-                  <div
-                    className={[
-                      'rounded-2xl border p-3 text-sm leading-6',
-                      hasPromptPayPreview
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : 'border-amber-200 bg-amber-50 text-amber-700',
-                    ].join(' ')}
-                  >
-                    {hasPromptPayPreview
-                      ? `QR นี้สร้างจาก PromptPay ที่กรอกทันที ตัวอย่างใช้ยอด ${promptPayPreviewAmount.toLocaleString('th-TH')} บาท และฝั่งนักเรียนจะสร้างตามยอดคอร์สจริง`
-                      : 'ยังไม่มีเลข PromptPay ระบบจะใช้ QR สำรองถ้ามี แต่จะไม่ใส่ยอดเงินให้อัตโนมัติ'}
-                    {hasUnsavedPromptPay ? (
-                      <span className="mt-2 block font-semibold text-amber-700">
-                        ยังไม่ได้บันทึกเลข PromptPay นี้ กดบันทึกโปรไฟล์ก่อนนักเรียนจึงจะเห็น QR ที่ระบบสร้าง
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-xs text-slate-500">ชื่อผู้รับเงิน</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-950">{profileDraft.bankAccountName || '-'}</p>
-                    <p className="mt-3 text-xs text-slate-500">PromptPay</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-950">{profileDraft.promptPayId || '-'}</p>
-                  </div>
                 </div>
               </aside>
             </div>
@@ -2722,7 +2707,7 @@ export default function TeacherDashboard() {
                         </div>
                         </div>
                         <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-zinc-600">
-                          <span className="rounded-full bg-zinc-100 px-3 py-1">{student.courseCategory}</span>
+                          <span className="rounded-full bg-zinc-100 px-3 py-1">{getCourseCategoryLabel(student.courseCategory)}</span>
                           <span className={`rounded-full border px-3 py-1 ${courseStatus.badgeClass}`}>{courseStatus.label}</span>
                         </div>
                       </div>
@@ -2904,7 +2889,7 @@ export default function TeacherDashboard() {
                         />
                         <div className="min-w-0 flex-1">
                           <h3 className="line-clamp-2 text-lg font-semibold text-black">{selectedMessageThread.courseTitle}</h3>
-                          <p className="mt-1 text-sm text-zinc-500">{selectedMessageThread.courseCategory}</p>
+                          <p className="mt-1 text-sm text-zinc-500">{getCourseCategoryLabel(selectedMessageThread.courseCategory)}</p>
                           <p className="mt-3 text-xs font-medium text-zinc-600">
                             ลงทะเบียนเมื่อ {formatThaiDate(selectedMessageThread.enrollment.joinedAt)}
                           </p>
@@ -2985,7 +2970,7 @@ export default function TeacherDashboard() {
                                 {statusMeta.label}
                               </span>
                             </div>
-                            <p className="mt-1 line-clamp-1 text-sm text-zinc-500">{course.category}</p>
+                            <p className="mt-1 line-clamp-1 text-sm text-zinc-500">{getCourseCategoryLabel(course.category)}</p>
                             <p className="mt-1 text-xs text-zinc-500">
                               อัปเดตล่าสุด {course.updatedAt ? new Date(course.updatedAt).toLocaleDateString('th-TH') : '-'}
                             </p>
@@ -3143,8 +3128,8 @@ export default function TeacherDashboard() {
                       </div>
                       <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{course.description}</p>
                       <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-500">
-                        <span className="rounded-full bg-zinc-100 px-3 py-1">{course.category}</span>
-                        <span className="rounded-full bg-zinc-100 px-3 py-1">{course.level}</span>
+                        <span className="rounded-full bg-zinc-100 px-3 py-1">{getCourseCategoryLabel(course.category)}</span>
+                        <span className="rounded-full bg-zinc-100 px-3 py-1">{getCourseLevelLabel(course.level)}</span>
                         <span className="rounded-full bg-zinc-100 px-3 py-1">
                           อัปเดต {course.updatedAt ? new Date(course.updatedAt).toLocaleDateString('th-TH') : '-'}
                         </span>
@@ -3239,27 +3224,19 @@ export default function TeacherDashboard() {
                   <Link
                     key={action.label}
                     to={action.to}
-                    className="group rounded-2xl border border-zinc-200 bg-[#faf9f7] p-4 transition hover:border-black hover:bg-white"
+                    className={`group rounded-2xl border p-4 text-white shadow-sm transition hover:-translate-y-0.5 hover:brightness-110 ${action.color}`}
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black ring-1 ring-zinc-200">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white ring-1 ring-white/25">
                         <Icon size={18} />
                       </span>
-                      <span className="text-2xl font-semibold text-black">{action.value}</span>
+                      <span className="text-2xl font-semibold text-white">{action.value}</span>
                     </div>
-                    <p className="mt-4 text-sm font-semibold text-black">{action.label}</p>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">{action.description}</p>
+                    <p className="mt-4 text-sm font-semibold text-white">{action.label}</p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/70">{action.description}</p>
                   </Link>
                 )
               })}
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-sm font-semibold text-black">รายได้รวม</p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight text-black">
-                {teacherStats.totalRevenue.toLocaleString('th-TH')} บาท
-              </p>
-              <p className="mt-1 text-xs text-zinc-500">คำนวณจากราคาคอร์สและจำนวนผู้เรียนในระบบ</p>
             </div>
           </div>
 
