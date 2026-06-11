@@ -1,10 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Building2, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useApi } from '../hooks/useApi'
 import { api } from '../services/api'
 import type { Course } from '../types/course'
-import type { Sponsor } from '../types/sponsor'
 
 const formatPrice = (price: number) =>
   price === 0
@@ -19,16 +18,6 @@ const categoryDotColors = ['bg-purple-500', 'bg-blue-500', 'bg-rose-500', 'bg-or
 const getCategoryDotColor = (category: string) => {
   const total = [...category].reduce((sum, character) => sum + character.charCodeAt(0), 0)
   return categoryDotColors[total % categoryDotColors.length]
-}
-
-const getWebsiteHost = (websiteUrl?: string) => {
-  if (!websiteUrl) return null
-
-  try {
-    return new URL(websiteUrl).hostname.replace(/^www\./, '')
-  } catch {
-    return websiteUrl
-  }
 }
 
 const getCourseList = (courses: Course[]) =>
@@ -307,65 +296,13 @@ function LoadingBlock() {
   )
 }
 
-function SponsorPill({ sponsor }: { sponsor: Sponsor }) {
-  const [imageError, setImageError] = useState(false)
-  const Wrapper = sponsor.websiteUrl ? 'a' : 'div'
-  const websiteHost = getWebsiteHost(sponsor.websiteUrl)
-
-  return (
-    <Wrapper
-      {...(sponsor.websiteUrl
-        ? {
-            href: sponsor.websiteUrl,
-            target: '_blank',
-            rel: 'noreferrer',
-            title: `${sponsor.name}${websiteHost ? ` - ${websiteHost}` : ''}`,
-            'aria-label': `เปิดเว็บไซต์ ${sponsor.name}`,
-          }
-        : { title: sponsor.name, 'aria-label': sponsor.name })}
-      className="group flex h-20 w-20 shrink-0 items-center justify-center rounded-[24px] border border-zinc-200 bg-white text-zinc-950 shadow-[0_14px_34px_rgba(15,23,42,0.10)] ring-1 ring-white/80 transition duration-300 hover:-translate-y-1 hover:border-zinc-950 hover:shadow-[0_22px_54px_rgba(15,23,42,0.16)] sm:h-24 sm:w-24"
-    >
-      <span className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-zinc-950 p-2.5 text-white shadow-inner transition group-hover:scale-95 sm:h-16 sm:w-16 sm:rounded-[22px]">
-        {sponsor.logoUrl && !imageError ? (
-          <img
-            src={sponsor.logoUrl}
-            alt=""
-            className="max-h-full w-auto max-w-full object-contain brightness-0 invert"
-            loading="lazy"
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <Building2 size={24} strokeWidth={1.8} />
-        )}
-      </span>
-    </Wrapper>
-  )
-}
-
-function SponsorMarqueeRow({ items, reverse = false }: { items: Sponsor[]; reverse?: boolean }) {
-  const repeatedItems = [...items, ...items]
-
-  return (
-    <div className="sponsor-marquee-row overflow-hidden py-2">
-      <div className={reverse ? 'sponsor-marquee-track sponsor-marquee-track-reverse' : 'sponsor-marquee-track'}>
-        {repeatedItems.map((item, index) => (
-          <SponsorPill key={`${item.id}-${index}`} sponsor={item} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('all')
-  const { data, error, loading } = useApi(async () => {
-    const [courses, sponsors] = await Promise.all([api.getCourses(), api.getSponsors()])
-    return { courses, sponsors }
-  }, [])
+  const { data: courses, error, loading } = useApi(() => api.getCourses(), [])
 
   const publishedCourses = useMemo(
-    () => (data?.courses ?? []).filter((course) => (course.status ?? 'published') === 'published'),
-    [data?.courses],
+    () => (courses ?? []).filter((course) => (course.status ?? 'published') === 'published'),
+    [courses],
   )
   const courseList = useMemo(() => getCourseList(publishedCourses), [publishedCourses])
   const courseCategories = useMemo(
@@ -382,14 +319,6 @@ export default function Home() {
     () => (selectedCategory === 'all' ? courseList : courseList.filter((course) => course.category === selectedCategory)),
     [courseList, selectedCategory],
   )
-  const sponsors = useMemo(
-    () => [...(data?.sponsors ?? [])].sort((left, right) => left.displayOrder - right.displayOrder),
-    [data?.sponsors],
-  )
-  const sponsorSplitIndex = Math.max(1, Math.ceil(sponsors.length / 2))
-  const sponsorRowA = sponsors.slice(0, sponsorSplitIndex)
-  const sponsorRowB = sponsors.slice(sponsorSplitIndex)
-
   return (
     <div className="bg-white text-black">
       <HeroBanner />
@@ -427,35 +356,6 @@ export default function Home() {
           ) : null}
         </div>
       </section>
-
-      {sponsors.length > 0 ? (
-        <section className="container-page pb-12 sm:pb-16 lg:pb-20">
-          <div className="relative overflow-hidden rounded-[28px] border border-zinc-200 bg-[linear-gradient(135deg,#ffffff,#f5f5f7)] p-5 shadow-[0_22px_70px_rgba(15,23,42,0.08)] ring-1 ring-white/80 sm:p-6 lg:p-7">
-            <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-zinc-200/70 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-16 left-1/4 h-44 w-44 rounded-full bg-zinc-950/10 blur-3xl" />
-            <div className="relative">
-              <div className="max-w-4xl">
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.18em] text-zinc-500 sm:text-sm">SPONSORS</p>
-                  <h2 className="mt-3 text-3xl font-semibold leading-tight tracking-tight text-black sm:text-4xl lg:text-5xl">
-                    ผู้สนับสนุนที่ร่วมผลักดันการเรียนรู้
-                  </h2>
-                  <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-600 sm:text-base">
-                    โลโก้ผู้สนับสนุนแบบไอคอนล้วนในสไตล์ขาวดำ วางเมาส์เพื่อหยุดเลื่อนและกดเข้าเว็บไซต์ได้ทันที
-                  </p>
-                </div>
-              </div>
-
-              <div className="relative mt-6 space-y-2 sm:mt-7">
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-white via-white/70 to-transparent sm:w-24" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-white via-white/70 to-transparent sm:w-24" />
-                <SponsorMarqueeRow items={sponsorRowA} />
-                {sponsorRowB.length > 0 ? <SponsorMarqueeRow items={sponsorRowB} reverse /> : null}
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
     </div>
   )
 }
