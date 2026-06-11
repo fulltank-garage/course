@@ -13,20 +13,9 @@ import { pool, query } from './db.js'
 const port = Number(process.env.PORT ?? 4000)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const aiProvider = process.env.AI_PROVIDER ?? 'none'
-const normalizeGeminiModel = (model) => {
-  const normalizedModel = String(model ?? '').trim()
-  if (!normalizedModel || normalizedModel === 'not-configured') return 'gemini-2.5-flash'
-  if (normalizedModel === 'gemini-2.0-flash') return 'gemini-2.5-flash'
-
-  return normalizedModel
-}
-const aiModel = normalizeGeminiModel(process.env.AI_MODEL)
+const aiModel = 'gemini-3.5-flash'
+const transcribeModel = aiModel
 const aiRequestTimeoutSeconds = Math.max(30, Number(process.env.AI_REQUEST_TIMEOUT_SECONDS ?? 300) || 300)
-const aiPromptTranscriptMaxChars = Math.max(12000, Number(process.env.AI_PROMPT_TRANSCRIPT_MAX_CHARS ?? 28000) || 28000)
-const aiQuestionContextMaxChars = Math.max(8000, Number(process.env.AI_QUESTION_CONTEXT_MAX_CHARS ?? 18000) || 18000)
-const aiSummaryChunkChars = Math.max(8000, Number(process.env.AI_SUMMARY_CHUNK_CHARS ?? 14000) || 14000)
-const aiSummaryMaxChunks = Math.max(3, Number(process.env.AI_SUMMARY_MAX_CHUNKS ?? 4) || 4)
-const transcribeModel = normalizeGeminiModel(process.env.TRANSCRIBE_MODEL ?? aiModel)
 const geminiApiKey = process.env.GEMINI_API_KEY ?? ''
 const ffmpegBinary = process.env.FFMPEG_PATH ?? 'ffmpeg'
 const transcodeUploadedVideos = process.env.TRANSCODE_UPLOADED_VIDEOS === 'true'
@@ -848,154 +837,35 @@ const compactTextForAi = (text) =>
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 
-const splitTextForAi = (text, maxChars) => {
-  const compactedText = compactTextForAi(text)
-  if (!compactedText) return []
-  if (compactedText.length <= maxChars) return [compactedText]
+const buildLessonReference = (lesson) => {
+  const transcript = compactTextForAi(lesson?.transcript)
+  if (!transcript) return 'ไม่มีเนื้อหาบทเรียนแนบมา'
 
-  const paragraphs = compactedText.split(/\n{2,}/)
-  const chunks = []
-  let current = ''
-
-  for (const paragraph of paragraphs) {
-    if (paragraph.length > maxChars) {
-      if (current) {
-        chunks.push(current.trim())
-        current = ''
-      }
-
-      for (let index = 0; index < paragraph.length; index += maxChars) {
-        chunks.push(paragraph.slice(index, index + maxChars).trim())
-      }
-      continue
-    }
-
-    const next = current ? `${current}\n\n${paragraph}` : paragraph
-    if (next.length > maxChars) {
-      chunks.push(current.trim())
-      current = paragraph
-    } else {
-      current = next
-    }
-  }
-
-  if (current.trim()) chunks.push(current.trim())
-  return chunks
+  return transcript
 }
 
-const getQuestionTerms = (question) =>
-  Array.from(
-    new Set(
-      String(question ?? '')
-        .toLowerCase()
-        .split(/[^\p{L}\p{N}_]+/u)
-        .map((term) => term.trim())
-        .filter((term) => term.length >= 2),
-    ),
-  ).slice(0, 20)
+const GENERAL_AI_PROMPT = `
+คุณคือ MyCourse AI ผู้ช่วยอัจฉริยะทั่วไปที่ใช้ Gemini 3.5 Flash
 
-const selectLessonContextForQuestion = (transcript, question) => {
-  const compactedTranscript = compactTextForAi(transcript)
-  if (compactedTranscript.length <= aiQuestionContextMaxChars) return compactedTranscript
+หลักการทำงาน:
+- ตอบคำถามได้ทุกหัวข้อ ไม่จำกัดเฉพาะบทเรียน
+- วิเคราะห์ เปรียบเทียบ ให้เหตุผล เสนอแนวคิด และประยุกต์ใช้ความรู้ทั่วไปได้อย่างเต็มที่
+- ใช้เนื้อหาบทเรียนเป็นข้อมูลประกอบเมื่อเกี่ยวข้อง แต่ไม่ถือเป็นขอบเขตจำกัดความรู้
+- สนทนาต่อเนื่องโดยใช้ประวัติข้อความที่ผ่านมา
+- ตอบตามภาษาที่ผู้ใช้ใช้ และปรับระดับรายละเอียดตามคำถาม
+- แยกข้อเท็จจริง ข้อสันนิษฐาน และความคิดเห็นให้ชัดเมื่อจำเป็น
+- หากข้อมูลอาจเปลี่ยนแปลงตามเวลาและไม่มีเครื่องมือค้นข้อมูลสด ให้บอกข้อจำกัดอย่างตรงไปตรงมา
+- ห้ามอ้างว่าเข้าถึงอินเทอร์เน็ตหรือข้อมูลปัจจุบัน หากไม่มีข้อมูลดังกล่าวแนบมา
+- ไม่ต้องพยายามดึงทุกคำถามกลับเข้าบทเรียน
+- ไม่ต้องจำกัดความยาวแบบตายตัว ให้ตอบเท่าที่จำเป็นต่อคุณภาพ
+`.trim()
 
-  const chunkSize = Math.max(5000, Math.floor(aiQuestionContextMaxChars / 3))
-  const chunks = splitTextForAi(compactedTranscript, chunkSize)
-  const terms = getQuestionTerms(question)
-  const scoredChunks = chunks.map((chunk, index) => {
-    const normalizedChunk = chunk.toLowerCase()
-    const score = terms.reduce((total, term) => total + (normalizedChunk.includes(term) ? 1 : 0), 0)
-    return { chunk, index, score }
-  })
-
-  const selectedIndexes = new Set([0])
-  scoredChunks
-    .filter((item) => item.score > 0)
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .slice(0, 4)
-    .forEach((item) => selectedIndexes.add(item.index))
-
-  if (selectedIndexes.size < 3 && chunks.length > 1) selectedIndexes.add(Math.floor(chunks.length / 2))
-  if (selectedIndexes.size < 4 && chunks.length > 2) selectedIndexes.add(chunks.length - 1)
-
-  let selectedContext = Array.from(selectedIndexes)
-    .sort((left, right) => left - right)
-    .map((index) => `ช่วงเนื้อหาที่ ${index + 1}\n${chunks[index]}`)
-    .join('\n\n---\n\n')
-
-  if (selectedContext.length > aiQuestionContextMaxChars) {
-    selectedContext = `${selectedContext.slice(0, aiQuestionContextMaxChars)}\n\n[ตัดเนื้อหาบางส่วนออกเพื่อให้ AI ตอบได้เร็วขึ้น]`
-  }
-
-  return `บทเรียนนี้ยาวมาก ระบบเลือกช่วงที่เกี่ยวข้องที่สุดกับคำถามมาให้ใช้ตอบ\n\n${selectedContext}`
-}
-
-const summarizeLongTranscriptForAi = async (lesson, transcript) => {
-  const compactedTranscript = compactTextForAi(transcript)
-  if (compactedTranscript.length <= aiPromptTranscriptMaxChars) return compactedTranscript
-
-  const allChunks = splitTextForAi(compactedTranscript, aiSummaryChunkChars)
-  const chunks = allChunks
-  const chunkSummaries = await Promise.all(chunks.map(async (chunk, index) => {
-    const chunkPrompt = `
-สรุปเนื้อหาบทเรียนช่วงที่ ${index + 1}/${chunks.length} เป็นภาษาไทย
-
-กติกา:
-- ยึดจากเนื้อหาที่ให้มาเท่านั้น
-- ถ้ามีเวลา/timestamp ให้คงเวลาไว้ตามเดิม ห้ามเดาเวลาใหม่
-- เก็บเฉพาะประเด็นสำคัญ โจทย์ สูตร ขั้นตอน หรือคำศัพท์ที่จำเป็น
-- ตอบกระชับเพื่อใช้รวมเป็นสรุปบทเรียนยาว
-- ห้ามใช้ emoji หรือสัญลักษณ์ตกแต่ง
-- ห้ามใช้คำว่า "สคริปต์" หรือ "transcript" ในคำตอบ
-
-ชื่อบทเรียน: ${lesson.title}
-หมายเหตุ: ${
-      allChunks.length > chunks.length
-        ? `บทเรียนยาวมาก ระบบเลือกช่วงแบบกระจายจากทั้งหมด ${allChunks.length} ช่วงมา ${chunks.length} ช่วง`
-        : `บทเรียนแบ่งเป็น ${chunks.length} ช่วง`
-    }
-เนื้อหาช่วงนี้:
-${chunk}
-`
-    const chunkSummary = await callAiProvider(chunkPrompt)
-    return `ช่วงที่ ${index + 1}\n${chunkSummary.trim()}`
-  }))
-
-  return `บทเรียนนี้ยาวมาก ระบบจึงสรุปเป็นช่วงก่อนรวมผล\n\n${chunkSummaries.join('\n\n---\n\n')}`
-}
-
-const isLessonRelatedQuestion = (question, lessonTitle = '') => {
-  const normalizedQuestion = String(question ?? '').toLowerCase()
-  const normalizedTitle = String(lessonTitle ?? '').toLowerCase()
-  const lessonSignals = [
-    'บทเรียน',
-    'บทนี้',
-    'ในบท',
-    'คอร์ส',
-    'คลิป',
-    'คริป',
-    'วิดีโอ',
-    'เนื้อหา',
-    'คำศัพท์',
-    'ศัพท์',
-    'vocab',
-    'vocabulary',
-    'ที่เรียน',
-    'จากบท',
-    'ในบทนี้',
-    'สรุปบท',
-    'transcript',
-    'lesson',
-    'course',
-    'video',
-  ]
-
-  if (lessonSignals.some((signal) => normalizedQuestion.includes(signal))) return true
-
-  return normalizedTitle
-    .split(/\s+/)
-    .filter((word) => word.length >= 4)
-    .some((word) => normalizedQuestion.includes(word))
-}
+const buildConversationText = (history) =>
+  history
+    .filter((message) => message && (message.role === 'user' || message.role === 'assistant'))
+    .map((message) => `${message.role === 'user' ? 'ผู้ใช้' : 'AI'}: ${String(message.content ?? '').trim()}`)
+    .filter((line) => !line.endsWith(':'))
+    .join('\n\n')
 
 const saveAiOutput = async ({ lessonId, outputType, prompt, result }) => {
   await query(
@@ -1830,14 +1700,10 @@ const transcribeVideoWithGemini = async (absolutePath) => {
   const client = ensureGeminiClient()
   const mediaBuffer = await readFile(absolutePath)
   const prompt = `
-ถอดเสียงพูดจากวิดีโอนี้เป็นภาษาไทย พร้อม timestamp เพื่อใช้ทำ AI Summary แบบอ้างอิงเวลา
-
-กติกา:
-- ถอดเฉพาะคำพูดที่ได้ยินจริง ห้ามแต่งเนื้อหาเพิ่ม
-- ใส่ timestamp ทุกช่วงที่ผู้พูดเริ่มประเด็นใหม่ หรืออย่างน้อยทุก 15-30 วินาที
-- รูปแบบแต่ละบรรทัดต้องเป็น: [MM:SS] คำพูดที่ได้ยิน
-- ถ้าเสียงไม่ชัดให้ใส่ [ไม่ชัดเจน] เฉพาะจุดนั้น
-- ส่งกลับเฉพาะ transcript ไม่ต้องสรุป
+ใช้ Gemini 3.5 Flash ถอดเสียงทั้งหมดจากสื่อนี้อย่างแม่นยำ
+รักษาภาษาที่ผู้พูดใช้จริง ใส่ timestamp รูปแบบ [MM:SS] เมื่อเริ่มประเด็นใหม่
+ห้ามแต่งคำพูดที่ไม่ได้ยิน ถ้าไม่ชัดให้ระบุ [ไม่ชัดเจน]
+ส่งกลับเฉพาะข้อความถอดเสียง ไม่ต้องสรุปหรืออธิบายเพิ่มเติม
 `
   let response
 
@@ -3451,54 +3317,19 @@ const summarizeLesson = async (request, lessonId) => {
     }
   }
 
-  const transcript = compactTextForAi(String(lesson.transcript ?? '').trim())
-  const summaryContext = await summarizeLongTranscriptForAi(lesson, transcript)
-  const hasTimestamp = /\[(?:\d{1,2}:)?\d{1,2}:\d{2}\]/.test(summaryContext)
-  const timestampRule = hasTimestamp
-    ? '- ใช้ timestamp จากเนื้อหาที่มีเท่านั้น ห้ามเดาเวลาใหม่'
-    : '- ถ้าเนื้อหายังไม่มี timestamp ให้ใช้ "ช่วงที่ 1", "ช่วงที่ 2", "ช่วงที่ 3" ตามลำดับเนื้อหา'
-
   const prompt = `
-คุณคือ AI Tutor ภาษาไทยที่ช่วยผู้เรียนทบทวนบทเรียน
-สรุปบทเรียนนี้ให้สั้น อ่านง่าย และรู้ว่าควรจำอะไรต่อ
+${GENERAL_AI_PROMPT}
 
-รูปแบบคำตอบ:
-1. สรุปสั้น ๆ
-   - 1 ย่อหน้าสั้น อ่านจบเร็ว
-   - บอกแก่นของบทเรียนแบบเข้าใจง่าย
-
-2. เข้าใจง่าย ๆ คือ
-   - อธิบายใจความหลักด้วยภาษาง่าย 2-3 ประโยค
-   - ไม่ต้องลงรายละเอียดเกินจำเป็น
-
-3. ลำดับเนื้อหา
-   - สรุปเป็นช่วง 3-6 ช่วงตามลำดับเนื้อหา
-   - ถ้ามี timestamp ให้ใช้เฉพาะเวลาที่มีอยู่จริง ห้ามเดาเวลาใหม่
-   - ถ้าไม่มี timestamp ให้ใช้ "ช่วงที่ 1", "ช่วงที่ 2", "ช่วงที่ 3" ตามลำดับ
-   - แต่ละช่วงไม่เกิน 2 ประโยค
-
-4. จุดที่ควรจำ
-   - 3-5 ข้อ
-   - เลือกเฉพาะสิ่งที่ผู้เรียนควรรู้จริง ๆ
-
-5. ลองเช็กตัวเอง
-   - ตั้งคำถามสั้น ๆ 1 ข้อจากบทเรียนนี้
-   - ไม่ต้องเฉลยในทันที
-
-กติกา:
-${timestampRule}
-- ยึดจากเนื้อหาบทเรียนที่ให้มาเป็นหลัก
-- ถ้าข้อมูลมีน้อย ให้สรุปเฉพาะสิ่งที่มี ห้ามแต่งเพิ่ม
-- ห้ามใช้คำว่า "สคริปต์", "transcript" หรือ "summary" ในคำตอบที่ผู้เรียนเห็น
-- ห้ามใช้ emoji หรือสัญลักษณ์ตกแต่ง
-- ห้ามใช้คำว่า "ครู" แทนตัว AI หรือทำให้เข้าใจว่าเป็นคำพูดของผู้สอน ถ้าเป็นคำแนะนำของ AI ให้ใช้ "ผมแนะนำว่า..."
-- ตอบเป็นภาษาไทย อ่านง่าย กระชับ เหมือนติวเตอร์ช่วยทบทวน ไม่ใช่เอกสารยาว
-- ความยาวรวมประมาณ 350-500 คำ หรือน้อยกว่านั้นถ้าบทเรียนสั้น
+งานที่ต้องทำ:
+วิเคราะห์และสรุปบทเรียนต่อไปนี้อย่างลึกซึ้ง ใช้ความรู้ทั่วไปเสริมคำอธิบาย ตัวอย่าง การเปรียบเทียบ
+ข้อควรระวัง และแนวทางนำไปใช้ได้ โดยแยกให้ชัดว่าส่วนใดมาจากบทเรียนและส่วนใดเป็นความรู้เสริม
+จัดโครงสร้างคำตอบให้อ่านง่ายและเลือกความยาวตามความซับซ้อนของเนื้อหา
 
 ชื่อบทเรียน: ${lesson.title}
-ความยาวบทเรียน: ${lesson.duration ?? '-'}
+ระยะเวลา: ${lesson.duration ?? '-'}
+
 เนื้อหาบทเรียน:
-${summaryContext}
+${buildLessonReference(lesson)}
 `
   const summary = await callAiProvider(prompt)
   const result = { summary }
@@ -3511,105 +3342,28 @@ const askLessonAi = async (request, lessonId) => {
   await ensureAiSchema()
   const body = await readBody(request)
   const question = String(body.question ?? '').trim()
+  const history = Array.isArray(body.history) ? body.history.slice(-40) : []
 
   if (!question) return { statusCode: 400, payload: { message: 'Question is required' } }
 
   const { lesson: accessibleLesson, error: accessError } = await getAiAccessibleLesson(request, lessonId)
   if (accessError) return accessError
 
-  let lesson = await getLessonContent(lessonId)
+  const lesson = await getLessonContent(lessonId)
   if (!lesson) return { statusCode: 404, payload: { message: 'Lesson not found' } }
 
-  if (!String(lesson.transcript ?? '').trim()) {
-    const videoUrl = String(accessibleLesson.videoUrl ?? lesson.videoUrl ?? '').trim()
-
-    if (!videoUrl) {
-      return {
-        statusCode: 400,
-        payload: { message: 'ยังไม่มีสคริปต์ของบทเรียนนี้ และบทเรียนนี้ไม่มีวิดีโอให้ AI ถอดสคริปต์ครับ' },
-      }
-    }
-
-    const transcriptResult = await transcribeLessonVideo(request, lessonId)
-    if (transcriptResult.statusCode >= 400) return transcriptResult
-
-    lesson = await getLessonContent(lessonId)
-  }
-
-  const transcript = compactTextForAi(String(lesson.transcript ?? '').trim())
-  const quizContext =
-    transcript.length <= aiPromptTranscriptMaxChars
-      ? transcript
-      : [
-          transcript.slice(0, Math.floor(aiPromptTranscriptMaxChars * 0.45)),
-          transcript.slice(
-            Math.max(0, Math.floor(transcript.length / 2 - aiPromptTranscriptMaxChars * 0.2)),
-            Math.floor(transcript.length / 2 + aiPromptTranscriptMaxChars * 0.2),
-          ),
-          transcript.slice(Math.max(0, transcript.length - Math.floor(aiPromptTranscriptMaxChars * 0.15))),
-        ].join('\n\n---\n\n')
-  if (!transcript) {
-    return {
-      statusCode: 400,
-      payload: { message: 'ยังไม่มีสคริปต์ของบทเรียนนี้ครับ กรุณาลองถอดสคริปต์อีกครั้ง' },
-    }
-  }
-  const lessonContext = selectLessonContextForQuestion(transcript, question)
-
+  const conversation = buildConversationText(history)
   const prompt = `
-คุณคือ AI Tutor ผู้ช่วยสอนส่วนตัวของผู้เรียนในแต่ละบทเรียน
+${GENERAL_AI_PROMPT}
 
-ROLE:
-- ช่วยอธิบายเนื้อหาในบทเรียนปัจจุบัน
-- ช่วยตอบคำถามและกระตุ้นให้ผู้เรียนกล้าลองตอบ
-- ตอบเหมือนติวเตอร์จริง ไม่ใช่ customer support หรือ chatbot
+บริบทหน้าเรียนปัจจุบัน:
+- ชื่อบทเรียน: ${accessibleLesson.title ?? lesson.title}
+- เนื้อหาบทเรียนใช้เป็นข้อมูลอ้างอิงเสริมเท่านั้น:
+${buildLessonReference(lesson)}
 
-PERSONALITY:
-- อบอุ่น เป็นกันเอง ฉลาด และเป็นธรรมชาติ
-- คุยเหมือนครูพิเศษส่วนตัว มี conversational flow
-- แทนตัวเองว่า "ผม" เท่านั้น ห้ามเรียกตัวเองว่า "ครู"
-
-STYLE:
-- ตอบสั้นก่อนเสมอ ถ้าผู้เรียนอยากรู้เพิ่มค่อยขยาย
-- ใช้ภาษาง่าย อ่านลื่น ไม่เป็นเอกสาร
-- หลีกเลี่ยง pattern ซ้ำ ๆ เช่น "ในบทเรียนนี้..."
-- ห้ามใช้ emoji หรือสัญลักษณ์ตกแต่งในคำตอบ
-- ลงท้ายสุภาพด้วย "ครับ" เมื่อเหมาะสม แต่ไม่ต้องใส่ทุกประโยคจนแข็ง
-
-BEHAVIOR:
-- ถ้าผู้เรียนตอบถูก ให้ชมแบบธรรมชาติและเสริมจุดสำคัญสั้น ๆ
-- ถ้าผู้เรียนตอบผิด ให้แก้แบบไม่กดดัน แล้วให้ hint ถัดไป
-- ถ้าผู้เรียนงง ให้อธิบายง่ายขึ้นทันที
-- ถ้าผู้เรียนตอบสั้น ให้ตอบสั้น
-- ถ้าผู้เรียนคุยนอกเรื่อง ให้คุยได้สั้น ๆ แบบมนุษย์ แล้วค่อยพากลับบทเรียน
-- อย่าชมทุกข้อความจนดูปลอม และอย่าพยายามสอนตลอดเวลา
-
-LESSON RULE:
-- ตอบอิงจากเนื้อหาของบทเรียนปัจจุบันเป็นหลัก
-- ถ้าไม่พบข้อมูลในบทเรียน ให้ตอบตรง ๆ ว่า: "ในบทนี้ยังไม่ได้พูดถึงเรื่องนี้โดยตรงครับ"
-- ห้ามมั่วหรือเสริมความรู้ภายนอกที่ไม่มีในบทเรียน เว้นแต่เป็นการอธิบายแนวคิดเดียวกันแบบง่ายขึ้นและต้องบอกว่าเป็นการเปรียบเทียบ
-- ห้ามใช้คำว่า "สคริปต์" หรือ "transcript" ในคำตอบที่ผู้เรียนเห็น ให้ใช้ "เนื้อหาในบทเรียน", "จากวิดีโอนี้", "ในคลิปนี้" หรือ "จากโจทย์ในคลิป" ตามบริบทแทน
-- ห้ามแต่ง timestamp หรือแต่งคำพูดว่าอยู่ในวิดีโอถ้าเนื้อหาไม่ได้ระบุไว้
-
-HINT MODE:
-- ถ้าผู้เรียนกำลังทำโจทย์ ห้ามเฉลยทันที
-- ให้ hint ทีละขั้น ช่วยคิด ไม่ใช่ตอบแทน
-- ถ้าผู้เรียนขอเฉลยชัดเจน เช่น "เฉลย", "ขอคำตอบ", "ทำให้ดูทั้งหมด", "อธิบายเต็ม" ค่อยอธิบายเต็ม
-- ถ้าต้องให้ hint ให้ใช้ "Hint 1", "Hint 2" เท่าที่จำเป็น และหยุดให้ผู้เรียนลองตอบก่อน
-- ถ้าผู้เรียนส่งคำตอบมา ให้ตรวจก่อนว่าถูก/ผิด/ใกล้เคียง แล้วชี้จุดแก้แบบสุภาพ
-
-GOOD RESPONSE STYLE:
-ผู้เรียน: งง
-AI: เดี๋ยวผมอธิบายแบบง่ายขึ้นให้นะ
-
-ผู้เรียน: ข้อนี้ตอบอะไร
-AI: ลองดูคำกริยาในประโยคก่อนครับ ประโยคนี้กำลังพูดถึง "ปัจจุบัน" หรือ "อดีต"
-
-ชื่อบทเรียน: ${lesson.title}
-เนื้อหาบทเรียนสำหรับอ้างอิง:
-${lessonContext}
-
-คำถามผู้เรียน: ${question}
+${conversation ? `ประวัติการสนทนา:\n${conversation}\n` : ''}
+คำถามล่าสุดของผู้ใช้:
+${question}
 `
   const answer = await callAiProvider(prompt)
   const result = { question, answer }
@@ -3621,154 +3375,79 @@ ${lessonContext}
 const generateLessonQuiz = async (request, lessonId) => {
   const { lesson, error } = await ensureLessonTranscriptForAi(request, lessonId)
   if (error) return error
+
   const body = await readBody(request)
   const excludedQuestions = Array.isArray(body.excludedQuestions)
-    ? body.excludedQuestions
-        .map((question) => String(question ?? '').trim())
-        .filter(Boolean)
-        .slice(0, 50)
+    ? body.excludedQuestions.map((question) => String(question ?? '').trim()).filter(Boolean).slice(0, 50)
     : []
-  const excludedQuestionsBlock = excludedQuestions.length
-    ? `
-
-Avoid repeating or closely paraphrasing these previous questions:
-${excludedQuestions.map((question, index) => `${index + 1}. ${question}`).join('\n')}
-Create a fresh quiz set with different angles, choices, and correct answers where possible.
-`
-    : ''
-
-  const transcript = compactTextForAi(String(lesson.transcript ?? '').trim())
-  const quizContext =
-    transcript.length <= aiPromptTranscriptMaxChars
-      ? transcript
-      : [
-          transcript.slice(0, Math.floor(aiPromptTranscriptMaxChars * 0.45)),
-          transcript.slice(
-            Math.max(0, Math.floor(transcript.length / 2 - aiPromptTranscriptMaxChars * 0.2)),
-            Math.floor(transcript.length / 2 + aiPromptTranscriptMaxChars * 0.2),
-          ),
-          transcript.slice(Math.max(0, transcript.length - Math.floor(aiPromptTranscriptMaxChars * 0.15))),
-        ].join('\n\n---\n\n')
 
   const prompt = `
-สร้างแบบทดสอบจากเนื้อหาบทเรียนนี้ จำนวน 10 ข้อ
-ต้องมีคำถามทั้งหมด 10 ข้อพอดี แต่ละข้อมี 4 ตัวเลือก และมีคำตอบที่ถูกต้องเพียง 1 ตัวเลือก
-สลับตำแหน่งคำตอบที่ถูกต้องให้กระจายอยู่ข้อ 1, 2, 3 และ 4 ไม่ให้คำตอบถูกอยู่ตำแหน่งเดิมซ้ำ ๆ
-ตอบกลับเป็น JSON เท่านั้น รูปแบบ:
+${GENERAL_AI_PROMPT}
+
+งานที่ต้องทำ:
+สร้างแบบทดสอบคุณภาพสูง 10 ข้อจากหัวข้อบทเรียนด้านล่าง สามารถใช้ความรู้ทั่วไปที่ถูกต้องเพื่อสร้างโจทย์
+วิเคราะห์ ประยุกต์ เปรียบเทียบ และสถานการณ์จริงได้ ไม่จำกัดแค่การท่องจำข้อความในบทเรียน
+แต่ละข้อมี 4 ตัวเลือก มีคำตอบถูกเพียงข้อเดียว และมีคำอธิบายเฉลยที่ให้เหตุผล
+หลีกเลี่ยงคำถามเดิมหรือคำถามที่มีความหมายใกล้เคียงในรายการที่แนบมา
+
+ตอบเป็น JSON เท่านั้นตามรูปแบบ:
 {
   "questions": [
     {
       "question": "คำถาม",
       "options": [
-        {"text":"ตัวเลือก", "isCorrect": true},
-        {"text":"ตัวเลือก", "isCorrect": false},
-        {"text":"ตัวเลือก", "isCorrect": false},
-        {"text":"ตัวเลือก", "isCorrect": false}
+        {"text": "ตัวเลือก", "isCorrect": true},
+        {"text": "ตัวเลือก", "isCorrect": false},
+        {"text": "ตัวเลือก", "isCorrect": false},
+        {"text": "ตัวเลือก", "isCorrect": false}
       ],
-      "explanation": "เฉลย"
+      "explanation": "เหตุผลของคำตอบ"
     }
   ]
 }
 
 ชื่อบทเรียน: ${lesson.title}
-เนื้อหา:
-${excludedQuestionsBlock}
-${quizContext}
+คำถามที่ต้องหลีกเลี่ยง:
+${excludedQuestions.length ? excludedQuestions.map((question, index) => `${index + 1}. ${question}`).join('\n') : 'ไม่มี'}
+
+เนื้อหาบทเรียน:
+${buildLessonReference(lesson)}
 `
   const raw = await callAiProvider(prompt, { json: true })
   const parsed = parseJsonResponse(raw)
   const questions = Array.isArray(parsed.questions) ? parsed.questions.slice(0, 10) : []
-  const normalizeQuestion = (value) =>
-    String(value ?? '')
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .trim()
+  const normalizeQuestion = (value) => String(value ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
   const excludedQuestionSet = new Set(excludedQuestions.map(normalizeQuestion))
-  const hasExactDuplicate = questions.some((question) => excludedQuestionSet.has(normalizeQuestion(question?.question)))
 
-  if (questions.length < 10) {
-    return {
-      statusCode: 502,
-      payload: { message: 'AI สร้างข้อสอบได้ไม่ครบ 10 ข้อ กรุณาลองใหม่อีกครั้ง' },
-    }
+  if (questions.length < 10 || questions.some((question) => excludedQuestionSet.has(normalizeQuestion(question?.question)))) {
+    return { statusCode: 502, payload: { message: 'AI สร้างชุดคำถามไม่สมบูรณ์ กรุณาลองสร้างใหม่อีกครั้ง' } }
   }
-
-  if (hasExactDuplicate) {
-    return {
-      statusCode: 502,
-      payload: { message: 'AI สร้างคำถามซ้ำกับชุดเดิม กรุณาลองสร้างชุดใหม่อีกครั้ง' },
-    }
-  }
-
-  await query('DELETE FROM quiz_questions WHERE lesson_id = $1', [lessonId])
 
   const savedQuestions = []
-
-  for (const [questionIndex, question] of questions.entries()) {
+  for (let questionIndex = 0; questionIndex < questions.length; questionIndex += 1) {
+    const question = questions[questionIndex]
     const options = Array.isArray(question.options) ? question.options.slice(0, 4) : []
-    const correctOptions = options.filter((option) => Boolean(option?.isCorrect))
+    if (!question.question || options.length !== 4 || options.filter((option) => option.isCorrect).length !== 1) continue
 
-    if (!String(question.question ?? '').trim() || options.length !== 4 || correctOptions.length !== 1) {
-      return {
-        statusCode: 502,
-        payload: { message: 'AI สร้างรูปแบบข้อสอบไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง' },
-      }
-    }
-
-    const questionId = `q-ai-${crypto.randomUUID()}`
-    const savedQuestion = {
-      id: questionId,
-      question: String(question.question ?? ''),
+    savedQuestions.push({
+      id: `generated-${lessonId}-${Date.now()}-${questionIndex}`,
+      question: String(question.question),
       explanation: String(question.explanation ?? ''),
-      options: [],
-    }
-
-    await query(
-      `
-        INSERT INTO quiz_questions (id, lesson_id, question, explanation, sort_order)
-        VALUES ($1, $2, $3, $4, $5)
-      `,
-      [
-        questionId,
-        lessonId,
-        savedQuestion.question,
-        savedQuestion.explanation,
-        questionIndex + 1,
-      ],
-    )
-
-    const shuffledOptions = shuffleItems(options)
-
-    for (const [optionIndex, option] of shuffledOptions.entries()) {
-      const optionId = `qo-ai-${crypto.randomUUID()}`
-      const savedOption = {
-        id: optionId,
+      options: options.map((option, optionIndex) => ({
+        id: `generated-option-${questionIndex}-${optionIndex}`,
         text: String(option.text ?? ''),
         isCorrect: Boolean(option.isCorrect),
-      }
-
-      await query(
-        `
-          INSERT INTO quiz_options (id, question_id, text, is_correct, sort_order)
-          VALUES ($1, $2, $3, $4, $5)
-        `,
-        [
-          optionId,
-          questionId,
-          savedOption.text,
-          savedOption.isCorrect,
-          optionIndex + 1,
-        ],
-      )
-      savedQuestion.options.push(savedOption)
-    }
-
-    savedQuestions.push(savedQuestion)
+      })),
+    })
   }
 
-  await saveAiOutput({ lessonId, outputType: 'quiz', prompt, result: { questions: savedQuestions } })
+  if (savedQuestions.length !== 10) {
+    return { statusCode: 502, payload: { message: 'AI สร้างตัวเลือกคำถามไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง' } }
+  }
 
-  return { statusCode: 200, payload: { data: { questions: savedQuestions } } }
+  const result = { questions: savedQuestions }
+  await saveAiOutput({ lessonId, outputType: 'quiz', prompt, result })
+  return { statusCode: 200, payload: { data: result } }
 }
 
 const saveLessonQuizAttempt = async (request, lessonId) => {

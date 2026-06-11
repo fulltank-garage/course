@@ -256,6 +256,11 @@ export interface AiAnswerResponse {
   answer: string
 }
 
+export interface AiChatHistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface AiQuizResponse {
   questions: QuizQuestion[]
 }
@@ -720,10 +725,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({}),
     }, aiRequestTimeoutMs),
-  askLesson: (lessonId: string, question: string) =>
+  askLesson: (lessonId: string, question: string, history: AiChatHistoryMessage[] = []) =>
     request<AiAnswerResponse>(`/api/ai/lessons/${lessonId}/ask`, {
       method: 'POST',
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, history }),
     }, aiRequestTimeoutMs),
   generateLessonQuiz: (lessonId: string, excludedQuestions: string[] = []) =>
     request<AiQuizResponse>(`/api/ai/lessons/${lessonId}/quiz`, {

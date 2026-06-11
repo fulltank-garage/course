@@ -124,8 +124,16 @@ const startPersistentAiResponse = (lessonId: string, lessonTitle: string, pendin
 
   if (runningRequest) return runningRequest
 
+  const history = getStoredMessages(lessonId, lessonTitle)
+    .filter((message) => message.id !== pending.userMessageId && !message.id.startsWith('welcome-'))
+    .slice(-40)
+    .map((message) => ({
+      role: message.sender === 'user' ? ('user' as const) : ('assistant' as const),
+      content: message.text,
+    }))
+
   const request = api
-    .askLesson(lessonId, pending.question)
+    .askLesson(lessonId, pending.question, history)
     .then((result): Message => ({
       id: `ai-${Date.now()}`,
       sender: 'ai',
