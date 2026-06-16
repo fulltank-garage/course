@@ -313,7 +313,7 @@ export default function StudentCourseStore() {
   const [showPurchasedOnly, setShowPurchasedOnly] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [cartItems, setCartItems] = useState(() => cartStorage.getItems())
-  const [cartOpen, setCartOpen] = useState(() => searchParams.get('cart') === '1')
+  const [cartOpen, setCartOpen] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [cartError, setCartError] = useState<string | null>(null)
   const [cartMessage, setCartMessage] = useState<string | null>(null)
@@ -329,8 +329,15 @@ export default function StudentCourseStore() {
   useEffect(() => cartStorage.subscribe(() => setCartItems(cartStorage.getItems())), [])
 
   useEffect(() => {
-    if (searchParams.get('cart') === '1') setCartOpen(true)
-  }, [searchParams])
+    if (!courses) return
+
+    const availableSlugs = new Set(courses.map((course) => course.slug))
+    const nextItems = cartItems.filter((slug) => availableSlugs.has(slug))
+
+    if (nextItems.length !== cartItems.length) {
+      setCartItems(cartStorage.setItems(nextItems))
+    }
+  }, [cartItems, courses])
 
   useEffect(() => {
     const shouldLockPageScroll = cartOpen || Boolean(checkoutModal) || mobileSidebarOpen || mobileFiltersOpen
@@ -561,6 +568,26 @@ export default function StudentCourseStore() {
     showPurchasedOnly ? 'ซื้อแล้ว' : null,
   ].filter(Boolean)
   const totalCartPrice = cartCourses.reduce((sum, course) => sum + course.price, 0)
+  const cartBadgeCount = cartCourses.length
+  const openCartOrCheckout = () => {
+    if (cartCourses.length > 0) {
+      openCheckoutModal({ mode: 'all' })
+      return
+    }
+
+    setCartOpen(true)
+  }
+
+  useEffect(() => {
+    if (searchParams.get('cart') !== '1' || !courses) return
+
+    if (cartCourses.length > 0) {
+      openCheckoutModal({ mode: 'all' })
+      return
+    }
+
+    setCartOpen(true)
+  }, [cartCourses.length, courses, searchParams])
   const freeCartCourses = cartCourses.filter((course) => course.price === 0).length
   const paidCartCourses = cartCourses.length - freeCartCourses
   const modalActionLoading =
@@ -649,15 +676,15 @@ export default function StudentCourseStore() {
               </button>
               <button
                 type="button"
-                onClick={() => setCartOpen(true)}
+                onClick={openCartOrCheckout}
                 className="relative hidden h-12 w-12 items-center justify-center rounded-lg bg-black text-white transition hover:bg-zinc-800 sm:inline-flex"
                 aria-label="ตะกร้าสินค้า"
                 title="ตะกร้าสินค้า"
               >
                 <ShoppingCart size={18} />
-                {cartItems.length > 0 ? (
+                {cartBadgeCount > 0 ? (
                   <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-semibold text-black shadow-sm">
-                    {cartItems.length}
+                    {cartBadgeCount}
                   </span>
                 ) : null}
               </button>
@@ -665,7 +692,7 @@ export default function StudentCourseStore() {
           </header>
 
           <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm lg:hidden">
-            <div className="grid grid-cols-[minmax(0,1fr)_48px] gap-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_48px] gap-2 sm:grid-cols-1">
               <button
                 type="button"
                 className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-200 bg-white px-3 text-sm font-semibold text-black"
@@ -675,15 +702,15 @@ export default function StudentCourseStore() {
               </button>
               <button
                 type="button"
-                className="relative inline-flex h-11 w-12 items-center justify-center rounded-lg bg-black text-white"
-                onClick={() => setCartOpen(true)}
+                className="relative inline-flex h-11 w-12 items-center justify-center rounded-lg bg-black text-white sm:hidden"
+                onClick={openCartOrCheckout}
                 aria-label="ตะกร้าสินค้า"
                 title="ตะกร้าสินค้า"
               >
                 <ShoppingCart size={18} />
-                {cartItems.length > 0 ? (
+                {cartBadgeCount > 0 ? (
                   <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-semibold text-black shadow-sm">
-                    {cartItems.length}
+                    {cartBadgeCount}
                   </span>
                 ) : null}
               </button>

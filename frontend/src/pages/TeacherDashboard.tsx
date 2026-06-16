@@ -468,7 +468,7 @@ function TeacherShell({
       // Keep local state aligned even if the server session already expired.
     } finally {
       authStorage.clearSession()
-      window.location.assign('/')
+      window.location.assign('/login')
     }
   }
 
@@ -477,7 +477,7 @@ function TeacherShell({
   }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-white text-black lg:pl-[280px]" style={{ minHeight: '100svh' }}>
+    <div className="student-page-shell" style={{ minHeight: '100svh' }}>
       <button
         type="button"
         aria-label="ปิดเมนู"
@@ -563,23 +563,20 @@ function TeacherShell({
         </div>
       </aside>
 
-      <main className="min-w-0">
-        <div className="mx-auto w-full max-w-[1560px] px-3 py-4 sm:px-6 sm:py-5 lg:px-8">
-          <header className="mb-4 flex h-12 min-w-0 items-center gap-2 sm:mb-6 sm:gap-4">
+      <main className="student-page-main min-w-0">
+        <div className="mx-auto w-full max-w-[1560px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+          <header className="mb-5 flex min-h-12 min-w-0 items-center gap-3 sm:mb-6 sm:gap-4">
             <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white lg:hidden" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}>
               <Menu size={20} />
             </button>
             <Link to="/teacher" className="flex min-w-0 items-center gap-2 lg:hidden">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
-                <BrandMark className="h-10 w-10" />
-              </span>
               <span className="hidden truncate text-lg font-semibold min-[390px]:inline">MyCourse</span>
             </Link>
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto flex min-w-0 items-center gap-3">
               <Link
                 to="/teacher?section=profile"
                 onClick={(event) => handleActiveLinkClick(event, activeSection === 'profile')}
-                className="flex h-11 items-center gap-2 rounded-full border border-zinc-200 bg-white py-1 pl-1 pr-3 shadow-sm shadow-zinc-200/70 transition hover:border-zinc-300 hover:shadow-md"
+                className="flex h-11 min-w-0 items-center gap-2 rounded-full border border-zinc-200 bg-white py-1 pl-1 pr-3 shadow-sm shadow-zinc-200/70 transition hover:border-zinc-300 hover:shadow-md"
               >
                 {avatarUrl ? (
                   <span className="relative inline-flex h-9 w-9 shrink-0">
@@ -2588,7 +2585,7 @@ export default function TeacherDashboard() {
           </section>
         ) : null}
 
-        <section className="mb-5 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-5 xl:grid-cols-4">
+        <section className="mb-5 grid grid-cols-1 gap-3 min-[520px]:grid-cols-2 sm:mb-6 sm:gap-5 xl:grid-cols-4">
           {(activeSection === 'students'
             ? [
                 {
@@ -2724,15 +2721,15 @@ export default function TeacherDashboard() {
             return (
             <div
               key={item.label}
-              className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:border-zinc-300 hover:shadow-md sm:p-6"
+              className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:border-zinc-300 hover:shadow-md sm:p-5 lg:p-6"
             >
               <span
                 className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1 sm:h-12 sm:w-12 ${iconTone}`}
               >
-                <Icon size={22} />
+                <Icon size={20} />
               </span>
               <p className="mt-4 truncate text-xs font-medium text-zinc-600 sm:mt-5 sm:text-sm">{item.label}</p>
-              <p className="mt-1 break-words text-2xl font-semibold tracking-tight text-black sm:mt-2 sm:text-3xl">{item.value}</p>
+              <p className="mt-1 break-words text-2xl font-semibold tracking-tight text-black sm:mt-2 sm:text-3xl lg:text-[2rem]">{item.value}</p>
               <p className={item.trend ? 'mt-3 text-xs font-medium text-emerald-700' : 'mt-3 text-xs font-medium text-zinc-500'}>
                 {item.trend ? `↑ ${item.note}` : item.note}
               </p>
@@ -3313,14 +3310,14 @@ export default function TeacherDashboard() {
         ) : null}
 
         {activeSection === 'home' ? (
-        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
-          <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
+          <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
+          <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <h2 className="text-lg font-semibold tracking-tight text-black">งานที่ควรดูต่อ</h2>
                 <p className="mt-1 text-sm text-zinc-500">สรุปจากคอร์สและบทเรียนที่มีอยู่ตอนนี้</p>
               </div>
-              <Link to="/teacher?section=my-courses" className="h-10 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:border-black">
+              <Link to="/teacher?section=my-courses" className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:border-black sm:w-auto">
                 จัดการคอร์ส
               </Link>
             </div>
@@ -3349,12 +3346,12 @@ export default function TeacherDashboard() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
+          <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <h2 className="text-lg font-semibold tracking-tight text-black">กิจกรรมล่าสุด</h2>
               <button
                 type="button"
-                className="h-10 rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black"
+                className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-black transition hover:border-black sm:w-auto"
               >
                 ดูทั้งหมด
               </button>

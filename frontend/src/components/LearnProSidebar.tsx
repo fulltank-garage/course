@@ -111,7 +111,7 @@ export default function LearnProSidebar({
     } finally {
       authStorage.clearSession()
       onMobileClose?.()
-      navigate('/')
+      navigate('/login')
     }
   }
 

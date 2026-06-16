@@ -1,19 +1,40 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Mail,
+} from 'lucide-react'
 import { useApi } from '../hooks/useApi'
 import { api } from '../services/api'
 import type { Course } from '../types/course'
 
+const allOption = 'ทั้งหมด'
+const categoryDotColors = ['bg-purple-500', 'bg-blue-500', 'bg-rose-500', 'bg-orange-500', 'bg-green-500']
+const categoryLabels: Record<string, string> = {
+  Technology: 'เทคโนโลยี',
+  Business: 'ธุรกิจ',
+  Design: 'ออกแบบ',
+  Marketing: 'การตลาด',
+  Data: 'ข้อมูล',
+}
+const levelLabels: Record<string, string> = {
+  Beginner: 'เริ่มต้น',
+  Intermediate: 'ระดับกลาง',
+  Advanced: 'ระดับสูง',
+}
+
+const getCategoryLabel = (category: string) => categoryLabels[category] ?? category
+const getLevelLabel = (level: string) => levelLabels[level] ?? level
+
 const formatPrice = (price: number) =>
-  price === 0
-    ? 'ฟรี'
-    : `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(price)} บาท`
+  price === 0 ? 'ฟรี' : `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(price)} บาท`
 
 const getCourseReviewAverage = (course: Course) => course.reviewAverage ?? course.rating
 const getCourseReviewCount = (course: Course) => course.reviewCount ?? 0
-
-const categoryDotColors = ['bg-purple-500', 'bg-blue-500', 'bg-rose-500', 'bg-orange-500', 'bg-green-500']
 
 const getCategoryDotColor = (category: string) => {
   const total = [...category].reduce((sum, character) => sum + character.charCodeAt(0), 0)
@@ -36,20 +57,145 @@ type CategoryOption = {
   count: number
 }
 
-function HeroBanner() {
+type HeroSlide = {
+  id: string
+  title: string
+  description: string
+  image: string
+  href: string
+  mobileImage?: string
+}
+
+const heroFallbackSlides: HeroSlide[] = [
+  {
+    id: 'default-hero',
+    title: 'ระบบคอร์สออนไลน์สำหรับทุกเป้าหมาย',
+    description: 'เลือกดูคอร์ส เรียนต่อ และจัดการบทเรียนได้ในที่เดียว',
+    image: '/home-hero-course-banner.png',
+    mobileImage: '/home-hero-course-banner-mobile.png',
+    href: '/student/store',
+  },
+]
+
+const heroActions = [
+  { label: 'ทำไมต้อง MyCourse', to: '/why-mycourse', icon: FileText },
+  { label: 'ติดต่อ', to: '/contact', icon: Mail },
+]
+
+function HeroBanner({ courses }: { courses: Course[] }) {
+  const [activeSlide, setActiveSlide] = useState(0)
+  const slides = useMemo(
+    () =>
+      courses.slice(0, 5).map<HeroSlide>((course) => ({
+        id: course.id,
+        title: course.title,
+        description: course.description,
+        image: course.coverImage,
+        href: `/courses/${course.slug}`,
+      })),
+    [courses],
+  )
+  const heroSlides = slides.length > 0 ? slides : heroFallbackSlides
+  const currentSlide = heroSlides[activeSlide % heroSlides.length]
+
+  useEffect(() => {
+    setActiveSlide(0)
+  }, [heroSlides.length])
+
+  useEffect(() => {
+    if (heroSlides.length <= 1) return
+
+    const timer = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % heroSlides.length)
+    }, 5000)
+
+    return () => window.clearInterval(timer)
+  }, [heroSlides.length])
+
+  const goToSlide = (index: number) => setActiveSlide((index + heroSlides.length) % heroSlides.length)
+
   return (
-    <section className="relative isolate -mt-px overflow-hidden bg-white">
-      <div className="w-full px-0">
-        <div className="relative min-h-[calc(100svh-72px)] overflow-hidden bg-[#eef4ff] sm:min-h-[calc(100svh-80px)]">
-          <picture>
-            <source media="(max-width: 639px)" srcSet="/home-hero-course-banner-mobile.png" />
-            <img
-              src="/home-hero-course-banner.png"
-              alt="ระบบคอร์สออนไลน์ เรียนรู้ได้ทุกที่ ทุกเวลา"
-              className="absolute inset-0 h-full w-full object-cover object-center"
-            />
-          </picture>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/70 to-transparent" />
+    <section className="relative isolate -mt-px overflow-hidden bg-[#f2f2f2] py-5 sm:py-8 lg:py-10">
+      <div className="container-page">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_348px] lg:items-stretch">
+          <div className="relative overflow-hidden rounded-2xl bg-black shadow-sm">
+            <Link to={currentSlide.href} className="group block">
+              <picture>
+                {'mobileImage' in currentSlide && currentSlide.mobileImage ? (
+                  <source media="(max-width: 639px)" srcSet={currentSlide.mobileImage} />
+                ) : null}
+                <img
+                  src={currentSlide.image}
+                  alt={currentSlide.title}
+                  className="aspect-[16/9] min-h-[260px] w-full object-cover transition duration-700 group-hover:scale-[1.02] sm:min-h-[360px] lg:min-h-[410px]"
+                />
+              </picture>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/22 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-7 lg:p-8">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">คอร์สแนะนำ</p>
+                <h1 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
+                  {currentSlide.title}
+                </h1>
+                <p className="mt-3 max-w-2xl line-clamp-2 text-sm leading-6 text-white/78 sm:text-base">
+                  {currentSlide.description}
+                </p>
+              </div>
+            </Link>
+
+            {heroSlides.length > 1 ? (
+              <>
+                <button
+                  type="button"
+                  className="absolute left-4 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow-sm transition hover:bg-white sm:inline-flex"
+                  onClick={() => goToSlide(activeSlide - 1)}
+                  aria-label="เลื่อนรูปก่อนหน้า"
+                >
+                  <ChevronLeft size={21} />
+                </button>
+                <button
+                  type="button"
+                  className="absolute right-4 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow-sm transition hover:bg-white sm:inline-flex"
+                  onClick={() => goToSlide(activeSlide + 1)}
+                  aria-label="เลื่อนรูปถัดไป"
+                >
+                  <ChevronRight size={21} />
+                </button>
+                <div className="absolute bottom-4 right-4 flex gap-2">
+                  {heroSlides.map((slide, index) => (
+                    <button
+                      key={slide.id}
+                      type="button"
+                      className={[
+                        'h-2.5 rounded-full transition',
+                        index === activeSlide ? 'w-8 bg-white' : 'w-2.5 bg-white/45 hover:bg-white/75',
+                      ].join(' ')}
+                      onClick={() => goToSlide(index)}
+                      aria-label={`ไปที่รูปที่ ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-1">
+            {heroActions.map((action) => {
+              const Icon = action.icon
+
+              return (
+                <Link
+                  key={action.label}
+                  to={action.to}
+                  className="group flex min-h-28 flex-col items-center justify-center rounded-2xl border border-zinc-200 bg-white p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md sm:min-h-36 lg:min-h-0"
+                >
+                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-black text-white transition group-hover:scale-105 sm:h-16 sm:w-16">
+                    <Icon size={24} />
+                  </span>
+                  <span className="mt-3 text-xs font-semibold leading-5 text-black sm:text-sm">{action.label}</span>
+                </Link>
+              )
+            })}
+          </div>
         </div>
       </div>
     </section>
@@ -76,9 +222,9 @@ function CourseRailCard({ course }: { course: Course }) {
         <div className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-500">
           <span className="flex min-w-0 items-center gap-2">
             <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getCategoryDotColor(course.category)}`} />
-            <span className="truncate">{course.category}</span>
+            <span className="truncate">{getCategoryLabel(course.category)}</span>
           </span>
-          <span className="shrink-0">{course.level}</span>
+          <span className="shrink-0">{getLevelLabel(course.level)}</span>
         </div>
         <Link to={`/courses/${course.slug}`} className="mt-4 line-clamp-2 text-xl font-semibold leading-7 tracking-tight text-zinc-950 hover:underline">
           {course.title}
@@ -88,15 +234,13 @@ function CourseRailCard({ course }: { course: Course }) {
         </p>
         <div className="mt-auto flex items-center justify-between gap-4 pt-6">
           <p className="text-base font-semibold text-zinc-950">{formatPrice(course.price)}</p>
-          <div className="flex items-center gap-2">
-            <Link
-              to={`/courses/${course.slug}`}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-950 text-white transition group-hover:translate-x-0.5"
-              aria-label={`ดูรายละเอียด ${course.title}`}
-            >
-              <ArrowRight size={16} />
-            </Link>
-          </div>
+          <Link
+            to={`/courses/${course.slug}`}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-950 text-white transition group-hover:translate-x-0.5"
+            aria-label={`ดูรายละเอียด ${course.title}`}
+          >
+            <ArrowRight size={16} />
+          </Link>
         </div>
       </div>
     </article>
@@ -127,41 +271,34 @@ function CourseRail({ courses }: { courses: Course[] }) {
       </div>
 
       <div className="pointer-events-none absolute inset-y-0 left-0 right-0 hidden items-center justify-between lg:flex">
-        <button
-          type="button"
-          className="pointer-events-auto inline-flex h-12 w-12 -translate-x-6 items-center justify-center rounded-full border border-zinc-200 bg-white/95 text-zinc-700 shadow-[0_16px_40px_rgba(15,23,42,0.12)] backdrop-blur transition hover:border-zinc-300 hover:bg-white"
-          onClick={() => scrollCourses('previous')}
-          aria-label="เลื่อนคอร์สไปทางซ้าย"
-        >
-          <ChevronLeft size={22} />
-        </button>
-        <button
-          type="button"
-          className="pointer-events-auto inline-flex h-12 w-12 translate-x-6 items-center justify-center rounded-full border border-zinc-200 bg-white/95 text-zinc-700 shadow-[0_16px_40px_rgba(15,23,42,0.12)] backdrop-blur transition hover:border-zinc-300 hover:bg-white"
-          onClick={() => scrollCourses('next')}
-          aria-label="เลื่อนคอร์สถัดไป"
-        >
-          <ChevronRight size={22} />
-        </button>
+        {(['previous', 'next'] as const).map((direction) => (
+          <button
+            key={direction}
+            type="button"
+            className={[
+              'pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white/95 text-zinc-700 shadow-[0_16px_40px_rgba(15,23,42,0.12)] backdrop-blur transition hover:border-zinc-300 hover:bg-white',
+              direction === 'previous' ? '-translate-x-6' : 'translate-x-6',
+            ].join(' ')}
+            onClick={() => scrollCourses(direction)}
+            aria-label={direction === 'previous' ? 'เลื่อนคอร์สไปทางซ้าย' : 'เลื่อนคอร์สถัดไป'}
+          >
+            {direction === 'previous' ? <ChevronLeft size={22} /> : <ChevronRight size={22} />}
+          </button>
+        ))}
       </div>
 
       <div className="mt-3 flex justify-end gap-2 sm:mt-4 lg:hidden">
-        <button
-          type="button"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
-          onClick={() => scrollCourses('previous')}
-          aria-label="เลื่อนคอร์สไปทางซ้าย"
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <button
-          type="button"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
-          onClick={() => scrollCourses('next')}
-          aria-label="เลื่อนคอร์สถัดไป"
-        >
-          <ChevronRight size={20} />
-        </button>
+        {(['previous', 'next'] as const).map((direction) => (
+          <button
+            key={direction}
+            type="button"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"
+            onClick={() => scrollCourses(direction)}
+            aria-label={direction === 'previous' ? 'เลื่อนคอร์สไปทางซ้าย' : 'เลื่อนคอร์สถัดไป'}
+          >
+            {direction === 'previous' ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -177,7 +314,7 @@ function CategoryDropdown({
   onSelectCategory: (category: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const selectedLabel = selectedCategory === 'all' ? 'ทั้งหมด' : selectedCategory
+  const selectedLabel = selectedCategory === 'all' ? allOption : getCategoryLabel(selectedCategory)
 
   return (
     <div className="relative w-full sm:w-[340px]">
@@ -212,17 +349,8 @@ function CategoryDropdown({
               setOpen(false)
             }}
           >
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="truncate">ทั้งหมด</span>
-              <span className="flex shrink-0 gap-2">
-                {categoryDotColors.map((color) => (
-                  <span key={color} className={`h-2.5 w-2.5 rounded-full ${color}`} />
-                ))}
-              </span>
-            </span>
-            <span className="text-xs font-medium text-zinc-500">
-              {categories.reduce((total, category) => total + category.count, 0)}
-            </span>
+            <span>{allOption}</span>
+            <span className="text-xs font-medium text-zinc-500">{categories.reduce((total, category) => total + category.count, 0)}</span>
           </button>
 
           <div className="py-2">
@@ -238,7 +366,7 @@ function CategoryDropdown({
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${getCategoryDotColor(category.name)}`} />
-                  <span className="truncate">{category.name}</span>
+                  <span className="truncate">{getCategoryLabel(category.name)}</span>
                 </span>
                 <span className="text-xs text-zinc-400">{category.count}</span>
               </button>
@@ -260,14 +388,6 @@ function LoadingBlock() {
         >
           <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-950/5">
             <div className="skeleton h-full w-full" />
-            <div className="absolute left-3 top-3 flex gap-2">
-              <div className="skeleton h-7 w-20 rounded-md bg-white/80" />
-              <div className="skeleton h-7 w-24 rounded-md bg-white/70" />
-            </div>
-            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-3">
-              <div className="skeleton h-4 w-28 rounded-full bg-white/70" />
-              <div className="skeleton h-7 w-20 rounded-md bg-white/80" />
-            </div>
           </div>
           <div className="flex flex-1 flex-col p-5">
             <div className="skeleton h-7 w-20 rounded-md" />
@@ -275,19 +395,9 @@ function LoadingBlock() {
               <div className="skeleton-line h-5 w-11/12" />
               <div className="skeleton-line h-5 w-8/12" />
             </div>
-            <div className="mt-4 space-y-2">
-              <div className="skeleton-line h-4 w-full" />
-              <div className="skeleton-line h-4 w-10/12" />
-              <div className="skeleton-line h-4 w-7/12" />
-            </div>
-            <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
-              <div className="skeleton mx-auto h-4 w-12 rounded-full" />
-              <div className="skeleton mx-auto h-4 w-10 rounded-full" />
-              <div className="skeleton mx-auto h-4 w-12 rounded-full" />
-            </div>
             <div className="mt-auto flex items-center justify-between border-t border-slate-200 pt-4">
               <div className="skeleton h-5 w-20 rounded-full" />
-              <div className="skeleton h-10 w-28 rounded-md" />
+              <div className="skeleton h-10 w-10 rounded-full" />
             </div>
           </div>
         </div>
@@ -319,9 +429,10 @@ export default function Home() {
     () => (selectedCategory === 'all' ? courseList : courseList.filter((course) => course.category === selectedCategory)),
     [courseList, selectedCategory],
   )
+
   return (
     <div className="bg-white text-black">
-      <HeroBanner />
+      <HeroBanner courses={courseList} />
 
       <section className="container-page py-12 sm:py-16 lg:py-20">
         <div className="flex flex-col gap-6 border-t border-zinc-200 pt-8 sm:pt-10 lg:flex-row lg:items-end lg:justify-between">

@@ -129,7 +129,7 @@ export default function Navbar() {
     } finally {
       authStorage.clearSession()
       setLoggingOut(false)
-      navigate('/')
+      navigate('/login')
     }
   }
 

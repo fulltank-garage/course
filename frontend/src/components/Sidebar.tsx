@@ -63,7 +63,7 @@ export default function Sidebar({
       // Keep the client session cleared even if the server session is already gone.
     } finally {
       authStorage.clearSession()
-      navigate('/')
+      navigate('/login')
     }
   }
 

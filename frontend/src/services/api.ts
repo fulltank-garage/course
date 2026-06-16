@@ -411,13 +411,21 @@ export const cartStorage = {
 
     try {
       const items = JSON.parse(raw)
-      return Array.isArray(items) ? items.filter((item): item is string => typeof item === 'string') : []
+      return Array.isArray(items)
+        ? Array.from(new Set(items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)))
+        : []
     } catch {
       return []
     }
   },
+  setItems: (courseSlugs: string[]) => {
+    const nextItems = Array.from(new Set(courseSlugs.filter((item) => item.trim().length > 0)))
+    localStorage.setItem(cartStorageKey, JSON.stringify(nextItems))
+    window.dispatchEvent(new Event(cartChangeEvent))
+    return nextItems
+  },
   addItem: (courseSlug: string) => {
-    const nextItems = Array.from(new Set([...cartStorage.getItems(), courseSlug]))
+    const nextItems = Array.from(new Set([...cartStorage.getItems(), courseSlug].filter((item) => item.trim().length > 0)))
     localStorage.setItem(cartStorageKey, JSON.stringify(nextItems))
     window.dispatchEvent(new Event(cartChangeEvent))
     return nextItems
