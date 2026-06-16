@@ -15,6 +15,7 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const aiProvider = process.env.AI_PROVIDER ?? 'none'
 const aiModel = 'gemini-3.5-flash'
 const transcribeModel = aiModel
+const defaultStudentAiPlan = (process.env.DEFAULT_STUDENT_AI_PLAN ?? 'free').trim().toLowerCase()
 const aiRequestTimeoutSeconds = Math.max(30, Number(process.env.AI_REQUEST_TIMEOUT_SECONDS ?? 300) || 300)
 const geminiApiKey = process.env.GEMINI_API_KEY ?? ''
 const ffmpegBinary = process.env.FFMPEG_PATH ?? 'ffmpeg'
@@ -101,6 +102,32 @@ const supportedVideoMimeTypes = new Set([
   'video/x-msvideo',
   'application/octet-stream',
 ])
+
+const aiPlanConfigs = {
+  free: {
+    id: 'free',
+    label: 'Free',
+    monthly: { chat: 10, summary: 3, quiz: 3 },
+    rateLimitPerMinute: 6,
+  },
+  plus: {
+    id: 'plus',
+    label: 'AI Plus',
+    monthly: { chat: 300, summary: 50, quiz: 50 },
+    rateLimitPerMinute: 30,
+  },
+  pro: {
+    id: 'pro',
+    label: 'AI Pro',
+    monthly: { chat: 1000, summary: 200, quiz: 200 },
+    rateLimitPerMinute: 80,
+  },
+}
+const aiUsageActionLabels = {
+  chat: 'ถาม AI',
+  summary: 'สรุปบทเรียน',
+  quiz: 'แบบทดสอบ',
+}
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
@@ -442,6 +469,34 @@ const ensureAiSchema = async () => {
       model TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `)
+  await query(`
+    CREATE TABLE IF NOT EXISTS student_ai_subscriptions (
+      student_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      plan_id TEXT NOT NULL CHECK (plan_id IN ('free', 'plus', 'pro')) DEFAULT 'free',
+      current_period_start DATE NOT NULL DEFAULT DATE_TRUNC('month', CURRENT_DATE)::DATE,
+      current_period_end DATE NOT NULL DEFAULT (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::DATE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+  await query(`
+    CREATE TABLE IF NOT EXISTS student_ai_usage (
+      id TEXT PRIMARY KEY,
+      student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      lesson_id TEXT REFERENCES lessons(id) ON DELETE SET NULL,
+      action_type TEXT NOT NULL CHECK (action_type IN ('chat', 'summary', 'quiz')),
+      plan_id TEXT NOT NULL CHECK (plan_id IN ('free', 'plus', 'pro')),
+      period_start DATE NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_student_ai_usage_monthly
+    ON student_ai_usage (student_id, period_start, action_type)
+  `)
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_student_ai_usage_recent
+    ON student_ai_usage (student_id, created_at DESC)
   `)
   await query(`
     CREATE TABLE IF NOT EXISTS lesson_quiz_attempts (
@@ -925,6 +980,193 @@ const getLatestAiOutput = async (lessonId, outputType) => {
   )
 
   return result.rows[0]?.result ?? null
+}
+
+const getCurrentAiPeriodStart = () => {
+  const now = new Date()
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`
+}
+
+const normalizeAiPlanId = (planId) => {
+  const normalized = String(planId ?? '').trim().toLowerCase()
+  if (aiPlanConfigs[normalized]) return normalized
+  if (aiPlanConfigs[defaultStudentAiPlan]) return defaultStudentAiPlan
+  return 'free'
+}
+
+const getStudentAiPlan = async (studentId) => {
+  const result = await query(
+    `
+      SELECT plan_id
+      FROM student_ai_subscriptions
+      WHERE student_id = $1
+        AND current_period_start <= CURRENT_DATE
+        AND current_period_end > CURRENT_DATE
+      LIMIT 1
+    `,
+    [studentId],
+  )
+
+  const planId = normalizeAiPlanId(result.rows[0]?.plan_id)
+  return aiPlanConfigs[planId] ?? aiPlanConfigs.free
+}
+
+const getStudentAiUsageSnapshot = async (studentId, plan, periodStart) => {
+  const [monthlyResult, recentResult] = await Promise.all([
+    query(
+      `
+        SELECT action_type, COUNT(*)::INT AS used
+        FROM student_ai_usage
+        WHERE student_id = $1 AND period_start = $2
+        GROUP BY action_type
+      `,
+      [studentId, periodStart],
+    ),
+    query(
+      `
+        SELECT COUNT(*)::INT AS used
+        FROM student_ai_usage
+        WHERE student_id = $1 AND created_at > NOW() - INTERVAL '60 seconds'
+      `,
+      [studentId],
+    ),
+  ])
+  const used = { chat: 0, summary: 0, quiz: 0 }
+
+  for (const row of monthlyResult.rows) {
+    if (row.action_type in used) used[row.action_type] = Number(row.used)
+  }
+
+  return {
+    plan: { id: plan.id, label: plan.label },
+    periodStart,
+    limits: plan.monthly,
+    used,
+    remaining: {
+      chat: Math.max(0, plan.monthly.chat - used.chat),
+      summary: Math.max(0, plan.monthly.summary - used.summary),
+      quiz: Math.max(0, plan.monthly.quiz - used.quiz),
+    },
+    rateLimitPerMinute: plan.rateLimitPerMinute,
+    usedLastMinute: Number(recentResult.rows[0]?.used ?? 0),
+  }
+}
+
+const getStudentAiUsagePayload = async (studentId) => {
+  await ensureAiSchema()
+  const plan = await getStudentAiPlan(studentId)
+  return getStudentAiUsageSnapshot(studentId, plan, getCurrentAiPeriodStart())
+}
+
+const getStudentAiSubscription = async (request) => {
+  const { authUser, error } = await requireRole(request, ['student'])
+  if (error) return error
+
+  return {
+    statusCode: 200,
+    payload: {
+      data: await getStudentAiUsagePayload(authUser.id),
+    },
+  }
+}
+
+const activateStudentAiPlan = async (request) => {
+  const { authUser, error } = await requireRole(request, ['student'])
+  if (error) return error
+
+  const body = await readBody(request)
+  const planId = normalizeAiPlanId(body.planId)
+  const plan = aiPlanConfigs[planId] ?? aiPlanConfigs.free
+
+  await ensureAiSchema()
+  await query(
+    `
+      INSERT INTO student_ai_subscriptions (
+        student_id,
+        plan_id,
+        current_period_start,
+        current_period_end,
+        updated_at
+      )
+      VALUES (
+        $1,
+        $2,
+        CURRENT_DATE,
+        (CURRENT_DATE + INTERVAL '1 month')::DATE,
+        NOW()
+      )
+      ON CONFLICT (student_id)
+      DO UPDATE SET
+        plan_id = EXCLUDED.plan_id,
+        current_period_start = EXCLUDED.current_period_start,
+        current_period_end = EXCLUDED.current_period_end,
+        updated_at = NOW()
+    `,
+    [authUser.id, plan.id],
+  )
+
+  return {
+    statusCode: 200,
+    payload: {
+      data: await getStudentAiUsagePayload(authUser.id),
+    },
+  }
+}
+
+const authorizeAiUsage = async ({ authUser, lessonId, actionType }) => {
+  await ensureAiSchema()
+
+  if (!authUser || authUser.role !== 'student') return { allowed: true, usage: null }
+
+  const plan = await getStudentAiPlan(authUser.id)
+  const periodStart = getCurrentAiPeriodStart()
+  const usage = await getStudentAiUsageSnapshot(authUser.id, plan, periodStart)
+  const limit = Number(plan.monthly[actionType] ?? 0)
+  const currentUsed = Number(usage.used[actionType] ?? 0)
+
+  if (usage.usedLastMinute >= plan.rateLimitPerMinute) {
+    return {
+      allowed: false,
+      error: {
+        statusCode: 429,
+        payload: {
+          message: `ใช้งาน AI ถี่เกินไป กรุณารอสักครู่แล้วลองใหม่ (${plan.rateLimitPerMinute} ครั้ง/นาที)`,
+          data: { usage },
+        },
+      },
+    }
+  }
+
+  if (currentUsed >= limit) {
+    const actionLabel = aiUsageActionLabels[actionType] ?? 'AI'
+
+    return {
+      allowed: false,
+      error: {
+        statusCode: 429,
+        payload: {
+          message: `${actionLabel} ของแพ็กเกจ ${plan.label} หมดแล้วในเดือนนี้ อัปเกรดแพ็กเกจหรือรอรอบใหม่`,
+          data: { usage },
+        },
+      },
+    }
+  }
+
+  return {
+    allowed: true,
+    usage,
+    record: async () => {
+      await query(
+        `
+          INSERT INTO student_ai_usage (id, student_id, lesson_id, action_type, plan_id, period_start)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [`ai-usage-${crypto.randomUUID()}`, authUser.id, lessonId, actionType, plan.id, periodStart],
+      )
+
+      return getStudentAiUsageSnapshot(authUser.id, plan, periodStart)
+    },
+  }
 }
 
 const ensureUploadsDir = async () => {
@@ -3443,7 +3685,7 @@ const getAiAccessibleLesson = async (request, lessonId) => {
     }
   }
 
-  return { lesson, error: null }
+  return { lesson, authUser, error: null }
 }
 
 const transcribeLessonVideo = async (request, lessonId) => {
@@ -3546,6 +3788,10 @@ const summarizeLesson = async (request, lessonId) => {
     }
   }
 
+  const authUser = await getAuthUser(request)
+  const aiUsage = await authorizeAiUsage({ authUser, lessonId, actionType: 'summary' })
+  if (!aiUsage.allowed) return aiUsage.error
+
   const prompt = `
 ${GENERAL_AI_PROMPT}
 
@@ -3563,8 +3809,9 @@ ${buildLessonReference(lesson)}
   const summary = await callAiProvider(prompt)
   const result = { summary }
   await saveAiOutput({ lessonId, outputType: 'summary', prompt, result })
+  const usage = await aiUsage.record?.()
 
-  return { statusCode: 200, payload: { data: result } }
+  return { statusCode: 200, payload: { data: { ...result, usage } } }
 }
 
 const askLessonAi = async (request, lessonId) => {
@@ -3575,8 +3822,11 @@ const askLessonAi = async (request, lessonId) => {
 
   if (!question) return { statusCode: 400, payload: { message: 'Question is required' } }
 
-  const { lesson: accessibleLesson, error: accessError } = await getAiAccessibleLesson(request, lessonId)
+  const { lesson: accessibleLesson, authUser, error: accessError } = await getAiAccessibleLesson(request, lessonId)
   if (accessError) return accessError
+
+  const aiUsage = await authorizeAiUsage({ authUser, lessonId, actionType: 'chat' })
+  if (!aiUsage.allowed) return aiUsage.error
 
   const lesson = await getLessonContent(lessonId)
   if (!lesson) return { statusCode: 404, payload: { message: 'Lesson not found' } }
@@ -3597,8 +3847,9 @@ ${question}
   const answer = await callAiProvider(prompt)
   const result = { question, answer }
   await saveAiOutput({ lessonId, outputType: 'answer', prompt, result })
+  const usage = await aiUsage.record?.()
 
-  return { statusCode: 200, payload: { data: result } }
+  return { statusCode: 200, payload: { data: { ...result, usage } } }
 }
 
 const generateLessonQuiz = async (request, lessonId) => {
@@ -3609,6 +3860,9 @@ const generateLessonQuiz = async (request, lessonId) => {
   const excludedQuestions = Array.isArray(body.excludedQuestions)
     ? body.excludedQuestions.map((question) => String(question ?? '').trim()).filter(Boolean).slice(0, 50)
     : []
+  const authUser = await getAuthUser(request)
+  const aiUsage = await authorizeAiUsage({ authUser, lessonId, actionType: 'quiz' })
+  if (!aiUsage.allowed) return aiUsage.error
 
   const prompt = `
 ${GENERAL_AI_PROMPT}
@@ -3676,7 +3930,9 @@ ${buildLessonReference(lesson)}
 
   const result = { questions: savedQuestions }
   await saveAiOutput({ lessonId, outputType: 'quiz', prompt, result })
-  return { statusCode: 200, payload: { data: result } }
+  const usage = await aiUsage.record?.()
+
+  return { statusCode: 200, payload: { data: { ...result, usage } } }
 }
 
 const saveLessonQuizAttempt = async (request, lessonId) => {
@@ -5868,6 +6124,18 @@ const routeRequest = async (request, response) => {
 
   if (url.pathname === '/api/student/profile' && request.method === 'POST') {
     const result = await updateStudentProfile(request)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
+  if (url.pathname === '/api/student/ai-subscription' && request.method === 'GET') {
+    const result = await getStudentAiSubscription(request)
+    sendJson(response, result.statusCode, result.payload)
+    return
+  }
+
+  if (url.pathname === '/api/student/ai-subscription' && request.method === 'POST') {
+    const result = await activateStudentAiPlan(request)
     sendJson(response, result.statusCode, result.payload)
     return
   }

@@ -134,6 +134,30 @@ CREATE TABLE IF NOT EXISTS ai_outputs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS student_ai_subscriptions (
+  student_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  plan_id TEXT NOT NULL CHECK (plan_id IN ('free', 'plus', 'pro')) DEFAULT 'free',
+  current_period_start DATE NOT NULL DEFAULT DATE_TRUNC('month', CURRENT_DATE)::DATE,
+  current_period_end DATE NOT NULL DEFAULT (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::DATE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS student_ai_usage (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  lesson_id TEXT REFERENCES lessons(id) ON DELETE SET NULL,
+  action_type TEXT NOT NULL CHECK (action_type IN ('chat', 'summary', 'quiz')),
+  plan_id TEXT NOT NULL CHECK (plan_id IN ('free', 'plus', 'pro')),
+  period_start DATE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_ai_usage_monthly
+ON student_ai_usage (student_id, period_start, action_type);
+
+CREATE INDEX IF NOT EXISTS idx_student_ai_usage_recent
+ON student_ai_usage (student_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS lesson_reviews (
   id TEXT PRIMARY KEY,
   lesson_id TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,

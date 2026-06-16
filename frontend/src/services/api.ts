@@ -250,11 +250,13 @@ export interface SaveLessonReviewPayload {
 
 export interface AiSummaryResponse {
   summary: string
+  usage?: AiUsageSnapshot
 }
 
 export interface AiAnswerResponse {
   question: string
   answer: string
+  usage?: AiUsageSnapshot
 }
 
 export interface AiChatHistoryMessage {
@@ -264,7 +266,35 @@ export interface AiChatHistoryMessage {
 
 export interface AiQuizResponse {
   questions: QuizQuestion[]
+  usage?: AiUsageSnapshot
 }
+
+export interface AiUsageSnapshot {
+  plan: {
+    id: 'free' | 'plus' | 'pro'
+    label: string
+  }
+  periodStart: string
+  limits: {
+    chat: number
+    summary: number
+    quiz: number
+  }
+  used: {
+    chat: number
+    summary: number
+    quiz: number
+  }
+  remaining: {
+    chat: number
+    summary: number
+    quiz: number
+  }
+  rateLimitPerMinute: number
+  usedLastMinute: number
+}
+
+export type AiPlanId = AiUsageSnapshot['plan']['id']
 
 export interface SaveQuizAttemptPayload {
   score: number
@@ -831,6 +861,12 @@ export const api = {
     request<StudentProfile>('/api/student/profile', {
       method: 'POST',
       body: JSON.stringify(payload),
+    }),
+  getStudentAiSubscription: () => request<AiUsageSnapshot>('/api/student/ai-subscription'),
+  activateStudentAiPlan: (planId: AiPlanId) =>
+    request<AiUsageSnapshot>('/api/student/ai-subscription', {
+      method: 'POST',
+      body: JSON.stringify({ planId }),
     }),
   getStudentTeacherApplication: () => request<TeacherApplicationResponse | null>('/api/student/teacher-application'),
   createTeacherApplication: (payload: TeacherApplicationPayload) =>
