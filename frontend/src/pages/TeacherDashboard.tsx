@@ -16,6 +16,7 @@ import {
   LoaderCircle,
   LogOut,
   Mail,
+  Menu,
   Plus,
   Search,
   Settings,
@@ -52,6 +53,11 @@ const courseCategoryLabels: Record<string, string> = {
 }
 const getCourseLevelLabel = (level: string) => courseLevelLabels[level] ?? level
 const getCourseCategoryLabel = (category: string) => courseCategoryLabels[category] ?? category
+const formatFileSize = (bytes: number) => {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+  if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`
+  return `${Math.round(bytes / 1024)} KB`
+}
 const getPromptPayQrUrl = (promptPayId: string | undefined, amount = promptPayPreviewAmount) => {
   const normalizedId = normalizePromptPayId(promptPayId)
 
@@ -426,11 +432,6 @@ const teacherNavItems: Array<{ key: TeacherSection; to: string; label: string; i
   { key: 'messages', to: '/teacher?section=messages', label: 'ข้อความ', icon: Mail },
   { key: 'reviews', to: '/teacher?section=reviews', label: 'รีวิว', icon: Star },
 ]
-const teacherMobileNavItems: Array<{ key: TeacherSection; to: string; label: string; icon: typeof Home }> = [
-  ...teacherNavItems,
-  { key: 'profile', to: '/teacher?section=profile', label: 'การตั้งค่า', icon: Settings },
-]
-
 const studentCategoryOptions: Array<{ value: StudentCategory; label: string }> = [
   { value: 'all', label: 'รายการล่าสุด' },
   { value: 'by-course', label: 'แยกตามคอร์ส' },
@@ -449,6 +450,17 @@ function TeacherShell({
   avatarUrl?: string
   children: React.ReactNode
 }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+    const previousOverflow = document.documentElement.style.overflow
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.documentElement.style.overflow = previousOverflow
+    }
+  }, [mobileMenuOpen])
+
   const handleLogout = async () => {
     try {
       await api.logout()
@@ -465,8 +477,18 @@ function TeacherShell({
   }
 
   return (
-    <div className="min-h-screen bg-white text-black lg:pl-[280px]" style={{ minHeight: '100svh' }}>
-      <aside className="mobile-landscape-scroll fixed inset-y-0 left-0 z-40 hidden w-[280px] flex-col bg-black text-white lg:flex">
+    <div className="min-h-screen w-full overflow-x-hidden bg-white text-black lg:pl-[280px]" style={{ minHeight: '100svh' }}>
+      <button
+        type="button"
+        aria-label="ปิดเมนู"
+        className={`fixed inset-0 z-40 bg-black/40 transition-opacity lg:hidden ${
+          mobileMenuOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+        onClick={() => setMobileMenuOpen(false)}
+      />
+      <aside className={`mobile-landscape-scroll fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-black text-white transition-transform duration-300 lg:z-40 lg:w-[280px] lg:translate-x-0 ${
+        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
         <div className="landscape-compact-y flex h-20 shrink-0 items-center px-8">
           <Link to="/teacher" className="flex items-center gap-3" onClick={(event) => handleActiveLinkClick(event, activeSection === 'home')}>
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black">
@@ -474,6 +496,9 @@ function TeacherShell({
             </span>
             <span className="text-xl font-semibold tracking-tight">MyCourse</span>
           </Link>
+          <button type="button" className="ml-auto rounded-lg p-2 text-white/70 lg:hidden" aria-label="ปิดเมนู" onClick={() => setMobileMenuOpen(false)}>
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="shrink-0 space-y-2 px-5">
@@ -490,7 +515,10 @@ function TeacherShell({
                 key={`${item.label}-${item.to}`}
                 to={item.to}
                 className={navClassName}
-                onClick={(event) => handleActiveLinkClick(event, active)}
+                onClick={(event) => {
+                  handleActiveLinkClick(event, active)
+                  setMobileMenuOpen(false)
+                }}
               >
                 <Icon size={19} />
                 <span>{item.label}</span>
@@ -536,13 +564,16 @@ function TeacherShell({
       </aside>
 
       <main className="min-w-0">
-        <div className="mx-auto max-w-[1560px] px-4 py-5 sm:px-6 lg:px-8">
-          <header className="mb-6 flex h-12 items-center gap-4">
-            <Link to="/teacher" className="flex items-center gap-3 lg:hidden">
+        <div className="mx-auto w-full max-w-[1560px] px-3 py-4 sm:px-6 sm:py-5 lg:px-8">
+          <header className="mb-4 flex h-12 min-w-0 items-center gap-2 sm:mb-6 sm:gap-4">
+            <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white lg:hidden" aria-label="เปิดเมนู" onClick={() => setMobileMenuOpen(true)}>
+              <Menu size={20} />
+            </button>
+            <Link to="/teacher" className="flex min-w-0 items-center gap-2 lg:hidden">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
                 <BrandMark className="h-10 w-10" />
               </span>
-              <span className="text-lg font-semibold">MyCourse</span>
+              <span className="hidden truncate text-lg font-semibold min-[390px]:inline">MyCourse</span>
             </Link>
             <div className="ml-auto flex items-center gap-3">
               <Link
@@ -565,23 +596,6 @@ function TeacherShell({
               </Link>
             </div>
           </header>
-          <nav className="mb-6 grid grid-cols-3 gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm sm:grid-cols-6 lg:hidden">
-            {teacherMobileNavItems.map((item) => {
-              const Icon = item.icon
-              const active = item.key === activeSection
-              const mobileClassName = [
-                'inline-flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-xs font-semibold leading-4 transition sm:min-h-12 sm:flex-row sm:gap-2 sm:text-sm',
-                active ? 'border-black bg-black text-white' : 'border-zinc-200 bg-white text-black hover:border-black hover:bg-zinc-50',
-              ].join(' ')
-
-              return (
-                <Link key={`${item.label}-${item.to}-mobile`} to={item.to} className={mobileClassName}>
-                  <Icon size={16} />
-                  {item.label}
-                </Link>
-              )
-            })}
-          </nav>
           {children}
         </div>
       </main>
@@ -1389,6 +1403,98 @@ function LessonManagerModal({
   )
 }
 
+function VideoUploadPopup({
+  fileName,
+  progress,
+  speedText,
+  onClose,
+}: {
+  fileName: string
+  progress: number
+  speedText: string | null
+  onClose: () => void
+}) {
+  const processing = progress >= 92
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-3 backdrop-blur-sm sm:items-center sm:p-5">
+      <section className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="video-upload-title">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 id="video-upload-title" className="text-xl font-semibold tracking-tight text-black sm:text-2xl">
+              {processing ? 'กำลังประมวลผลวิดีโอ' : 'กำลังอัปโหลดวิดีโอ'}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              {processing
+                ? 'อัปโหลดไฟล์เสร็จแล้ว ระบบกำลังตรวจสอบและเตรียมวิดีโอสำหรับเล่นบนทุกอุปกรณ์'
+                : 'ระบบกำลังส่งวิดีโอไปยัง Cloudflare R2 โดยตรง'}
+            </p>
+          </div>
+          <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:border-black hover:text-black" onClick={onClose} aria-label="ปิด popup">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="mt-6 rounded-xl border border-zinc-200 bg-[#faf9f7] p-4">
+          <div className="flex items-center gap-4">
+            <span className="inline-flex h-14 w-20 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-black shadow-sm">
+              <Video size={25} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-black">{fileName}</p>
+              <p className="mt-1 text-xs text-zinc-500">{processing ? 'กำลังเตรียมไฟล์' : 'กำลังอัปโหลด'}</p>
+            </div>
+            <span className="text-sm font-semibold text-black">{Math.round(progress)}%</span>
+          </div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-200">
+            <span className="block h-full rounded-full bg-black transition-all duration-300" style={{ width: `${Math.min(100, progress)}%` }} />
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-zinc-600">
+            {processing ? 'กำลังประมวลผลวิดีโอ...' : `กำลังอัปโหลด ${Math.round(progress)}%${speedText ? ` · ${speedText}` : ''}`}
+          </p>
+          <button type="button" className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-200 bg-white px-5 text-sm font-semibold text-black transition hover:border-black" onClick={onClose}>
+            ปิด
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function VideoUploadErrorPopup({
+  fileSize,
+  onClose,
+}: {
+  fileSize: number
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <section className="w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="video-upload-error-title">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 id="video-upload-error-title" className="text-xl font-semibold tracking-tight text-black sm:text-2xl">ไม่สามารถอัปโหลดไฟล์</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-600">
+              ไฟล์ที่เลือกมีขนาด {formatFileSize(fileSize)} ซึ่งเกินขนาดสูงสุดของระบบ 6GB
+            </p>
+          </div>
+          <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:border-black hover:text-black" onClick={onClose} aria-label="ปิด popup">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="mt-8 flex justify-end">
+          <button type="button" className="inline-flex h-10 min-w-28 items-center justify-center rounded-lg bg-black px-6 text-sm font-semibold text-white transition hover:bg-zinc-800" onClick={onClose}>
+            ปิด
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 export default function TeacherDashboard() {
   const [searchParams] = useSearchParams()
   const requestedSection = searchParams.get('section')
@@ -1432,6 +1538,9 @@ export default function TeacherDashboard() {
   const [uploadingLessonVideo, setUploadingLessonVideo] = useState(false)
   const [lessonUploadProgress, setLessonUploadProgress] = useState<number | null>(null)
   const [lessonUploadSpeedText, setLessonUploadSpeedText] = useState<string | null>(null)
+  const [lessonUploadFileName, setLessonUploadFileName] = useState('')
+  const [showLessonUploadPopup, setShowLessonUploadPopup] = useState(false)
+  const [oversizedVideoBytes, setOversizedVideoBytes] = useState<number | null>(null)
   const [lessonVideoPreviewUrl, setLessonVideoPreviewUrl] = useState<string | null>(null)
   const [lessonVideoPosterUrl, setLessonVideoPosterUrl] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Course | null>(null)
@@ -1846,10 +1955,7 @@ export default function TeacherDashboard() {
     if (!file) return
 
     if (file.size > maxVideoUploadBytes) {
-      setLessonMessage({
-        tone: 'error',
-        text: 'วิดีโอต้องไม่เกิน 6GB',
-      })
+      setOversizedVideoBytes(file.size)
       event.target.value = ''
       return
     }
@@ -1874,6 +1980,8 @@ export default function TeacherDashboard() {
       })
 
     setUploadingLessonVideo(true)
+    setLessonUploadFileName(file.name)
+    setShowLessonUploadPopup(true)
     setLessonUploadProgress(0)
     setLessonUploadSpeedText(null)
     setLessonMessage(null)
@@ -2480,7 +2588,7 @@ export default function TeacherDashboard() {
           </section>
         ) : null}
 
-        <section className="mb-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="mb-5 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-5 xl:grid-cols-4">
           {(activeSection === 'students'
             ? [
                 {
@@ -2616,15 +2724,15 @@ export default function TeacherDashboard() {
             return (
             <div
               key={item.label}
-              className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-zinc-300 hover:shadow-md"
+              className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:border-zinc-300 hover:shadow-md sm:p-6"
             >
               <span
-                className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ring-1 ${iconTone}`}
+                className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1 sm:h-12 sm:w-12 ${iconTone}`}
               >
                 <Icon size={22} />
               </span>
-              <p className="mt-5 text-sm font-medium text-zinc-600">{item.label}</p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight text-black">{item.value}</p>
+              <p className="mt-4 truncate text-xs font-medium text-zinc-600 sm:mt-5 sm:text-sm">{item.label}</p>
+              <p className="mt-1 break-words text-2xl font-semibold tracking-tight text-black sm:mt-2 sm:text-3xl">{item.value}</p>
               <p className={item.trend ? 'mt-3 text-xs font-medium text-emerald-700' : 'mt-3 text-xs font-medium text-zinc-500'}>
                 {item.trend ? `↑ ${item.note}` : item.note}
               </p>
@@ -3341,6 +3449,19 @@ export default function TeacherDashboard() {
           onSubmit={saveLesson}
           onDelete={deleteLesson}
         />
+      ) : null}
+
+      {uploadingLessonVideo && showLessonUploadPopup ? (
+        <VideoUploadPopup
+          fileName={lessonUploadFileName}
+          progress={lessonUploadProgress ?? 0}
+          speedText={lessonUploadSpeedText}
+          onClose={() => setShowLessonUploadPopup(false)}
+        />
+      ) : null}
+
+      {oversizedVideoBytes !== null ? (
+        <VideoUploadErrorPopup fileSize={oversizedVideoBytes} onClose={() => setOversizedVideoBytes(null)} />
       ) : null}
     </>
   )
