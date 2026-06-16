@@ -24,6 +24,7 @@ interface AIChatBoxProps {
 
 const chatStoragePrefix = 'mycourse_ai_chat'
 const chatPendingPrefix = 'mycourse_ai_chat_pending'
+const chatScrollPrefix = 'mycourse_ai_chat_scroll'
 const chatUpdateEvent = 'mycourse_ai_chat_update'
 const inFlightResponses = new Map<string, Promise<Message | null>>()
 
@@ -39,6 +40,17 @@ const createWelcomeMessage = (lessonTitle: string): Message => ({
 const getChatStorageKey = (lessonId: string) => `${chatStoragePrefix}:${getChatOwnerId()}:${lessonId}`
 
 const getChatPendingKey = (lessonId: string) => `${chatPendingPrefix}:${getChatOwnerId()}:${lessonId}`
+
+const getChatScrollKey = (lessonId: string) => `${chatScrollPrefix}:${getChatOwnerId()}:${lessonId}`
+
+const getStoredScrollPosition = (lessonId: string) => {
+  const value = Number(localStorage.getItem(getChatScrollKey(lessonId)))
+  return Number.isFinite(value) && value >= 0 ? value : null
+}
+
+const storeScrollPosition = (lessonId: string, scrollTop: number) => {
+  localStorage.setItem(getChatScrollKey(lessonId), String(Math.max(0, Math.round(scrollTop))))
+}
 
 const notifyChatUpdate = (lessonId: string, messageId?: string) => {
   window.dispatchEvent(
@@ -180,8 +192,10 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
   const scrollPanelRef = useRef<HTMLDivElement | null>(null)
   const focusedAiMessageRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const restoredScrollRef = useRef(false)
 
   useEffect(() => {
+    restoredScrollRef.current = false
     setMessages(getStoredMessages(lessonId, lessonTitle))
     const pending = getPendingChat(lessonId)
     const storageKey = getChatStorageKey(lessonId)
@@ -207,6 +221,19 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
   }, [lessonId, lessonTitle])
 
   useEffect(() => {
+    const scrollPanel = scrollPanelRef.current
+    if (!scrollPanel) return
+
+    const handleScroll = () => storeScrollPosition(lessonId, scrollPanel.scrollTop)
+    scrollPanel.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      handleScroll()
+      scrollPanel.removeEventListener('scroll', handleScroll)
+    }
+  }, [lessonId])
+
+  useEffect(() => {
     const storageKey = getChatStorageKey(lessonId)
 
     const handleChatUpdate = (event: Event) => {
@@ -229,6 +256,27 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
   useEffect(() => {
     localStorage.setItem(getChatStorageKey(lessonId), JSON.stringify(messages))
   }, [lessonId, messages])
+
+  useEffect(() => {
+    if (restoredScrollRef.current) return
+
+    const scrollPanel = scrollPanelRef.current
+    if (!scrollPanel) return
+
+    restoredScrollRef.current = true
+    const storedScrollTop = getStoredScrollPosition(lessonId)
+
+    requestAnimationFrame(() => {
+      if (storedScrollTop !== null) {
+        const maxScrollTop = Math.max(0, scrollPanel.scrollHeight - scrollPanel.clientHeight)
+        const wasNearBottom = maxScrollTop - storedScrollTop < 160
+        scrollPanel.scrollTop = wasNearBottom ? maxScrollTop : Math.min(storedScrollTop, maxScrollTop)
+        return
+      }
+
+      messagesEndRef.current?.scrollIntoView({ block: 'end' })
+    })
+  }, [lessonId, messages.length])
 
   useEffect(() => {
     if (!loading) return
@@ -256,6 +304,7 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
     const welcomeMessage = createWelcomeMessage(lessonTitle)
 
     localStorage.removeItem(getChatStorageKey(lessonId))
+    localStorage.removeItem(getChatScrollKey(lessonId))
     clearPendingChat(lessonId)
     setQuestion('')
     setLoading(false)
@@ -318,7 +367,7 @@ export default function AIChatBox({ lessonId, lessonTitle, className = 'h-[560px
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black text-white">
               <Bot size={16} />
             </span>
-            <h2 className="min-w-0 truncate text-sm font-semibold text-black">AI ผู้ช่วย</h2>
+            <h2 className="min-w-0 truncate text-sm font-semibold text-black">MyCourse AI</h2>
           </div>
         ) : null}
         <button

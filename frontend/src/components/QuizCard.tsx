@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Circle, XCircle } from 'lucide-react'
 import type { QuizQuestion } from '../types/quiz'
 
@@ -15,11 +15,54 @@ interface QuizScorePayload {
 interface QuizCardProps {
   questions: QuizQuestion[]
   onSubmitScore?: (payload: QuizScorePayload) => Promise<void>
+  storageKey?: string
 }
 
-export default function QuizCard({ questions, onSubmitScore }: QuizCardProps) {
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+const getStoredQuizState = (storageKey: string | undefined, questionSignature: string) => {
+  if (!storageKey) return { answers: {}, scoreStatus: 'idle' as const }
+
+  try {
+    const raw = window.localStorage.getItem(storageKey)
+    const parsed = raw ? JSON.parse(raw) : null
+
+    if (!parsed || parsed.questionSignature !== questionSignature || typeof parsed.answers !== 'object') {
+      return { answers: {}, scoreStatus: 'idle' as const }
+    }
+
+    return {
+      answers: parsed.answers as Record<string, string>,
+      scoreStatus: parsed.scoreStatus === 'saved' ? ('saved' as const) : ('idle' as const),
+    }
+  } catch {
+    return { answers: {}, scoreStatus: 'idle' as const }
+  }
+}
+
+export default function QuizCard({ questions, onSubmitScore, storageKey }: QuizCardProps) {
+  const questionSignature = useMemo(() => questions.map((question) => question.id).join('|'), [questions])
+  const initialState = useMemo(() => getStoredQuizState(storageKey, questionSignature), [storageKey, questionSignature])
+  const [answers, setAnswers] = useState<Record<string, string>>(initialState.answers)
   const [scoreStatus, setScoreStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  useEffect(() => {
+    const nextState = getStoredQuizState(storageKey, questionSignature)
+    setAnswers(nextState.answers)
+    setScoreStatus(nextState.scoreStatus)
+  }, [questionSignature, storageKey])
+
+  useEffect(() => {
+    if (!storageKey) return
+
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        questionSignature,
+        answers,
+        scoreStatus: scoreStatus === 'saved' ? 'saved' : 'idle',
+        updatedAt: new Date().toISOString(),
+      }),
+    )
+  }, [answers, questionSignature, scoreStatus, storageKey])
 
   const correctCount = questions.filter((question) => {
     const selectedId = answers[question.id]

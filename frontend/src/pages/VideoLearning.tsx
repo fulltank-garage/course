@@ -34,7 +34,7 @@ const maxQuizGenerations = 5
 
 const tabs: Array<{ id: AITab; label: string; icon: typeof FileText }> = [
   { id: 'summary', label: 'สรุป', icon: FileText },
-  { id: 'assistant', label: 'AI \u0e1c\u0e39\u0e49\u0e0a\u0e48\u0e27\u0e22', icon: Sparkles },
+  { id: 'assistant', label: 'MyCourse AI', icon: Sparkles },
   { id: 'quiz', label: 'แบบทดสอบ', icon: HelpCircle },
 ]
 
@@ -46,6 +46,8 @@ const lessonAiCacheKey = (lessonId: string, type: 'summary' | 'quiz') => {
     ? `mycourse:lesson-ai:${type}:timeline-v2:${ownerId}:${lessonId}`
     : `mycourse:lesson-ai:${type}:v2:${ownerId}:${lessonId}`
 }
+
+const lessonQuizStateKey = (lessonId: string) => `mycourse:lesson-ai:quiz-state:v1:${getCurrentLearnerId()}:${lessonId}`
 
 interface QuizCachePayload {
   questions: QuizQuestion[] | null
@@ -386,6 +388,7 @@ export default function VideoLearning() {
       const shuffledQuestions = shuffleQuizQuestions(result.questions)
       setAiQuiz(shuffledQuestions)
       setQuizGenerationCount(nextPayload.generations)
+      window.localStorage.removeItem(lessonQuizStateKey(lesson.id))
       window.localStorage.setItem(lessonAiCacheKey(lesson.id, 'quiz'), JSON.stringify({ ...nextPayload, questions: shuffledQuestions }))
     } catch (currentError) {
       setAiError(currentError instanceof Error ? currentError.message : 'สร้างแบบทดสอบไม่สำเร็จ')
@@ -626,7 +629,7 @@ export default function VideoLearning() {
             {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
             <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 pb-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] xl:pb-4">
               {aiQuiz ? (
-                <QuizCard questions={aiQuiz} onSubmitScore={saveQuizScore} />
+                <QuizCard questions={aiQuiz} onSubmitScore={saveQuizScore} storageKey={lessonQuizStateKey(lesson.id)} />
               ) : (
                 <AiEmptyState title="ยังไม่มีแบบทดสอบของคุณ" description="กดสร้างแบบทดสอบเพื่อเริ่มชุดคำถามใหม่สำหรับบัญชีนี้ คะแนนและประวัติจะไม่ปนกับผู้ใช้อื่น" />
               )}
@@ -771,19 +774,19 @@ export default function VideoLearning() {
               <section
                 ref={mobileAiPanelRef}
                 className="mobile-ai-inline-panel mt-3 flex flex-col rounded-2xl border border-zinc-200 bg-white p-3 shadow-[0_18px_44px_rgba(15,23,42,0.10)] xl:hidden"
-                aria-label="AI Tutor"
+                aria-label="MyCourse AI"
               >
                 <div className="mobile-ai-shell-header mb-3 flex shrink-0 items-center justify-between gap-3 rounded-xl bg-[#faf9f7] px-3 py-3">
                   <div className="min-w-0">
                     <p className="mobile-ai-shell-kicker text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Mobile AI</p>
-                    <h2 className="mobile-ai-shell-title text-base font-semibold text-black">ผู้ช่วย AI ใต้คลิปวิดีโอ</h2>
+                    <h2 className="mobile-ai-shell-title text-base font-semibold text-black">MyCourse AI</h2>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <button
                       type="button"
                       className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-black transition hover:border-black"
                       onClick={() => setMobileAiOpen(false)}
-                      aria-label="ปิด AI Tutor"
+                      aria-label="ปิด MyCourse AI"
                     >
                       <X size={18} />
                     </button>
@@ -990,7 +993,7 @@ export default function VideoLearning() {
                   <Sparkles size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 className="min-w-0 text-lg font-semibold text-black">AI Tutor</h2>
+                  <h2 className="min-w-0 text-lg font-semibold text-black">MyCourse AI</h2>
                   <p className="mt-0.5 text-xs text-zinc-500">สรุป ถามตอบ และทบทวนบทนี้</p>
                 </div>
               </div>
@@ -1061,7 +1064,7 @@ export default function VideoLearning() {
                     {aiError ? <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{aiError}</p> : null}
                     <div className="ai-scroll-panel min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-200/70 bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                       {aiQuiz ? (
-                        <QuizCard questions={aiQuiz} onSubmitScore={saveQuizScore} />
+                        <QuizCard questions={aiQuiz} onSubmitScore={saveQuizScore} storageKey={lessonQuizStateKey(lesson.id)} />
                       ) : (
                         <AiEmptyState title="ยังไม่มีแบบทดสอบของคุณ" description="กดสร้างแบบทดสอบเพื่อเริ่มชุดคำถามใหม่สำหรับบัญชีนี้ คะแนนและประวัติจะไม่ปนกับผู้ใช้อื่น" />
                       )}
@@ -1120,7 +1123,7 @@ export default function VideoLearning() {
           mobileAiOpen ? 'hidden' : 'inline-flex',
         ].join(' ')}
         onClick={openMobileAi}
-        aria-label="เปิด AI Tutor"
+        aria-label="เปิด MyCourse AI"
       >
         <Sparkles size={22} />
       </button>
