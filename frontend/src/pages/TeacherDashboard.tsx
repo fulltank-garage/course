@@ -1994,12 +1994,14 @@ export default function TeacherDashboard() {
           const now = performance.now()
           const elapsedSeconds = (now - lastProgressSample.timestamp) / 1000
           const progressDelta = progress - lastProgressSample.progress
-          const uploadProgressMax = 99
+          const uploadProgressMax = 90
 
           if (elapsedSeconds >= 0.4 && progressDelta > 0 && progress <= uploadProgressMax) {
             const uploadedByteDelta = (Math.min(progressDelta, uploadProgressMax) / uploadProgressMax) * file.size
             setLessonUploadSpeedText(formatUploadSpeed(uploadedByteDelta / elapsedSeconds))
             lastProgressSample = { progress, timestamp: now }
+          } else if (progress > uploadProgressMax) {
+            setLessonUploadSpeedText(null)
           }
         },
       })

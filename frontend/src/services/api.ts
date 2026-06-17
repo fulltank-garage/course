@@ -658,12 +658,22 @@ const uploadVideoAssetToR2 = async (payload: UploadVideoAssetPayload): Promise<U
   let nextPartNumber = 1
   let lastReportedProgress = 0
   const uploadableSize = Math.max(1, payload.file.size)
+  const uploadProgressMax = 90
+  const processingProgressStart = 92
+  const processingProgressRange = 7
+
+  const reportMonotonicProgress = (progress: number) => {
+    lastReportedProgress = Math.max(lastReportedProgress, Math.min(100, Math.max(1, progress)))
+    payload.onProgress?.(lastReportedProgress)
+  }
 
   const reportProgress = () => {
     const uploadedBytes = Array.from(partProgress.values()).reduce((total, loaded) => total + loaded, 0)
-    const progress = Math.min(98, Math.max(1, Math.round((uploadedBytes / uploadableSize) * 98)))
-    lastReportedProgress = Math.max(lastReportedProgress, progress)
-    payload.onProgress?.(lastReportedProgress)
+    const progress = Math.min(
+      uploadProgressMax,
+      Math.max(1, Math.round((uploadedBytes / uploadableSize) * uploadProgressMax)),
+    )
+    reportMonotonicProgress(progress)
   }
 
   const uploadNextPart = async () => {
@@ -694,12 +704,12 @@ const uploadVideoAssetToR2 = async (payload: UploadVideoAssetPayload): Promise<U
     }
   }
 
-  payload.onProgress?.(1)
+  reportMonotonicProgress(1)
 
   try {
     const workerCount = Math.min(R2_VIDEO_UPLOAD_CONCURRENCY, totalParts)
     await Promise.all(Array.from({ length: workerCount }, () => uploadNextPart()))
-    payload.onProgress?.(99)
+    reportMonotonicProgress(processingProgressStart)
 
     const completedUpload = await request<UploadAssetResponse>('/api/uploads/r2/multipart/complete', {
       method: 'POST',
@@ -718,8 +728,17 @@ const uploadVideoAssetToR2 = async (payload: UploadVideoAssetPayload): Promise<U
       }),
     })
 
-    payload.onProgress?.(99)
-    return pollVideoUploadStatus(startedProcessing.uploadId, payload.onProgress)
+    reportMonotonicProgress(processingProgressStart)
+    return pollVideoUploadStatus(startedProcessing.uploadId, (progress) => {
+      if (progress >= 100) {
+        reportMonotonicProgress(100)
+        return
+      }
+
+      const normalizedProcessingProgress =
+        processingProgressStart + Math.round((Math.min(99, Math.max(1, progress)) / 100) * processingProgressRange)
+      reportMonotonicProgress(Math.min(99, normalizedProcessingProgress))
+    })
   } catch (error) {
     await request<{ ok: boolean }>('/api/uploads/r2/multipart/abort', {
       method: 'POST',
